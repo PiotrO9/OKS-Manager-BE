@@ -1,15 +1,12 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
-
 import dotenv from 'dotenv';
+
+import { getPrisma } from './lib/prisma';
+import uploadRouter from './routes/upload';
 
 dotenv.config();
 
-const adapter = new PrismaBetterSqlite3({
-	url: process.env.DATABASE_URL || 'file:./dev.db',
-});
-const prisma = new PrismaClient({ adapter });
+const prisma = getPrisma();
 
 function createApp() {
 	const app = express();
@@ -30,6 +27,8 @@ function createApp() {
 		const user = await prisma.user.create({ data: { email, name } });
 		res.status(201).json(user);
 	});
+
+	app.use('/upload', uploadRouter);
 
 	return app;
 }

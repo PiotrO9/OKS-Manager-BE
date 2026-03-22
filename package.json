@@ -12,11 +12,13 @@
     "prisma:studio": "prisma studio",
     "lint": "eslint --ext .ts,.js src",
     "lint:fix": "eslint --ext .ts,.js src --fix",
-    "format": "prettier --write \"src/**/*.ts\""
+    "format": "prettier --write \"src/**/*.ts\"",
+    "migrate:sqlite-to-postgres": "ts-node-dev --respawn --transpile-only scripts/migrate-sqlite-to-postgres.ts"
   },
   "dependencies": {
-    "@prisma/adapter-better-sqlite3": "^7.5.0",
     "@prisma/client": "^7.5.0",
+    "pg": "^8.11.2",
+    "@supabase/supabase-js": "^2.27.0",
     "dotenv": "^17.3.1",
     "express": "^5.2.1"
   },

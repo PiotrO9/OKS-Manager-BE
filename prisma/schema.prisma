@@ -3,13 +3,14 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  // url removed: connection config should be provided via prisma.config.ts or PrismaClient constructor
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  email      String   @unique
+  name       String?
+  supabaseId String?  @unique
+  createdAt  DateTime @default(now())
 }
