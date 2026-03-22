@@ -8,8 +8,6 @@ dist/
 .env
 
 # Prisma
-prisma/migrations/
-prisma/dev.db
 @dev.db
 
 # Editor

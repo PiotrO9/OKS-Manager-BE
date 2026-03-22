@@ -1,27 +1,50 @@
-# OSK Manager - Backend
+# OSK Manager BE
 
-Prosty szkielet backendu z Express i Prisma (SQLite).
+Instrukcja minimalnej konfiguracji aby uruchomić aplikację z Prisma + Supabase Postgres
 
-Instrukcja uruchomienia:
+Uwaga: Ten projekt został przystosowany do używania Supabase Postgres jako jedynej bazy danych. Lokalne SQLite (dev.db) i skrypty migracji SQLite zostały usunięte.
 
-1. Zainstaluj zależności:
+1. Skopiuj `.env.example` do `.env` i uzupełnij wartości:
 
-    npm install
+```env
+DATABASE_URL="postgresql://<db_user>:<db_pass>@<db_host>:5432/postgres?sslmode=require"
+SUPABASE_URL="https://<your-project>.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="<service-role-key>"
+SUPABASE_ANON_KEY="<anon-key>"
+PORT=3001
+NODE_ENV=development
+```
 
-2. Wygeneruj klienta Prisma:
+2. Zainstaluj zależności:
 
-    npx prisma generate
+```bash
+npm install
+```
 
-3. Utwórz migrację i bazę danych (opcjonalne):
+3. Wygeneruj klienta Prisma:
 
-    npx prisma migrate dev --name init
+```bash
+npx prisma generate
+```
 
-4. Uruchom w trybie deweloperskim:
+4. Wdróż schemę do bazy (szybki sposób):
 
-    npm run dev
+```bash
+npx prisma db push
+```
 
-API:
+5. Uruchom aplikację w trybie deweloperskim:
 
-- GET / -> powitanie
-- GET /users -> lista użytkowników
-- POST /users -> utwórz użytkownika { email, name }
+```bash
+npm run dev
+```
+
+6. Testy:
+- GET /test — powinien zwrócić prosty komunikat.
+- GET /db-test — test połączenia z bazą i pobranie próbki użytkownika.
+
+Uwagi:
+- Nie commituj prawdziwych kluczy do repo.
+- Upewnij się, że `DATABASE_URL` jest connection stringiem do Supabase Postgres.
+- Service Role Key przechowuj tylko na backendzie.
+- Jeśli chcesz przywrócić migracje SQLite lub narzędzia migracji, powiadom mnie — mogę pomóc przywrócić je w bezpieczny sposób.

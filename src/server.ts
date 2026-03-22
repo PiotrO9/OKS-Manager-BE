@@ -1,10 +1,6 @@
+import 'dotenv/config';
 import express from 'express';
-import dotenv from 'dotenv';
-
 import { getPrisma } from './lib/prisma';
-import uploadRouter from './routes/upload';
-
-dotenv.config();
 
 const prisma = getPrisma();
 
@@ -12,23 +8,26 @@ function createApp() {
 	const app = express();
 	app.use(express.json());
 
-	app.get('/', async (req, res) => {
-		res.json({ message: 'OSK Manager API' });
+	app.get('/test', async (req, res) => {
+		res.json({ message: 'OSK Manager API - test endpoint' });
 	});
 
-	app.get('/users', async (req, res) => {
-		const users = await prisma.user.findMany();
-		res.json(users);
+	app.get('/db-test', async (req, res) => {
+		try {
+			// próbujemy połączyć się z bazą i pobrać przykładowy rekord
+			await prisma.$connect();
+			const users = await prisma.user.findMany({ take: 1 });
+			return res.json({
+				ok: true,
+				usersCount: users.length,
+				sample: users[0] || null,
+			});
+		} catch (err) {
+			// eslint-disable-next-line no-console
+			console.error('DB test error', err);
+			return res.status(500).json({ ok: false, error: String(err) });
+		}
 	});
-
-	app.post('/users', async (req, res) => {
-		const { email, name } = req.body;
-		if (!email) return res.status(400).json({ error: 'email is required' });
-		const user = await prisma.user.create({ data: { email, name } });
-		res.status(201).json(user);
-	});
-
-	app.use('/upload', uploadRouter);
 
 	return app;
 }
