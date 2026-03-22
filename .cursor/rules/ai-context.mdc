@@ -1,0 +1,45 @@
+---
+description: "AI context - dołączaj zawartość plików z katalogu context/ do każdej wiadomości"
+alwaysApply: true
+---
+
+# AI Context — pliki z katalogu `context/`
+
+Ten plik reguły instruuje agenta Cursor, aby dołączał skompilowaną zawartość wszystkich plików znajdujących się w katalogu `context/` do kontekstu każdej wiadomości w sesji. Reguła ma ustawione `alwaysApply: true`, więc jest stosowana niezależnie od otwieranych plików.
+
+Co robi ta reguła:
+
+- Automatycznie kompiluje i dołącza zawartość wszystkich plików markdown w `context/` (np. `ai-instructions.md`, `backend-rules.md`, `business-rules.md`, itp.).
+- Zapewnia, że agent zawsze zna najważniejsze wytyczne projektowe, reguły biznesowe, konwencje nazewnictwa i wytyczne API zawarte w tych plikach.
+- Nie zastępuje szczegółowego czytania konkretnych plików — nadal możesz otwierać pojedyncze pliki z `context/` w edytorze, a agent będzie je uwzględniał.
+
+Jak aktualizować kontekst:
+
+1. Edytuj lub dodaj plik(y) w katalogu `context/` jako zwykłe pliki markdown (`*.md`).
+2. Nazwy plików powinny być opisowe, np. `backend-rules.md`, `api-guidelines.md`.
+3. Zmiany zostaną użyte przy następnej wiadomości / sesji agenta — nie ma potrzeby edytowania tego pliku reguły po dodaniu nowego pliku z kontekstem.
+
+Zalecenia dla zawartości `context/`:
+
+- Trzymaj każdy plik zwięzły i skoncentrowany na jednej dziedzinie (np. "backend-rules").
+- Używaj jasnej struktury (nagłówki, listy) — ułatwia to automatyczną integrację do kontekstu.
+- Unikaj wrażliwych danych; reguła ma służyć jako dokumentacja i wytyczne, nie magazyn sekretów.
+
+Przykład (w skrócie):
+
+--- ai-instructions.md ---
+# AI INSTRUCTIONS (Cursor)
+
+- Pracuj z Prisma + TypeScript + Express
+- Waliduj wszystkie reguły biznesowe
+- Priorytet: booking, availability, payments
+
+--- backend-rules.md ---
+# BACKEND RULES
+
+- Brak podwójnego bookowania
+- Używaj transakcji przy tworzeniu/rezrwacji lekcji
+
+---
+
+Jeżeli chcesz, mogę rozszerzyć treść tego pliku o dodatkowe instrukcje (np. wzorzec plików, lista ignorowanych plików) — potwierdź, a wprowadzę zmiany.
