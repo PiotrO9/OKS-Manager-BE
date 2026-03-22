@@ -6,10 +6,354 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  STUDENT
+  INSTRUCTOR
+  MANAGER
+  ADMIN
+}
+
+enum LessonType {
+  THEORY
+  PRACTICE
+}
+
+enum LessonStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentPlanType {
+  FULL
+  INSTALLMENTS
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+// NOTE: DB-level constraints (EXCLUDE, CHECK) must be added as raw SQL migrations.
+// See context/db_constraints.md for recommended SQL snippets.
+
 model User {
-  id         Int      @id @default(autoincrement())
-  email      String   @unique
-  name       String?
-  supabaseId String?  @unique
-  createdAt  DateTime @default(now())
+  id                  String   @id @default(uuid()) @db.Uuid @map("id")
+  firstName           String   @map("first_name")
+  lastName            String   @map("last_name")
+  email               String   @unique @map("email")
+  phone               String?  @map("phone")
+  role                Role     @map("role")
+  isActive            Boolean  @default(true) @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime? @map("updated_at")
+  deletedAt           DateTime? @map("deleted_at")
+
+  settings            UserSettings?
+  profile             UserProfile?
+  instructorProfile   InstructorProfile?
+  studentProfile      StudentProfile?
+  drivingSchoolsOwned DrivingSchool[] @relation("OwnerDrivingSchools")
+
+  @@map("users")
+  @@index([role], name: "idx_users_role")
+}
+
+model UserSettings {
+  id        String   @id @default(uuid()) @db.Uuid @map("id")
+  userId    String   @unique @db.Uuid @map("user_id")
+  themeMode String?  @default("light") @map("theme_mode")
+  language  String?  @default("pl")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime? @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model UserProfile {
+  id        String   @id @default(uuid()) @db.Uuid @map("id")
+  userId    String   @unique @db.Uuid @map("user_id")
+  avatarUrl String?  @map("avatar_url")
+  bio       String?  @map("bio")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model DrivingSchool {
+  id                   String                @id @default(uuid()) @db.Uuid @map("id")
+  name                 String                @map("name")
+  city                 String?               @map("city")
+  address              String?               @map("address")
+  ownerId              String                @db.Uuid @map("owner_id")
+  createdAt            DateTime              @default(now()) @map("created_at")
+
+  owner                User                  @relation("OwnerDrivingSchools", fields: [ownerId], references: [id])
+  settings             SchoolSettings?
+  vehicles             Vehicle[]
+  courses              Course[]
+  instructorSchools    InstructorSchool[]
+  studentSchools       StudentSchool[]
+  instructorTimeBlocks InstructorTimeBlock[]
+
+  @@map("driving_schools")
+}
+
+model SchoolSettings {
+  id                         String   @id @default(uuid()) @db.Uuid @map("id")
+  schoolId                   String   @unique @db.Uuid @map("school_id")
+  workingDaysMask            Int      @default(62) @map("working_days_mask")
+  workingHoursStart          DateTime @db.Time @default(dbgenerated("'08:00'::time")) @map("working_hours_start")
+  workingHoursEnd            DateTime @db.Time @default(dbgenerated("'18:00'::time")) @map("working_hours_end")
+  slotDurationMinutes        Int      @default(60) @map("slot_duration_minutes")
+  slotMustStartFullHour      Boolean  @default(true) @map("slot_must_start_full_hour")
+  practiceMinDurationMinutes Int      @default(60) @map("practice_min_duration_minutes")
+  practiceMaxDurationMinutes Int      @default(120) @map("practice_max_duration_minutes")
+  theoryMinDurationMinutes   Int      @default(45) @map("theory_min_duration_minutes")
+  theoryMaxDurationMinutes   Int      @default(90) @map("theory_max_duration_minutes")
+  bookingMaxDaysAhead        Int      @default(30) @map("booking_max_days_ahead")
+  createdAt                  DateTime @default(now()) @map("created_at")
+  updatedAt                  DateTime? @map("updated_at")
+
+  school DrivingSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@map("school_settings")
+}
+
+model InstructorProfile {
+  id                  String                        @id @default(uuid()) @db.Uuid @map("id")
+  userId              String                        @unique @db.Uuid @map("user_id")
+  licenseNumber       String                        @map("license_number")
+  experienceYears     Int?                          @map("experience_years")
+  createdAt           DateTime                      @default(now()) @map("created_at")
+
+  user                User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instructorSchools   InstructorSchool[]
+  workingHoursDefault InstructorWorkingHoursDefault[]
+  workingHours        InstructorWorkingHours[]
+  timeBlocks          InstructorTimeBlock[]
+  leaves              InstructorLeave[]
+  lessons             Lesson[] @relation("InstructorLessons")
+  lessonRatings       LessonRating[] @relation("InstructorLessonRatings")
+
+  @@map("instructor_profiles")
+}
+
+model StudentProfile {
+  id            String              @id @default(uuid()) @db.Uuid @map("id")
+  userId        String              @unique @db.Uuid @map("user_id")
+  pesel         String?             @unique @map("pesel")
+  createdAt     DateTime            @default(now()) @map("created_at")
+
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentSchools StudentSchool[]
+  courses       Course[]
+  lessons       Lesson[]            @relation("StudentLessons")
+  lessonRatings LessonRating[]      @relation("StudentLessonRatings")
+
+  @@map("student_profiles")
+}
+
+model InstructorSchool {
+  id           String   @id @default(uuid()) @db.Uuid @map("id")
+  instructorId String   @db.Uuid @map("instructor_id")
+  schoolId     String   @db.Uuid @map("school_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  instructor   InstructorProfile @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  school       DrivingSchool     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([instructorId, schoolId], name: "uq_instructor_schools_instructor_id_school_id")
+  @@map("instructor_schools")
+}
+
+model StudentSchool {
+  id        String   @id @default(uuid()) @db.Uuid @map("id")
+  studentId String   @db.Uuid @map("student_id")
+  schoolId  String   @db.Uuid @map("school_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  school  DrivingSchool  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, schoolId], name: "uq_student_schools_student_id_school_id")
+  @@map("student_schools")
+}
+
+model Vehicle {
+  id          String   @id @default(uuid()) @db.Uuid @map("id")
+  schoolId    String   @db.Uuid @map("school_id")
+  brand       String?  @map("brand")
+  model       String?  @map("model")
+  plateNumber String?  @unique @map("plate_number")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  school  DrivingSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  lessons Lesson[] @relation("VehicleLessons")
+
+  @@map("vehicles")
+}
+
+model CourseType {
+  id        String   @id @default(uuid()) @db.Uuid @map("id")
+  code      String   @unique @map("code")
+  name      String   @map("name")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  courses   Course[]
+
+  @@map("course_types")
+}
+
+model Course {
+  id            String          @id @default(uuid()) @db.Uuid @map("id")
+  studentId     String          @db.Uuid @map("student_id")
+  schoolId      String          @db.Uuid @map("school_id")
+  courseTypeId  String          @db.Uuid @map("course_type_id")
+  totalHours    Int             @map("total_hours")
+  status        String          @default("active") @map("status")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  deletedAt     DateTime?       @map("deleted_at")
+
+  studentProfile StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  school         DrivingSchool  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  courseType     CourseType     @relation(fields: [courseTypeId], references: [id])
+
+  paymentPlans   PaymentPlan[]
+  lessons        Lesson[]
+
+  @@map("courses")
+}
+
+model Lesson {
+  id                 String       @id @default(uuid()) @db.Uuid @map("id")
+  courseId           String       @db.Uuid @map("course_id")
+  studentId          String       @db.Uuid @map("student_id")
+  instructorId       String       @db.Uuid @map("instructor_id")
+  vehicleId          String?      @db.Uuid @map("vehicle_id")
+  lessonType         LessonType   @map("lesson_type")
+  startTime          DateTime     @map("start_time")
+  endTime            DateTime     @map("end_time")
+  status             LessonStatus @default(SCHEDULED) @map("status")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  deletedAt          DateTime?    @map("deleted_at")
+
+  course             Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  studentProfile     StudentProfile  @relation("StudentLessons", fields: [studentId], references: [id])
+  instructorProfile  InstructorProfile @relation("InstructorLessons", fields: [instructorId], references: [id])
+  vehicle            Vehicle?         @relation("VehicleLessons", fields: [vehicleId], references: [id])
+  lessonRating       LessonRating?    @relation("LessonToRating")
+
+  @@index([instructorId, startTime], name: "idx_lessons_instructor_id_start_time")
+  @@index([vehicleId, startTime], name: "idx_lessons_vehicle_id_start_time")
+  @@index([studentId, startTime], name: "idx_lessons_student_id_start_time")
+  @@map("lessons")
+}
+
+model InstructorWorkingHoursDefault {
+  id           String   @id @default(uuid()) @db.Uuid @map("id")
+  instructorId String   @db.Uuid @map("instructor_id")
+  dayOfWeek    Int      @map("day_of_week")
+  startTime    DateTime @db.Time @map("start_time")
+  endTime      DateTime @db.Time @map("end_time")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  instructor   InstructorProfile @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@map("instructor_working_hours_default")
+}
+
+model InstructorWorkingHours {
+  id           String   @id @default(uuid()) @db.Uuid @map("id")
+  instructorId String   @db.Uuid @map("instructor_id")
+  date         DateTime @db.Date @map("date")
+  startTime    DateTime?  @db.Time @map("start_time")
+  endTime      DateTime?  @db.Time @map("end_time")
+  isDayOff     Boolean  @default(false) @map("is_day_off")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  instructor InstructorProfile @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@unique([instructorId, date], name: "uq_instructor_working_hours_instructor_id_date")
+  @@map("instructor_working_hours")
+}
+
+model InstructorTimeBlock {
+  id           String   @id @default(uuid()) @db.Uuid @map("id")
+  instructorId String   @db.Uuid @map("instructor_id")
+  schoolId     String?  @db.Uuid @map("school_id")
+  startTime    DateTime @map("start_time")
+  endTime      DateTime @map("end_time")
+  type         String   @map("type")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  instructor   InstructorProfile @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  school       DrivingSchool?    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@map("instructor_time_blocks")
+}
+
+model InstructorLeave {
+  id           String   @id @default(uuid()) @db.Uuid @map("id")
+  instructorId String   @db.Uuid @map("instructor_id")
+  startDate    DateTime @db.Date @map("start_date")
+  endDate      DateTime @db.Date @map("end_date")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  instructor   InstructorProfile @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@map("instructor_leaves")
+}
+
+model PaymentPlan {
+  id                   String   @id @default(uuid()) @db.Uuid @map("id")
+  courseId             String   @db.Uuid @map("course_id")
+  totalAmount          Decimal  @map("total_amount")
+  currency             String   @default("PLN")
+  type                 PaymentPlanType @map("type")
+  numberOfInstallments Int?     @map("number_of_installments")
+  status               String   @default("active") @map("status")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@map("payment_plans")
+}
+
+model Payment {
+  id            String   @id @default(uuid()) @db.Uuid @map("id")
+  paymentPlanId String   @db.Uuid @map("payment_plan_id")
+  amount        Decimal  @map("amount")
+  dueDate       DateTime?  @db.Date @map("due_date")
+  paidAt        DateTime? @map("paid_at")
+  status        PaymentStatus @default(PENDING) @map("status")
+  method        String?  @map("method")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  paymentPlan PaymentPlan @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
+
+  @@index([paymentPlanId, status], name: "idx_payments_payment_plan_id_status")
+  @@map("payments")
+}
+
+model LessonRating {
+  id           String   @id @default(uuid()) @db.Uuid @map("id")
+  lessonId     String   @unique @db.Uuid @map("lesson_id")
+  studentId    String   @db.Uuid @map("student_id")
+  instructorId String   @db.Uuid @map("instructor_id")
+  rating       Int      @map("rating")
+  comment      String?  @map("comment")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  lesson      Lesson          @relation("LessonToRating", fields: [lessonId], references: [id], onDelete: Cascade)
+  student     StudentProfile  @relation("StudentLessonRatings", fields: [studentId], references: [id])
+  instructor  InstructorProfile @relation("InstructorLessonRatings", fields: [instructorId], references: [id])
+
+  @@map("lesson_ratings")
 }
