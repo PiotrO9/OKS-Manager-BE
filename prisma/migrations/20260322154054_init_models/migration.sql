@@ -425,17 +425,21 @@ ALTER TABLE "lessons"
   ADD CONSTRAINT "lessons_start_before_end" CHECK (start_time < end_time),
   ADD CONSTRAINT "practice_requires_vehicle" CHECK ((lesson_type <> 'PRACTICE') OR (vehicle_id IS NOT NULL));
 
--- EXCLUDE constraints to prevent overlapping lessons for the same instructor and same vehicle
+-- Add generated tsrange column to avoid using functions in index expressions (start_time is TIMESTAMP)
+ALTER TABLE "lessons"
+  ADD COLUMN "time_range" tsrange GENERATED ALWAYS AS (tsrange(start_time, end_time)) STORED;
+
+-- EXCLUDE constraints to prevent overlapping lessons for the same instructor and same vehicle (use stored range column)
 ALTER TABLE "lessons"
   ADD CONSTRAINT "no_instructor_overlap" EXCLUDE USING GIST (
     instructor_id WITH =,
-    tstzrange(start_time, end_time) WITH &&
+    time_range WITH &&
   );
 
 ALTER TABLE "lessons"
   ADD CONSTRAINT "no_vehicle_overlap" EXCLUDE USING GIST (
     vehicle_id WITH =,
-    tstzrange(start_time, end_time) WITH &&
+    time_range WITH &&
   );
 
 -- Partial unique index for soft-delete-aware unique email (keeps behavior when deleted_at IS NULL)
