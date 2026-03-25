@@ -1,18 +1,14 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+function getSupabaseClient() {
+  const url = process.env.SUPABASE_URL as string
+  const key = process.env.SUPABASE_ANON_KEY as string
 
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-	if (process.env.NODE_ENV !== 'test') {
-		// eslint-disable-next-line no-console
-		console.warn(
-			'Warning: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set',
-		);
-	}
+  if (!url || !key) {
+    throw new Error('Missing SUPABASE_URL or SUPABASE_ANON_KEY')
+  }
+
+  return createClient(url, key)
 }
 
-export const supabaseServerClient = createClient(
-	supabaseUrl || '',
-	supabaseServiceRoleKey || '',
-);
+export { getSupabaseClient }
