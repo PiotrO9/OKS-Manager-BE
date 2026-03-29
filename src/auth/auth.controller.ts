@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { sendJsonError, sendJsonSuccess } from '../lib/apiResponse';
 import { getSupabaseClient } from '../lib/supabase';
 
 type RegisterBody = {
@@ -15,7 +16,7 @@ async function register(req: Request, res: Response) {
 	const { email, password }: RegisterBody = req.body;
 
 	if (!email || !password) {
-		return res.status(400).json({ error: 'Email and password required' });
+		return sendJsonError(res, 'Email and password required', 400);
 	}
 
 	const supabase = getSupabaseClient();
@@ -26,10 +27,10 @@ async function register(req: Request, res: Response) {
 	});
 
 	if (error) {
-		return res.status(400).json({ error: error.message });
+		return sendJsonError(res, error.message, 400);
 	}
 
-	return res.json({
+	return sendJsonSuccess(res, {
 		user: data.user,
 		session: data.session,
 	});
@@ -39,7 +40,7 @@ async function login(req: Request, res: Response) {
 	const { email, password }: LoginBody = req.body;
 
 	if (!email || !password) {
-		return res.status(400).json({ error: 'Email and password required' });
+		return sendJsonError(res, 'Email and password required', 400);
 	}
 
 	const supabase = getSupabaseClient();
@@ -50,14 +51,14 @@ async function login(req: Request, res: Response) {
 	});
 
 	if (error) {
-		return res.status(401).json({ error: error.message });
+		return sendJsonError(res, error.message, 401);
 	}
 
 	const accessToken = data.session?.access_token;
 	const refreshToken = data.session?.refresh_token;
 
 	if (!accessToken || !refreshToken) {
-		return res.status(500).json({ error: 'Invalid auth session returned' });
+		return sendJsonError(res, 'Invalid auth session returned', 500);
 	}
 
 	res.cookie('refresh_token', refreshToken, {
@@ -65,49 +66,49 @@ async function login(req: Request, res: Response) {
 		secure: process.env.NODE_ENV === 'production',
 		sameSite: 'strict',
 		path: '/auth/refresh',
-		maxAge: 1000 * 60 * 60 * 24 * 30
+		maxAge: 1000 * 60 * 60 * 24 * 30,
 	});
 
-	return res.json({
+	return sendJsonSuccess(res, {
 		user: data.user,
-		access_token: accessToken
+		access_token: accessToken,
 	});
 }
 
 async function refresh(req: Request, res: Response) {
-  const refreshToken = (req as any).cookies?.refresh_token
+	const refreshToken = (req as any).cookies?.refresh_token;
 
-  if (!refreshToken) {
-    return res.status(401).json({ error: 'Missing refresh token cookie' })
-  }
+	if (!refreshToken) {
+		return sendJsonError(res, 'Missing refresh token cookie', 401);
+	}
 
-  const supabase = getSupabaseClient()
+	const supabase = getSupabaseClient();
 
-  const { data, error } = await supabase.auth.refreshSession({
-    refresh_token: refreshToken
-  })
+	const { data, error } = await supabase.auth.refreshSession({
+		refresh_token: refreshToken,
+	});
 
-  if (error) {
-    return res.status(401).json({ error: error.message })
-  }
+	if (error) {
+		return sendJsonError(res, error.message, 401);
+	}
 
-  const accessToken = data.session?.access_token
+	const accessToken = data.session?.access_token;
 
-  if (!accessToken) {
-    return res.status(500).json({ error: 'Failed to refresh session' })
-  }
+	if (!accessToken) {
+		return sendJsonError(res, 'Failed to refresh session', 500);
+	}
 
-  return res.json({
-    access_token: accessToken
-  })
+	return sendJsonSuccess(res, {
+		access_token: accessToken,
+	});
 }
 
 async function logout(req: Request, res: Response) {
-  res.clearCookie('refresh_token', {
-    path: '/auth/refresh'
-  })
+	res.clearCookie('refresh_token', {
+		path: '/auth/refresh',
+	});
 
-  return res.json({ success: true })
+	return sendJsonSuccess(res);
 }
 
 export { register, login, refresh, logout };

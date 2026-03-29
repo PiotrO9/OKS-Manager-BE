@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { sendJsonError } from '../lib/apiResponse';
 import { getPrisma } from '../lib/prisma';
 import { getSupabaseClient } from '../lib/supabase';
 
@@ -17,13 +18,15 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
 	const token = extractBearerToken(req.headers.authorization);
 
 	if (!token) {
-		return res
-			.status(401)
-			.json({ error: 'Missing or invalid authorization header' });
+		return sendJsonError(
+			res,
+			'Missing or invalid authorization header',
+			401,
+		);
 	}
 
 	if (token.split('.').length !== 3) {
-		return res.status(401).json({ error: 'Invalid token format' });
+		return sendJsonError(res, 'Invalid token format', 401);
 	}
 
 	try {
@@ -31,8 +34,11 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
 		const { data, error } = await supabase.auth.getUser(token);
 
 		if (error || !data.user) {
-			console.error('Supabase getUser error:', error?.message ?? 'no user');
-			return res.status(401).json({ error: 'Invalid or expired token' });
+			console.error(
+				'Supabase getUser error:',
+				error?.message ?? 'no user',
+			);
+			return sendJsonError(res, 'Invalid or expired token', 401);
 		}
 
 		const userId = data.user.id;
@@ -42,7 +48,7 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
 		});
 
 		if (!dbUser) {
-			return res.status(401).json({ error: 'User not found in DB' });
+			return sendJsonError(res, 'User not found in DB', 401);
 		}
 
 		(req as any).user = dbUser;
@@ -50,7 +56,7 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
 		next();
 	} catch (err) {
 		console.error('Auth middleware error:', err);
-		return res.status(401).json({ error: 'Invalid or expired token' });
+		return sendJsonError(res, 'Invalid or expired token', 401);
 	}
 }
 
@@ -66,13 +72,13 @@ function requireRole(roles: string | string[]) {
 		const user = (req as any).user;
 
 		if (!user) {
-			return res.status(401).json({ error: 'Unauthorized' });
+			return sendJsonError(res, 'Unauthorized', 401);
 		}
 
 		const allowedRoles = Array.isArray(roles) ? roles : [roles];
 
 		if (!allowedRoles.includes(user.role)) {
-			return res.status(403).json({ error: 'Forbidden' });
+			return sendJsonError(res, 'Forbidden', 403);
 		}
 
 		next();
@@ -84,20 +90,18 @@ function requireMinRole(minRole: string) {
 		const user = (req as any).user;
 
 		if (!user) {
-			return res.status(401).json({ error: 'Unauthorized' });
+			return sendJsonError(res, 'Unauthorized', 401);
 		}
 
 		const userLevel = ROLE_HIERARCHY[user.role];
 		const requiredLevel = ROLE_HIERARCHY[minRole];
 
 		if (!userLevel || !requiredLevel) {
-			return res
-				.status(500)
-				.json({ error: 'Role hierarchy misconfigured' });
+			return sendJsonError(res, 'Role hierarchy misconfigured', 500);
 		}
 
 		if (userLevel < requiredLevel) {
-			return res.status(403).json({ error: 'Forbidden' });
+			return sendJsonError(res, 'Forbidden', 403);
 		}
 
 		next();

@@ -9,7 +9,9 @@ function createPrismaClient(): PrismaClient {
 	const connectionString = process.env.DATABASE_URL || '';
 	if (!connectionString && process.env.NODE_ENV !== 'test') {
 		// eslint-disable-next-line no-console
-		console.warn('Warning: DATABASE_URL is not set — Prisma client may fail to connect');
+		console.warn(
+			'Warning: DATABASE_URL is not set — Prisma client may fail to connect',
+		);
 	}
 
 	// Prisma 7 requires a driver adapter (e.g. @prisma/adapter-pg for PostgreSQL).
@@ -22,9 +24,11 @@ function createPrismaClient(): PrismaClient {
 	} catch (err) {
 		// eslint-disable-next-line no-console
 		console.warn(
-			"Prisma adapter @prisma/adapter-pg not installed or failed to load. Falling back to default PrismaClient().",
+			'Prisma adapter @prisma/adapter-pg not installed or failed to load. Falling back to default PrismaClient().',
 		);
-		console.warn('Install adapter for full PostgreSQL support: npm install @prisma/adapter-pg');
+		console.warn(
+			'Install adapter for full PostgreSQL support: npm install @prisma/adapter-pg',
+		);
 		return new PrismaClient();
 	}
 }

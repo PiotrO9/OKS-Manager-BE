@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import { sendJsonError, sendJsonSuccess } from './lib/apiResponse';
 import { getPrisma } from './lib/prisma';
 import { createAuthRouter } from './auth/auth.routes';
 
@@ -14,21 +15,22 @@ function createApp() {
 	app.use('/auth', createAuthRouter());
 
 	app.get('/test', async (req, res) => {
-		res.json({ message: 'OSK Manager API - test endpoint' });
+		return sendJsonSuccess(res, {
+			message: 'OSK Manager API - test endpoint',
+		});
 	});
 
 	app.get('/db-test', async (req, res) => {
 		try {
 			await prisma.$connect();
 			const users = await prisma.user.findMany({ take: 1 });
-			return res.json({
-				ok: true,
+			return sendJsonSuccess(res, {
 				usersCount: users.length,
 				sample: users[0] || null,
 			});
 		} catch (err) {
 			console.error('DB test error', err);
-			return res.status(500).json({ ok: false, error: String(err) });
+			return sendJsonError(res, String(err), 500);
 		}
 	});
 
