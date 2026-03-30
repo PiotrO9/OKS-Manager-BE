@@ -272,13 +272,50 @@ async function login(req: Request, res: Response) {
 		return sendJsonError(res, 'Invalid auth session returned', 500);
 	}
 
+	const authUserId = data.user?.id;
+	if (!authUserId) {
+		return sendJsonError(res, 'Invalid auth session returned', 500);
+	}
+
+	const prisma = getPrisma();
+	const dbUser = await prisma.user.findUnique({
+		where: { id: authUserId },
+	});
+
+	if (!dbUser) {
+		return sendJsonError(
+			res,
+			'User profile not found. Complete registration or contact support.',
+			403,
+		);
+	}
+
+	if (dbUser.deletedAt != null) {
+		return sendJsonError(res, 'Account is no longer available', 403);
+	}
+
+	if (!dbUser.isActive) {
+		return sendJsonError(res, 'Account is disabled', 403);
+	}
+
+	if (!dbUser.role) {
+		return sendJsonError(res, 'User account is misconfigured', 500);
+	}
+
 	res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
 		...getRefreshTokenCookieOptions(),
 		maxAge: REFRESH_TOKEN_MAX_AGE_MS,
 	});
 
 	return sendJsonSuccess(res, {
-		user: data.user,
+		user: {
+			id: dbUser.id,
+			email: dbUser.email,
+			firstName: dbUser.firstName,
+			lastName: dbUser.lastName,
+			role: dbUser.role,
+			phone: dbUser.phone,
+		},
 		access_token: accessToken,
 	});
 }
@@ -331,7 +368,10 @@ async function logout(req: Request, res: Response) {
 			if (!error && data.session) {
 				const { error: signOutError } = await supabase.auth.signOut();
 				if (signOutError) {
-					console.error('logout: supabase signOut failed', signOutError.message);
+					console.error(
+						'logout: supabase signOut failed',
+						signOutError.message,
+					);
 				}
 			}
 		} catch (err) {
