@@ -34,6 +34,8 @@ type RegisterBody = {
 	firstName: string;
 	lastName: string;
 	phone?: string | null;
+	/** Wymagane przy role === INSTRUCTOR (profil w bazie wymaga numeru licencji). */
+	licenseNumber?: string | null;
 };
 
 type LoginBody = {
@@ -55,6 +57,75 @@ function parseRegistrationTargetRole(raw: unknown): Role | null {
 		return v as Role;
 	}
 	return null;
+}
+
+function instructorLicenseFromRegisterBody(
+	body: RegisterBody,
+	targetRole: Role,
+): string | null {
+	if (targetRole !== Role.INSTRUCTOR) {
+		return null;
+	}
+	const raw = body.licenseNumber;
+	if (raw === undefined || raw === null) {
+		return null;
+	}
+	const trimmed = String(raw).trim();
+	return trimmed === '' ? null : trimmed;
+}
+
+function buildUserCreateWithRoleProfiles(
+	authUserId: string,
+	profileFields: ReturnType<typeof registerDbProfileFromRequest>,
+	targetRole: Role,
+	instructorLicenseTrimmed: string | null,
+): Prisma.UserCreateInput {
+	const base: Prisma.UserCreateInput = {
+		id: authUserId,
+		...profileFields,
+	};
+	if (targetRole === Role.STUDENT) {
+		return { ...base, studentProfile: { create: {} } };
+	}
+	return {
+		...base,
+		instructorProfile: {
+			create: { licenseNumber: instructorLicenseTrimmed! },
+		},
+	};
+}
+
+async function ensureRoleProfilesAfterUserUpsert(
+	tx: Prisma.TransactionClient,
+	userId: string,
+	targetRole: Role,
+	instructorLicenseTrimmed: string | null,
+) {
+	const user = await tx.user.findUnique({
+		where: { id: userId },
+		select: {
+			studentProfile: { select: { id: true } },
+			instructorProfile: { select: { id: true } },
+		},
+	});
+	if (!user) {
+		return;
+	}
+
+	if (targetRole === Role.STUDENT && !user.studentProfile) {
+		await tx.studentProfile.create({ data: { userId } });
+	}
+
+	if (targetRole === Role.INSTRUCTOR && !user.instructorProfile) {
+		if (!instructorLicenseTrimmed) {
+			throw new Error(
+				'ensureRoleProfilesAfterUserUpsert: licenseNumber required for instructor',
+			);
+		}
+		await tx.instructorProfile.create({
+			data: { userId, licenseNumber: instructorLicenseTrimmed },
+		});
+	}
 }
 
 function registerDbProfileFromRequest(
@@ -80,14 +151,8 @@ type RequestWithUser = Request & { user: User };
 
 async function register(req: Request, res: Response) {
 	const actor = (req as RequestWithUser).user;
-	const {
-		email,
-		password,
-		role: roleRaw,
-		firstName,
-		lastName,
-		phone,
-	}: RegisterBody = req.body;
+	const body: RegisterBody = req.body;
+	const { email, password, role: roleRaw, firstName, lastName, phone } = body;
 
 	if (!email || !password || !roleRaw || !firstName || !lastName) {
 		return sendJsonError(
@@ -102,6 +167,18 @@ async function register(req: Request, res: Response) {
 		return sendJsonError(
 			res,
 			'Invalid role for registration (expected INSTRUCTOR or STUDENT)',
+			400,
+		);
+	}
+
+	const instructorLicenseTrimmed = instructorLicenseFromRegisterBody(
+		body,
+		targetRole,
+	);
+	if (targetRole === Role.INSTRUCTOR && !instructorLicenseTrimmed) {
+		return sendJsonError(
+			res,
+			'licenseNumber is required when role is INSTRUCTOR',
 			400,
 		);
 	}
@@ -151,9 +228,17 @@ async function register(req: Request, res: Response) {
 		);
 
 		try {
-			await prisma.user.update({
-				where: { id: authUserId },
-				data: profileData,
+			await prisma.$transaction(async (tx) => {
+				await tx.user.update({
+					where: { id: authUserId },
+					data: profileData,
+				});
+				await ensureRoleProfilesAfterUserUpsert(
+					tx,
+					authUserId,
+					targetRole,
+					instructorLicenseTrimmed,
+				);
 			});
 		} catch (err) {
 			console.error('register: user.update failed (existingById)', err);
@@ -181,16 +266,19 @@ async function register(req: Request, res: Response) {
 		return sendJsonError(res, 'Email already registered', 409);
 	}
 
-	const userCreateData = {
-		id: authUserId,
-		...registerDbProfileFromRequest(
-			emailTrimmed,
-			firstName,
-			lastName,
-			targetRole,
-			phone,
-		),
-	};
+	const profileFields = registerDbProfileFromRequest(
+		emailTrimmed,
+		firstName,
+		lastName,
+		targetRole,
+		phone,
+	);
+	const userCreateData = buildUserCreateWithRoleProfiles(
+		authUserId,
+		profileFields,
+		targetRole,
+		instructorLicenseTrimmed,
+	);
 
 	try {
 		await prisma.user.create({ data: userCreateData });
@@ -212,9 +300,17 @@ async function register(req: Request, res: Response) {
 					phone,
 				);
 				try {
-					await prisma.user.update({
-						where: { id: authUserId },
-						data: profileData,
+					await prisma.$transaction(async (tx) => {
+						await tx.user.update({
+							where: { id: authUserId },
+							data: profileData,
+						});
+						await ensureRoleProfilesAfterUserUpsert(
+							tx,
+							authUserId,
+							targetRole,
+							instructorLicenseTrimmed,
+						);
 					});
 				} catch (updateErr) {
 					console.error(

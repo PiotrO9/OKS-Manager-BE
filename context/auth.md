@@ -25,6 +25,33 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/aut
 
 **`authMiddleware`**: weryfikuje JWT przez Supabase `getUser`, ładuje rekord `User` z Prisma do `req.user` (m.in. rola).
 
+## Rejestracja (`POST /auth/register`)
+
+**Middleware:** `authMiddleware`. **Kto może kogo zarejestrować:** `registerRolePolicy.ts`.
+
+**Przepływ:** Supabase `auth.signUp` → zapis w aplikacji (`User` w Prisma). `id` użytkownika w `public.users` jest **taki sam** jak w Supabase Auth (`auth.users`), żeby sesja i rekord aplikacji były spójne.
+
+### Body (JSON)
+
+| Pole | Wymagane | Uwagi |
+|------|----------|--------|
+| `email`, `password`, `role`, `firstName`, `lastName` | tak | `role`: `STUDENT` lub `INSTRUCTOR` |
+| `phone` | nie | |
+| `licenseNumber` | tak, gdy `role` = `INSTRUCTOR` | W modelu `InstructorProfile` pole `license_number` jest wymagane — brak → **400** (`licenseNumber is required when role is INSTRUCTOR`) |
+
+### Profile roli (Prisma)
+
+Po udanym zapisie użytkownika backend **z poziomu aplikacji** tworzy powiązany profil (bez triggerów w Supabase / PostgreSQL):
+
+- **`STUDENT`** — wiersz w `student_profiles` (`user_id` → `users.id`; `pesel` opcjonalny).
+- **`INSTRUCTOR`** — wiersz w `instructor_profiles` z przekazanym `licenseNumber`.
+
+Gdy użytkownik już istnieje w bazie po tym samym `id` (np. powtórne wywołanie rejestracji), wykonywane jest `user.update`; jeśli brakuje profilu danej roli, jest on **dopisany w tej samej transakcji** co aktualizacja użytkownika.
+
+Implementacja: `src/auth/auth.controller.ts` (`buildUserCreateWithRoleProfiles`, `ensureRoleProfilesAfterUserUpsert`).
+
+**Supabase:** nie trzeba konfigurować triggerów na `auth.users` ani logiki profili w panelu — tabele `public.*` obsługuje backend przez `DATABASE_URL` / Prisma.
+
 ## Wymagania dla frontendu
 
 - **`POST /auth/login`**, **`POST /auth/refresh`**, **`POST /auth/logout`**: żądania z **cookies** — np. `fetch(..., { credentials: 'include' })` lub Axios **`withCredentials: true`**. Inaczej ciasteczko nie jest zapisywane / nie jest wysyłane / **nie są stosowane nagłówki kasujące ciasteczko** przy wylogowaniu.
@@ -41,6 +68,7 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/aut
 
 ## Historia decyzji (skrót)
 
+- **Profile przy rejestracji** (`student_profiles` / `instructor_profiles`) są tworzone w warstwie aplikacji (Prisma, transakcje), a nie triggerami w bazie — prostsze utrzymanie i spełnienie pól wymaganych (np. numer licencji instruktora).
 - **Logout** wymaga zalogowania (middleware), żeby uniknąć sytuacji, w której niezalogowany klient dostaje ten sam „sukces” co po realnym wylogowaniu.
 - **clearCookie** używa tych samych atrybutów co `res.cookie` (`httpOnly`, `secure`, `sameSite`, `path`), żeby przeglądarka faktycznie usuła ciasteczko.
 - **Dwa `clearCookie`** — jedno dla `path: '/auth'`, drugie legacy dla wcześniejszego `path: '/auth/refresh'`.
