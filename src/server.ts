@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import cors from 'cors';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { sendJsonError, sendJsonSuccess } from './lib/apiResponse';
@@ -7,8 +8,22 @@ import { createAuthRouter } from './auth/auth.routes';
 
 const prisma = getPrisma();
 
+function parseAllowedOrigins(): string[] {
+	const raw = process.env.FRONTEND_URL?.trim();
+	if (raw) {
+		return raw.split(',').map((s) => s.trim()).filter(Boolean);
+	}
+	return ['http://localhost:5173', 'http://localhost:3000'];
+}
+
 function createApp() {
 	const app = express();
+	app.use(
+		cors({
+			origin: parseAllowedOrigins(),
+			credentials: true,
+		})
+	);
 	app.use(express.json());
 	app.use(cookieParser());
 
