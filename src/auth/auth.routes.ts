@@ -6,7 +6,7 @@ import { authMiddleware } from './auth.middleware';
 function createAuthRouter() {
 	const router = Router();
 
-	router.post('/register', register);
+	router.post('/register', authMiddleware, register);
 	router.post('/login', login);
 	router.post('/refresh', refresh);
 	router.post('/logout', logout);
