@@ -5,6 +5,28 @@ import { getPrisma } from '../lib/prisma';
 import { getSupabaseClient } from '../lib/supabase';
 import { canInvokerRegisterUserWithRole } from './registerRolePolicy';
 
+const REFRESH_TOKEN_COOKIE = 'refresh_token';
+/** Poprzednia wersja API (clearCookie musi dopasować path do skasowania). */
+const REFRESH_TOKEN_COOKIE_PATH_LEGACY = '/auth/refresh';
+const REFRESH_TOKEN_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
+
+function getRefreshTokenCookieOptions() {
+	return {
+		httpOnly: true,
+		secure: process.env.NODE_ENV === 'production',
+		sameSite: 'strict' as const,
+		path: '/auth',
+	};
+}
+
+function readRefreshTokenCookie(req: Request): string | undefined {
+	const raw = req.cookies?.[REFRESH_TOKEN_COOKIE];
+	if (typeof raw !== 'string' || raw.trim() === '') {
+		return undefined;
+	}
+	return raw;
+}
+
 type RegisterBody = {
 	email: string;
 	password: string;
@@ -250,12 +272,9 @@ async function login(req: Request, res: Response) {
 		return sendJsonError(res, 'Invalid auth session returned', 500);
 	}
 
-	res.cookie('refresh_token', refreshToken, {
-		httpOnly: true,
-		secure: process.env.NODE_ENV === 'production',
-		sameSite: 'strict',
-		path: '/auth/refresh',
-		maxAge: 1000 * 60 * 60 * 24 * 30,
+	res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
+		...getRefreshTokenCookieOptions(),
+		maxAge: REFRESH_TOKEN_MAX_AGE_MS,
 	});
 
 	return sendJsonSuccess(res, {
@@ -265,7 +284,7 @@ async function login(req: Request, res: Response) {
 }
 
 async function refresh(req: Request, res: Response) {
-	const refreshToken = (req as any).cookies?.refresh_token;
+	const refreshToken = readRefreshTokenCookie(req);
 
 	if (!refreshToken) {
 		return sendJsonError(res, 'Missing refresh token cookie', 401);
@@ -292,9 +311,38 @@ async function refresh(req: Request, res: Response) {
 	});
 }
 
+/**
+ * Wylogowanie — tylko dla użytkownika z ważnym tokenem (trasę chroni authMiddleware).
+ *
+ * Frontend: wywołanie musi iść z credentials (np. `fetch(..., { credentials: 'include' })`
+ * albo axios `withCredentials: true`), żeby przeglądarka przyjęła `Set-Cookie` kasujące
+ * ciasteczko `refresh_token`. Bez tego sesja odświeżania może zostać w przeglądarce.
+ */
 async function logout(req: Request, res: Response) {
-	res.clearCookie('refresh_token', {
-		path: '/auth/refresh',
+	const refreshToken = readRefreshTokenCookie(req);
+	const cookieOpts = getRefreshTokenCookieOptions();
+
+	if (refreshToken) {
+		try {
+			const supabase = getSupabaseClient();
+			const { data, error } = await supabase.auth.refreshSession({
+				refresh_token: refreshToken,
+			});
+			if (!error && data.session) {
+				const { error: signOutError } = await supabase.auth.signOut();
+				if (signOutError) {
+					console.error('logout: supabase signOut failed', signOutError.message);
+				}
+			}
+		} catch (err) {
+			console.error('logout: supabase revoke failed', err);
+		}
+	}
+
+	res.clearCookie(REFRESH_TOKEN_COOKIE, cookieOpts);
+	res.clearCookie(REFRESH_TOKEN_COOKIE, {
+		...cookieOpts,
+		path: REFRESH_TOKEN_COOKIE_PATH_LEGACY,
 	});
 
 	return sendJsonSuccess(res);

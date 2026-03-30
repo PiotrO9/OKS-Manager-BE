@@ -9,7 +9,9 @@ function createAuthRouter() {
 	router.post('/register', authMiddleware, register);
 	router.post('/login', login);
 	router.post('/refresh', refresh);
-	router.post('/logout', logout);
+	// Logout: Bearer (authMiddleware) + po stronie klienta credentials przy żądaniu,
+	// inaczej przeglądarka nie zastosuje nagłówków kasujących ciasteczko refresh_token.
+	router.post('/logout', authMiddleware, logout);
 
 	router.get('/me', authMiddleware, (req, res) => {
 		return sendJsonSuccess(res, {

@@ -22,6 +22,8 @@ Rules:
 - always validate input (zod or similar)
 - return consistent responses
 
+Authentication (Bearer, httpOnly refresh cookie, `/auth/*`): zob. [auth.md](./auth.md).
+
 Response format:
 
 {
