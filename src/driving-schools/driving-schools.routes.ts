@@ -1,14 +1,11 @@
 import { Router } from 'express';
-import {
-	authMiddleware,
-	requireMinRole,
-	requireRole,
-} from '../auth/auth.middleware';
+import { authMiddleware, requireMinRole } from '../auth/auth.middleware';
 import {
 	deleteDrivingSchool,
 	getDrivingSchools,
 	createDrivingSchool,
 	setDefaultDrivingSchool,
+	updateDrivingSchool,
 } from './driving-schools.controller';
 
 function createDrivingSchoolsRouter() {
@@ -27,6 +24,13 @@ function createDrivingSchoolsRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		setDefaultDrivingSchool,
+	);
+
+	router.patch(
+		'/:id',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		updateDrivingSchool,
 	);
 
 	router.delete(
