@@ -50,11 +50,14 @@ model User {
   updatedAt           DateTime? @map("updated_at")
   deletedAt           DateTime? @map("deleted_at")
 
+  defaultOskId        String?  @db.Uuid @map("default_osk_id")
+
   settings            UserSettings?
   profile             UserProfile?
   instructorProfile   InstructorProfile?
   studentProfile      StudentProfile?
   drivingSchoolsOwned DrivingSchool[] @relation("OwnerDrivingSchools")
+  defaultOsk          DrivingSchool?  @relation("DefaultOSK", fields: [defaultOskId], references: [id])
 
   @@map("users")
   @@index([role], name: "idx_users_role")
@@ -92,8 +95,10 @@ model DrivingSchool {
   address              String?               @map("address")
   ownerId              String                @db.Uuid @map("owner_id")
   createdAt            DateTime              @default(now()) @map("created_at")
+  deletedAt            DateTime?             @map("deleted_at")
 
   owner                User                  @relation("OwnerDrivingSchools", fields: [ownerId], references: [id])
+  defaultForUsers      User[]                @relation("DefaultOSK")
   settings             SchoolSettings?
   vehicles             Vehicle[]
   courses              Course[]
