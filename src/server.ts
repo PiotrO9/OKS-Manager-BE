@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import { sendJsonError, sendJsonSuccess } from './lib/apiResponse';
 import { getPrisma } from './lib/prisma';
 import { createAuthRouter } from './auth/auth.routes';
+import { createDrivingSchoolsRouter } from './driving-schools/driving-schools.routes';
 
 const prisma = getPrisma();
 
@@ -28,6 +29,7 @@ function createApp() {
 	app.use(cookieParser());
 
 	app.use('/auth', createAuthRouter());
+	app.use('/driving-schools', createDrivingSchoolsRouter());
 
 	app.get('/test', async (req, res) => {
 		return sendJsonSuccess(res, {

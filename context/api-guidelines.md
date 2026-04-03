@@ -16,6 +16,7 @@ GET /courses
 POST /courses
 GET /lessons
 POST /lessons/book
+GET /driving-schools
 
 Rules:
 
@@ -23,6 +24,8 @@ Rules:
 - return consistent responses
 
 Authentication (Bearer, httpOnly refresh cookie, `/auth/*`): zob. [auth.md](./auth.md).
+
+Lista OSK dla zalogowanego użytkownika (role, kody błędów): zob. [driving-schools-api.md](./driving-schools-api.md).
 
 Response format:
 
