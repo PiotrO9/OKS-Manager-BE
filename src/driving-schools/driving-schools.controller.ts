@@ -311,8 +311,51 @@ async function deleteDrivingSchool(req: Request, res: Response) {
 	return sendJsonSuccess(res, { id: payload.id, defaultOskId });
 }
 
+async function getDefaultDrivingSchool(req: Request, res: Response) {
+	const user = (req as any).user;
+
+	if (!user) {
+		return sendJsonError(res, 'Unauthorized', 401);
+	}
+
+	const [schools, owner] = await Promise.all([
+		prisma.drivingSchool.findMany({
+			where: activeSchoolClause({ ownerId: user.id }),
+			select: { id: true, createdAt: true },
+		}),
+		prisma.user.findUnique({
+			where: { id: user.id },
+			select: { defaultOskId: true },
+		}),
+	]);
+
+	const defaultOskId = await reconcileUserDefaultOskId(
+		user.id,
+		schools,
+		owner?.defaultOskId ?? null,
+	);
+
+	if (!defaultOskId) {
+		return sendJsonError(res, 'No default driving school set', 404);
+	}
+
+	const school = await prisma.drivingSchool.findUnique({
+		where: { id: defaultOskId },
+		include: { settings: true },
+	});
+
+	if (!school || school.deletedAt !== null) {
+		return sendJsonError(res, 'Driving school not found', 404);
+	}
+
+	const isManager = school.ownerId === user.id;
+
+	return sendJsonSuccess(res, { ...school, isManager });
+}
+
 export {
 	getDrivingSchools,
+	getDefaultDrivingSchool,
 	createDrivingSchool,
 	setDefaultDrivingSchool,
 	updateDrivingSchool,

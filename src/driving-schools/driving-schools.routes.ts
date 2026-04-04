@@ -3,6 +3,7 @@ import { authMiddleware, requireMinRole } from '../auth/auth.middleware';
 import {
 	deleteDrivingSchool,
 	getDrivingSchools,
+	getDefaultDrivingSchool,
 	createDrivingSchool,
 	setDefaultDrivingSchool,
 	updateDrivingSchool,
@@ -12,6 +13,7 @@ function createDrivingSchoolsRouter() {
 	const router = Router();
 
 	router.get('/', authMiddleware, getDrivingSchools);
+	router.get('/default', authMiddleware, getDefaultDrivingSchool);
 	router.post(
 		'/',
 		authMiddleware,
