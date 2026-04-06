@@ -191,16 +191,20 @@ model StudentSchool {
 }
 
 model Vehicle {
-  id          String   @id @default(uuid()) @db.Uuid @map("id")
-  schoolId    String   @db.Uuid @map("school_id")
-  brand       String?  @map("brand")
-  model       String?  @map("model")
-  plateNumber String?  @unique @map("plate_number")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id                 String    @id @default(uuid()) @db.Uuid @map("id")
+  schoolId           String    @db.Uuid @map("school_id")
+  name               String    @map("name")
+  registrationNumber String    @map("registration_number")
+  inspectionDate     DateTime? @map("inspection_date")
+  insuranceDate      DateTime? @map("insurance_date")
+  brand              String?   @map("brand")
+  model              String?   @map("model")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
   school  DrivingSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   lessons Lesson[] @relation("VehicleLessons")
 
+  @@unique([schoolId, registrationNumber], name: "uq_vehicles_school_id_registration_number")
   @@map("vehicles")
 }
 

@@ -6,6 +6,7 @@ import { sendJsonError, sendJsonSuccess } from './lib/apiResponse';
 import { getPrisma } from './lib/prisma';
 import { createAuthRouter } from './auth/auth.routes';
 import { createDrivingSchoolsRouter } from './driving-schools/driving-schools.routes';
+import { createVehiclesRouter } from './vehicles/vehicles.routes';
 
 const prisma = getPrisma();
 
@@ -33,6 +34,7 @@ function createApp() {
 
 	app.use('/auth', createAuthRouter());
 	app.use('/driving-schools', createDrivingSchoolsRouter());
+	app.use('/vehicles', createVehiclesRouter());
 
 	app.get('/test', async (req, res) => {
 		return sendJsonSuccess(res, {

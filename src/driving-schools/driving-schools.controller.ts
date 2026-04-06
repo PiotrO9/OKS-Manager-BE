@@ -1,13 +1,9 @@
 import { Request, Response } from 'express';
 import { sendJsonError, sendJsonSuccess } from '../lib/apiResponse';
 import { getPrisma } from '../lib/prisma';
+import { activeSchoolClause, reconcileUserDefaultOskId } from './oskContext';
 
 const prisma = getPrisma();
-
-/** Aktywne OSK (bez soft-delete). */
-function activeSchoolClause<T extends Record<string, unknown>>(extra: T) {
-	return { ...extra, deletedAt: null };
-}
 
 const DRIVING_SCHOOL_ID_RE =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -25,46 +21,6 @@ function parseDrivingSchoolIdParam(
 	}
 	const id = single.trim();
 	return DRIVING_SCHOOL_ID_RE.test(id) ? id : null;
-}
-
-type DefaultOskSchoolRow = { id: string; createdAt: Date };
-
-/**
- * defaultOskId musi być null lub wskazywać aktywny OSK z `schools` (właściciel).
- * Inaczej: naprawa w DB — najwcześniejszy z listy albo null przy braku szkół.
- */
-async function reconcileUserDefaultOskId(
-	userId: string,
-	schools: DefaultOskSchoolRow[],
-	storedDefaultId: string | null,
-): Promise<string | null> {
-	const ownedIds = new Set(schools.map((s) => s.id));
-	const defaultIsValid =
-		storedDefaultId !== null && ownedIds.has(storedDefaultId);
-
-	if (defaultIsValid) {
-		return storedDefaultId;
-	}
-
-	if (schools.length > 0) {
-		const earliest = schools.reduce((a, b) =>
-			a.createdAt <= b.createdAt ? a : b,
-		);
-		await prisma.user.update({
-			where: { id: userId },
-			data: { defaultOskId: earliest.id },
-		});
-		return earliest.id;
-	}
-
-	if (storedDefaultId !== null) {
-		await prisma.user.update({
-			where: { id: userId },
-			data: { defaultOskId: null },
-		});
-	}
-
-	return null;
 }
 
 async function getDrivingSchools(req: Request, res: Response) {
