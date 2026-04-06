@@ -127,12 +127,12 @@ async function loadVehicleForOwner(
 	userId: string,
 	vehicleId: string,
 ): Promise<
-	| { ok: true; vehicle: { id: string; schoolId: string } }
+	| { ok: true; vehicle: { id: string; schoolId: string; isActive: boolean } }
 	| { ok: false; notFound: boolean }
 > {
 	const vehicle = await prisma.vehicle.findUnique({
 		where: { id: vehicleId },
-		select: { id: true, schoolId: true },
+		select: { id: true, schoolId: true, isActive: true },
 	});
 	if (!vehicle) {
 		return { ok: false, notFound: true };
@@ -164,7 +164,7 @@ async function listVehiclesBySchool(req: Request, res: Response) {
 	}
 
 	const vehicles = await prisma.vehicle.findMany({
-		where: { schoolId: schoolIdParse },
+		where: { schoolId: schoolIdParse, isActive: true },
 		orderBy: { createdAt: 'asc' },
 	});
 
@@ -232,6 +232,11 @@ async function upsertVehicle(req: Request, res: Response) {
 
 	const existing = await prisma.vehicle.findUnique({
 		where: { id: idParse },
+		select: {
+			id: true,
+			schoolId: true,
+			isActive: true,
+		},
 	});
 
 	if (!existing) {
@@ -241,6 +246,10 @@ async function upsertVehicle(req: Request, res: Response) {
 	const school = await getSchoolOwnedByUser(user.id, existing.schoolId);
 	if (!school) {
 		return sendJsonError(res, 'Forbidden', 403);
+	}
+
+	if (!existing.isActive) {
+		return sendJsonError(res, 'Vehicle not found', 404);
 	}
 
 	const duplicate = await prisma.vehicle.findFirst({
@@ -288,6 +297,10 @@ async function updateVehicle(req: Request, res: Response) {
 			return sendJsonError(res, 'Vehicle not found', 404);
 		}
 		return sendJsonError(res, 'Forbidden', 403);
+	}
+
+	if (!loaded.vehicle.isActive) {
+		return sendJsonError(res, 'Vehicle not found', 404);
 	}
 
 	const body = req.body as Record<string, unknown>;
@@ -345,8 +358,13 @@ async function deleteVehicle(req: Request, res: Response) {
 		return sendJsonError(res, 'Forbidden', 403);
 	}
 
-	await prisma.vehicle.delete({
+	if (!loaded.vehicle.isActive) {
+		return sendJsonSuccess(res, { id: vehicleId });
+	}
+
+	await prisma.vehicle.update({
 		where: { id: vehicleId },
+		data: { isActive: false },
 	});
 
 	return sendJsonSuccess(res, { id: vehicleId });
