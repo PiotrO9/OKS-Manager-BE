@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "vehicles" ADD COLUMN IF NOT EXISTS "photo_url" TEXT;
+ALTER TABLE "vehicles" ADD COLUMN IF NOT EXISTS "model_year" INTEGER;
+ALTER TABLE "vehicles" ADD COLUMN IF NOT EXISTS "mileage_km" INTEGER;
+ALTER TABLE "vehicles" ADD COLUMN IF NOT EXISTS "note" TEXT;

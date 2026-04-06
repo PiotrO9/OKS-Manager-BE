@@ -201,6 +201,10 @@ model Vehicle {
   insuranceDate      DateTime? @map("insurance_date")
   brand              String?   @map("brand")
   model              String?   @map("model")
+  photoUrl           String?   @map("photo_url")
+  modelYear          Int?      @map("model_year")
+  mileageKm          Int?      @map("mileage_km")
+  note               String?   @map("note") @db.Text
   isActive           Boolean   @default(true) @map("is_active")
   createdAt          DateTime  @default(now()) @map("created_at")
 
