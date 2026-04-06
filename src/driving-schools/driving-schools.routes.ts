@@ -6,6 +6,7 @@ import {
 	getDefaultDrivingSchool,
 	createDrivingSchool,
 	setDefaultDrivingSchool,
+	setDefaultVehicleForDrivingSchool,
 	updateDrivingSchool,
 } from './driving-schools.controller';
 
@@ -26,6 +27,13 @@ function createDrivingSchoolsRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		setDefaultDrivingSchool,
+	);
+
+	router.patch(
+		'/:id/default-vehicle',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		setDefaultVehicleForDrivingSchool,
 	);
 
 	router.patch(

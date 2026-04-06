@@ -96,8 +96,10 @@ model DrivingSchool {
   ownerId              String                @db.Uuid @map("owner_id")
   createdAt            DateTime              @default(now()) @map("created_at")
   deletedAt            DateTime?             @map("deleted_at")
+  defaultVehicleId     String?               @db.Uuid @map("default_vehicle_id")
 
   owner                User                  @relation("OwnerDrivingSchools", fields: [ownerId], references: [id])
+  defaultVehicle       Vehicle?              @relation("SchoolDefaultVehicle", fields: [defaultVehicleId], references: [id], onDelete: SetNull)
   defaultForUsers      User[]                @relation("DefaultOSK")
   settings             SchoolSettings?
   vehicles             Vehicle[]
@@ -202,8 +204,9 @@ model Vehicle {
   isActive           Boolean   @default(true) @map("is_active")
   createdAt          DateTime  @default(now()) @map("created_at")
 
-  school  DrivingSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  lessons Lesson[] @relation("VehicleLessons")
+  school           DrivingSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  defaultForSchools DrivingSchool[] @relation("SchoolDefaultVehicle")
+  lessons          Lesson[] @relation("VehicleLessons")
 
   @@unique([schoolId, registrationNumber], name: "uq_vehicles_school_id_registration_number")
   @@map("vehicles")

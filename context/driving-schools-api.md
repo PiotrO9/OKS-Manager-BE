@@ -17,11 +17,14 @@ Middleware: **`authMiddleware`** (`src/auth/auth.middleware.ts`) — walidacja J
 
 Szczegóły sesji i logowania: [auth.md](./auth.md).
 
-## Trasa
+## Trasy (wybrane)
 
 | Metoda | Ścieżka | Middleware | Opis |
 |--------|---------|------------|------|
 | GET | `/driving-schools` | `authMiddleware` | Zwraca listę `DrivingSchool` widocznych dla roli użytkownika |
+| PATCH | `/driving-schools/:id/default-vehicle` | `authMiddleware`, `requireMinRole('MANAGER')` | Ustawia domyślny pojazd szkoły: body `{ "vehicleId": "<uuid>" }`. Sukces: `data: { defaultVehicleId }`. Pojazd musi istnieć, być aktywny (`isActive`) i należeć do tej szkoły; inna szkoła / obcy pojazd → **403**; brak pojazdu lub nieaktywny → **404** (jak przy `PATCH /vehicles/:id`). |
+
+Pierwszy pojazd utworzony dla danej szkoły (`POST /vehicles` bez `id` w body, pierwszy rekord `vehicles` dla `schoolId`) ustawia automatycznie `defaultVehicleId` na szkole (transakcja), analogicznie do pierwszego OSK i `defaultOskId` użytkownika.
 
 ## Format odpowiedzi
 

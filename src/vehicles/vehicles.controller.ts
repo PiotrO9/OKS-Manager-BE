@@ -168,7 +168,16 @@ async function listVehiclesBySchool(req: Request, res: Response) {
 		orderBy: { createdAt: 'asc' },
 	});
 
-	return sendJsonSuccess(res, { vehicles });
+	const defaultVehicleId = school.defaultVehicleId ?? null;
+	const vehiclesWithDefault = vehicles.map((v) => ({
+		...v,
+		isDefault: defaultVehicleId !== null && v.id === defaultVehicleId,
+	}));
+
+	return sendJsonSuccess(res, {
+		vehicles: vehiclesWithDefault,
+		defaultVehicleId,
+	});
 }
 
 async function upsertVehicle(req: Request, res: Response) {
@@ -217,14 +226,30 @@ async function upsertVehicle(req: Request, res: Response) {
 			);
 		}
 
-		const created = await prisma.vehicle.create({
-			data: {
-				schoolId,
-				name,
-				registrationNumber,
-				inspectionDate,
-				insuranceDate,
-			},
+		const existingVehicleCount = await prisma.vehicle.count({
+			where: { schoolId },
+		});
+		const isFirstVehicleForSchool = existingVehicleCount === 0;
+
+		const created = await prisma.$transaction(async (tx) => {
+			const vehicle = await tx.vehicle.create({
+				data: {
+					schoolId,
+					name,
+					registrationNumber,
+					inspectionDate,
+					insuranceDate,
+				},
+			});
+
+			if (isFirstVehicleForSchool) {
+				await tx.drivingSchool.update({
+					where: { id: schoolId },
+					data: { defaultVehicleId: vehicle.id },
+				});
+			}
+
+			return vehicle;
 		});
 
 		return sendJsonSuccess(res, created, 201);

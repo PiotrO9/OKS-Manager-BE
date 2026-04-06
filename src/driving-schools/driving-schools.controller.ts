@@ -23,6 +23,27 @@ function parseDrivingSchoolIdParam(
 	return DRIVING_SCHOOL_ID_RE.test(id) ? id : null;
 }
 
+/** Body — jak `parseUuidParam` w vehicles.controller (bez cykli importu). */
+function parseUuidFromBody(raw: unknown): string | null | 'invalid' {
+	if (raw === undefined || raw === null) {
+		return null;
+	}
+	if (Array.isArray(raw)) {
+		if (raw.length === 0) {
+			return null;
+		}
+		return parseUuidFromBody(raw[0]);
+	}
+	if (typeof raw !== 'string') {
+		return 'invalid';
+	}
+	const id = raw.trim();
+	if (id === '') {
+		return null;
+	}
+	return DRIVING_SCHOOL_ID_RE.test(id) ? id : 'invalid';
+}
+
 async function getDrivingSchools(req: Request, res: Response) {
 	const user = (req as any).user;
 
@@ -134,6 +155,60 @@ async function setDefaultDrivingSchool(req: Request, res: Response) {
 	});
 
 	return sendJsonSuccess(res, { defaultOskId: school.id });
+}
+
+async function setDefaultVehicleForDrivingSchool(req: Request, res: Response) {
+	const user = (req as any).user;
+	const schoolId = parseDrivingSchoolIdParam(req.params.id);
+	if (!schoolId) {
+		return sendJsonError(res, 'Invalid driving school id', 400);
+	}
+
+	const body = req.body as Record<string, unknown>;
+	const vehicleIdParsed = parseUuidFromBody(body.vehicleId);
+	if (vehicleIdParsed === null) {
+		return sendJsonError(res, 'vehicleId is required', 400);
+	}
+	if (vehicleIdParsed === 'invalid') {
+		return sendJsonError(res, 'Invalid vehicleId', 400);
+	}
+	const vehicleId = vehicleIdParsed;
+
+	const school = await prisma.drivingSchool.findUnique({
+		where: { id: schoolId },
+	});
+
+	if (!school || school.deletedAt !== null) {
+		return sendJsonError(res, 'Driving school not found', 404);
+	}
+
+	if (school.ownerId !== user.id) {
+		return sendJsonError(res, 'Forbidden', 403);
+	}
+
+	const vehicle = await prisma.vehicle.findUnique({
+		where: { id: vehicleId },
+		select: { id: true, schoolId: true, isActive: true },
+	});
+
+	if (!vehicle) {
+		return sendJsonError(res, 'Vehicle not found', 404);
+	}
+
+	if (!vehicle.isActive) {
+		return sendJsonError(res, 'Vehicle not found', 404);
+	}
+
+	if (vehicle.schoolId !== schoolId) {
+		return sendJsonError(res, 'Forbidden', 403);
+	}
+
+	await prisma.drivingSchool.update({
+		where: { id: schoolId },
+		data: { defaultVehicleId: vehicleId },
+	});
+
+	return sendJsonSuccess(res, { defaultVehicleId: vehicleId });
 }
 
 async function updateDrivingSchool(req: Request, res: Response) {
@@ -314,6 +389,7 @@ export {
 	getDefaultDrivingSchool,
 	createDrivingSchool,
 	setDefaultDrivingSchool,
+	setDefaultVehicleForDrivingSchool,
 	updateDrivingSchool,
 	deleteDrivingSchool,
 };
