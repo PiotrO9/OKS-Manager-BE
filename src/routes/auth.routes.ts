@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { sendJsonSuccess } from '../lib/apiResponse';
 import {
+	getMe,
 	login,
 	logout,
 	refresh,
@@ -18,11 +18,7 @@ function createAuthRouter() {
 	// inaczej przeglądarka nie zastosuje nagłówków kasujących ciasteczko refresh_token.
 	router.post('/logout', authMiddleware, logout);
 
-	router.get('/me', authMiddleware, (req, res) => {
-		return sendJsonSuccess(res, {
-			user: req.user,
-		});
-	});
+	router.get('/me', authMiddleware, getMe);
 
 	return router;
 }

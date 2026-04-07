@@ -4,6 +4,7 @@ import { sendJsonError, sendJsonSuccess } from '../lib/apiResponse';
 import { getPrisma } from '../lib/prisma';
 import { canInvokerRegisterUserWithRole } from '../lib/registerRolePolicy';
 import { getSupabaseClient } from '../lib/supabase';
+import type { AuthRequestUser } from '../types/express';
 
 const REFRESH_TOKEN_COOKIE = 'refresh_token';
 /** Poprzednia wersja API (clearCookie musi dopasować path do skasowania). */
@@ -147,7 +148,7 @@ function registerDbProfileFromRequest(
 	};
 }
 
-type RequestWithUser = Request & { user: User };
+type RequestWithUser = Request & { user: AuthRequestUser };
 
 async function register(req: Request, res: Response) {
 	const actor = (req as RequestWithUser).user;
@@ -444,6 +445,30 @@ async function refresh(req: Request, res: Response) {
 	});
 }
 
+function buildMeUserPayload(user: AuthRequestUser) {
+	const nameFromParts = [user.firstName, user.lastName]
+		.map((s) => String(s).trim())
+		.filter((s) => s.length > 0)
+		.join(' ')
+		.trim();
+
+	return {
+		id: user.id,
+		name: nameFromParts || user.email,
+		email: user.email,
+		avatarUrl: user.profile?.avatarUrl ?? null,
+		role: user.role,
+	};
+}
+
+function getMe(req: Request, res: Response) {
+	const user = req.user;
+	if (!user) {
+		return sendJsonError(res, 'Unauthorized', 401);
+	}
+	return sendJsonSuccess(res, { user: buildMeUserPayload(user) });
+}
+
 /**
  * Wylogowanie — tylko dla użytkownika z ważnym tokenem (trasę chroni authMiddleware).
  *
@@ -484,4 +509,4 @@ async function logout(req: Request, res: Response) {
 	return sendJsonSuccess(res);
 }
 
-export { register, login, refresh, logout };
+export { register, login, refresh, logout, getMe };

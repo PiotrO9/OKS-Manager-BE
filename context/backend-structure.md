@@ -16,7 +16,7 @@ src/
 ├── controllers/         # Handlery HTTP: walidacja wejścia (Zod / requireUser), odpowiedzi JSON
 ├── services/            # Logika domenowa, Prisma, integracje (np. storage); rzuca AppError
 ├── schemas/             # Zod + funkcje parse (np. body pojazdu, szkoły jazdy)
-├── middleware/          # authMiddleware, requireAuth, requireMinRole itd.
+├── middleware/          # authMiddleware, requireMinRole itd.
 ├── lib/                   # Wspólne: prisma, supabase, apiResponse, validation/uuid, policies
 └── types/                 # Rozszerzenia globalne (np. Express.Request.user)
 ```

@@ -21,9 +21,29 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 | POST | `/auth/login` | — | Ustawia ciasteczko refresh |
 | POST | `/auth/refresh` | — | Wymaga ciasteczka |
 | POST | `/auth/logout` | `authMiddleware` | Wymaga Bearer; bez poprawnego JWT → **401** |
-| GET | `/auth/me` | `authMiddleware` | Profil użytkownika z bazy (Prisma) |
+| GET | `/auth/me` | `authMiddleware` | Zwraca whitelistę pól użytkownika (patrz poniżej) |
 
-**`authMiddleware`**: weryfikuje JWT przez Supabase `getUser`, ładuje rekord `User` z Prisma do `req.user` (m.in. rola).
+**`authMiddleware`**: weryfikuje JWT przez Supabase `getUser`, ładuje rekord `User` z Prisma (z `include: { profile: true }`) do `req.user`. Trasy chronione (pojazdy, szkoły jazdy itd.) używają tego samego middleware.
+
+### GET `/auth/me` — odpowiedź i błędy
+
+**Sukces (200):** `{ "success": true, "data": { "user": { ... } } }` — pole `user` zawiera wyłącznie:
+
+| Pole | Typ | Uwagi |
+|------|-----|--------|
+| `id` | string (UUID) | |
+| `name` | string | Z `firstName` + `lastName`; gdy puste — fallback do `email` |
+| `email` | string | |
+| `avatarUrl` | string \| null | Z `user_profiles.avatar_url` |
+| `role` | enum | `STUDENT`, `INSTRUCTOR`, … |
+
+**Błędy:**
+
+| Kod | Sytuacja |
+|-----|----------|
+| **401** | Brak/niepoprawny `Authorization: Bearer`, wygasły lub niepoprawny JWT |
+| **403** | Konto usunięte (`deletedAt`) lub wyłączone (`isActive: false`) — te same komunikaty co przy `POST /auth/login` |
+| **404** | Brak wiersza `users` dla id z tokenu Supabase |
 
 ## Rejestracja (`POST /auth/register`)
 
@@ -62,10 +82,9 @@ Implementacja: `src/controllers/auth.controller.ts` (`buildUserCreateWithRolePro
 
 - `src/routes/auth.routes.ts` — definicja tras
 - `src/controllers/auth.controller.ts` — login, refresh, logout, register; opcje ciasteczka i odczyt `refresh_token`
-- `src/middleware/auth.middleware.ts` — Bearer + Prisma user
+- `src/middleware/auth.middleware.ts` — Bearer + Prisma user (+ profil pod `avatarUrl`)
 - `src/lib/registerRolePolicy.ts` — kto może zarejestrować jaką rolę
 - `src/lib/supabase.ts` — klient anon (auth po stronie API)
-- Ochrona innych modułów API: m.in. `src/middleware/requireAuth.ts` (Bearer + Supabase)
 
 ## Historia decyzji (skrót)
 

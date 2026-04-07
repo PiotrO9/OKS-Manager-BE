@@ -45,10 +45,19 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
 
 		const dbUser = await prisma.user.findUnique({
 			where: { id: userId },
+			include: { profile: true },
 		});
 
 		if (!dbUser) {
-			return sendJsonError(res, 'User not found in DB', 401);
+			return sendJsonError(res, 'Użytkownik nie istnieje', 404);
+		}
+
+		if (dbUser.deletedAt != null) {
+			return sendJsonError(res, 'Account is no longer available', 403);
+		}
+
+		if (!dbUser.isActive) {
+			return sendJsonError(res, 'Account is disabled', 403);
 		}
 
 		req.user = dbUser;
