@@ -21,20 +21,27 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 | POST | `/auth/login` | — | Ustawia ciasteczko refresh |
 | POST | `/auth/refresh` | — | Wymaga ciasteczka |
 | POST | `/auth/logout` | `authMiddleware` | Wymaga Bearer; bez poprawnego JWT → **401** |
-| GET | `/auth/me` | `authMiddleware` | Zwraca whitelistę pól użytkownika (patrz poniżej) |
+| GET | `/auth/me` | `authMiddleware` | Zbiór pól użytkownika + profil (patrz poniżej) |
+| PATCH | `/auth/profile` | `authMiddleware` | Aktualizacja `bio` / `phone` (co najmniej jedno pole) |
+| POST | `/auth/profile/avatar` | `authMiddleware` | Upload avatara do Supabase Storage (multipart, pole `file`) |
 
 **`authMiddleware`**: weryfikuje JWT przez Supabase `getUser`, ładuje rekord `User` z Prisma (z `include: { profile: true }`) do `req.user`. Trasy chronione (pojazdy, szkoły jazdy itd.) używają tego samego middleware.
 
 ### GET `/auth/me` — odpowiedź i błędy
 
-**Sukces (200):** `{ "success": true, "data": { "user": { ... } } }` — pole `user` zawiera wyłącznie:
+**Sukces (200):** `{ "success": true, "data": { "user": { ... } } }` — pole `user` zawiera m.in.:
 
 | Pole | Typ | Uwagi |
 |------|-----|--------|
 | `id` | string (UUID) | |
 | `name` | string | Z `firstName` + `lastName`; gdy puste — fallback do `email` |
+| `firstName` | string | |
+| `lastName` | string | |
 | `email` | string | |
-| `avatarUrl` | string \| null | Z `user_profiles.avatar_url` |
+| `phone` | string \| null | Z `users.phone` |
+| `avatarUrl` | string \| null | Publiczny URL z Supabase Storage, zapis w `user_profiles.avatar_url` |
+| `bio` | string \| null | `user_profiles.bio` |
+| `profileUpdatedAt` | string (ISO date) \| null | `user_profiles.updated_at` (brak wiersza profilu → `null`) |
 | `role` | enum | `STUDENT`, `INSTRUCTOR`, … |
 
 **Błędy:**
@@ -59,16 +66,45 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 | `phone` | nie | |
 | `licenseNumber` | tak, gdy `role` = `INSTRUCTOR` | W modelu `InstructorProfile` pole `license_number` jest wymagane — brak → **400** (`licenseNumber is required when role is INSTRUCTOR`) |
 
-### Profile roli (Prisma)
+### Profile roli i `user_profiles` (Prisma)
 
-Po udanym zapisie użytkownika backend **z poziomu aplikacji** tworzy powiązany profil (bez triggerów w Supabase / PostgreSQL):
+Po udanym zapisie użytkownika backend **z poziomu aplikacji** tworzy powiązane rekordy (bez triggerów w Supabase / PostgreSQL):
 
+- **`user_profiles`** — zawsze przy nowej rejestracji (`profile: { create: {} }`); `avatar_url`, `bio` mogą być puste; `updated_at` utrzymuje Prisma (`@updatedAt`).
 - **`STUDENT`** — wiersz w `student_profiles` (`user_id` → `users.id`; `pesel` opcjonalny).
 - **`INSTRUCTOR`** — wiersz w `instructor_profiles` z przekazanym `licenseNumber`.
 
-Gdy użytkownik już istnieje w bazie po tym samym `id` (np. powtórne wywołanie rejestracji), wykonywane jest `user.update`; jeśli brakuje profilu danej roli, jest on **dopisany w tej samej transakcji** co aktualizacja użytkownika.
+Gdy użytkownik już istnieje w bazie po tym samym `id` (np. powtórne wywołanie rejestracji), wykonywane jest `user.update`; jeśli brakuje **profilu roli** albo **`user_profiles`**, jest on **dopisywany** w tej samej transakcji co aktualizacja użytkownika (`ensureRoleProfilesAfterUserUpsert`).
 
 Implementacja: `src/controllers/auth.controller.ts` (`buildUserCreateWithRoleProfiles`, `ensureRoleProfilesAfterUserUpsert`).
+
+### PATCH `/auth/profile`
+
+**Body (JSON):** co najmniej jedno z pól:
+
+| Pole | Wymagane | Uwagi |
+|------|----------|--------|
+| `bio` | nie* | String lub `null` (wyczyszczenie). Max **2000** znaków — dłuższy tekst → **400**. |
+| `phone` | nie* | String lub `null`; pusty string po trim → zapis jako `null` w `users.phone`. |
+
+\* Wymagane jest **co najmniej jedno** z `bio` / `phone` w body — inaczej **400** (`At least one of bio, phone is required`).
+
+**Sukces (200):** `{ "success": true, "data": { "ok": true } }`.
+
+**Logika:** `phone` → `users`; `bio` → `user_profiles` przez **upsert** po `user_id` (nie nadpisuje `avatar_url` przy samym patchu tekstu). Błędy walidacji → **400** (`AppError`).
+
+### POST `/auth/profile/avatar`
+
+**Wejście:** `multipart/form-data`, pole pliku **`file`** (jak przy `POST /vehicles/:id/photo`).
+
+- Dozwolone MIME: **`image/jpeg`**, **`image/png`**, **`image/webp`**.
+- Limit rozmiaru: **5 MB**; przekroczenie → **400** `file too large (max 5 MB)`.
+
+**Sukces (200):** `{ "success": true, "data": { "photoUrl": "<public_url>" } }` — URL zapisany w `user_profiles.avatar_url`. Poprzedni obiekt w buckecie jest usuwany **best-effort** (tylko gdy URL wskazywał na ten sam bucket i można wyliczyć ścieżkę).
+
+**Storage:** Supabase Admin (`SUPABASE_SERVICE_ROLE_KEY`), bucket z env **`SUPABASE_AVATARS_BUCKET`** (domyślnie `avatars`). Odczyt dla frontu: **publiczny URL** (`getPublicUrl`) — bucket / polityki muszą na to pozwalać (jak przy zdjęciach pojazdów). Szczegóły env: `.env.example`.
+
+**Błędy typowe:** **400** (brak pliku, zły typ), **500** (brak konfiguracji storage), **502** (upload do Supabase nieudany).
 
 **Supabase:** nie trzeba konfigurować triggerów na `auth.users` ani logiki profili w panelu — tabele `public.*` obsługuje backend przez `DATABASE_URL` / Prisma.
 
@@ -80,11 +116,14 @@ Implementacja: `src/controllers/auth.controller.ts` (`buildUserCreateWithRolePro
 
 ## Pliki źródłowe
 
-- `src/routes/auth.routes.ts` — definicja tras
-- `src/controllers/auth.controller.ts` — login, refresh, logout, register; opcje ciasteczka i odczyt `refresh_token`
-- `src/middleware/auth.middleware.ts` — Bearer + Prisma user (+ profil pod `avatarUrl`)
+- `src/routes/auth.routes.ts` — definicja tras (w tym `multer` dla avatara)
+- `src/controllers/auth.controller.ts` — login, refresh, logout, register, `getMe`, `patchProfile`, `uploadProfileAvatar`
+- `src/services/userProfile.service.ts` — patch profilu (`bio`), upload avatara, upsert `user_profiles`
+- `src/lib/supabaseStorage.ts` — wspólne MIME / ścieżka publicznego URL / usuwanie obiektów (też używane przy zdjęciach pojazdów)
+- `src/middleware/auth.middleware.ts` — Bearer + Prisma user (`include: { profile: true }`)
 - `src/lib/registerRolePolicy.ts` — kto może zarejestrować jaką rolę
 - `src/lib/supabase.ts` — klient anon (auth po stronie API)
+- `src/lib/supabaseAdmin.ts` — klient service role (Storage)
 
 ## Historia decyzji (skrót)
 
@@ -92,3 +131,4 @@ Implementacja: `src/controllers/auth.controller.ts` (`buildUserCreateWithRolePro
 - **Logout** wymaga zalogowania (middleware), żeby uniknąć sytuacji, w której niezalogowany klient dostaje ten sam „sukces” co po realnym wylogowaniu.
 - **clearCookie** używa tych samych atrybutów co `res.cookie` (`httpOnly`, `secure`, `sameSite`, `path`), żeby przeglądarka faktycznie usuła ciasteczko.
 - **Dwa `clearCookie`** — jedno dla `path: '/auth'`, drugie legacy dla wcześniejszego `path: '/auth/refresh'`.
+- **Profil aplikacji** (`user_profiles`) jest tworzony przy rejestracji i może być uzupełniany przez `PATCH /auth/profile` oraz `POST /auth/profile/avatar`; avatary trafiają do osobnego bucketa Storage (`SUPABASE_AVATARS_BUCKET`).

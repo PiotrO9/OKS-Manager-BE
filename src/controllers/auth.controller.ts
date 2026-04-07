@@ -1,9 +1,15 @@
 import { Request, Response } from 'express';
-import { Prisma, Role, User } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { sendJsonError, sendJsonSuccess } from '../lib/apiResponse';
+import { requireUser } from '../lib/http/requireUser';
 import { getPrisma } from '../lib/prisma';
 import { canInvokerRegisterUserWithRole } from '../lib/registerRolePolicy';
 import { getSupabaseClient } from '../lib/supabase';
+import {
+	type PatchProfileInput,
+	type UploadedPhotoFile,
+	userProfileService,
+} from '../services/userProfile.service';
 import type { AuthRequestUser } from '../types/express';
 
 const REFRESH_TOKEN_COOKIE = 'refresh_token';
@@ -86,10 +92,15 @@ function buildUserCreateWithRoleProfiles(
 		...profileFields,
 	};
 	if (targetRole === Role.STUDENT) {
-		return { ...base, studentProfile: { create: {} } };
+		return {
+			...base,
+			profile: { create: {} },
+			studentProfile: { create: {} },
+		};
 	}
 	return {
 		...base,
+		profile: { create: {} },
 		instructorProfile: {
 			create: { licenseNumber: instructorLicenseTrimmed! },
 		},
@@ -105,12 +116,17 @@ async function ensureRoleProfilesAfterUserUpsert(
 	const user = await tx.user.findUnique({
 		where: { id: userId },
 		select: {
+			profile: { select: { id: true } },
 			studentProfile: { select: { id: true } },
 			instructorProfile: { select: { id: true } },
 		},
 	});
 	if (!user) {
 		return;
+	}
+
+	if (!user.profile) {
+		await tx.userProfile.create({ data: { userId } });
 	}
 
 	if (targetRole === Role.STUDENT && !user.studentProfile) {
@@ -455,8 +471,13 @@ function buildMeUserPayload(user: AuthRequestUser) {
 	return {
 		id: user.id,
 		name: nameFromParts || user.email,
+		firstName: user.firstName,
+		lastName: user.lastName,
 		email: user.email,
+		phone: user.phone,
 		avatarUrl: user.profile?.avatarUrl ?? null,
+		bio: user.profile?.bio ?? null,
+		profileUpdatedAt: user.profile?.updatedAt ?? null,
 		role: user.role,
 	};
 }
@@ -467,6 +488,30 @@ function getMe(req: Request, res: Response) {
 		return sendJsonError(res, 'Unauthorized', 401);
 	}
 	return sendJsonSuccess(res, { user: buildMeUserPayload(user) });
+}
+
+async function patchProfile(req: Request, res: Response) {
+	const u = requireUser(req);
+	const body = req.body as Record<string, unknown>;
+	const patch: PatchProfileInput = {};
+	if (Object.prototype.hasOwnProperty.call(body, 'bio')) {
+		patch.bio = body.bio as string | null;
+	}
+	if (Object.prototype.hasOwnProperty.call(body, 'phone')) {
+		patch.phone = body.phone as string | null;
+	}
+	await userProfileService.patchProfileForUser(u.id, patch);
+	return sendJsonSuccess(res, { ok: true });
+}
+
+async function uploadProfileAvatar(req: Request, res: Response) {
+	const u = requireUser(req);
+	const file = (req as Request & { file?: UploadedPhotoFile }).file;
+	const data = await userProfileService.uploadAvatarForUser(
+		u.id,
+		file as UploadedPhotoFile,
+	);
+	return sendJsonSuccess(res, { photoUrl: data.avatarUrl });
 }
 
 /**
@@ -509,4 +554,12 @@ async function logout(req: Request, res: Response) {
 	return sendJsonSuccess(res);
 }
 
-export { register, login, refresh, logout, getMe };
+export {
+	register,
+	login,
+	refresh,
+	logout,
+	getMe,
+	patchProfile,
+	uploadProfileAvatar,
+};

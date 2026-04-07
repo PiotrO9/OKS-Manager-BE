@@ -82,6 +82,7 @@ model UserProfile {
   avatarUrl String?  @map("avatar_url")
   bio       String?  @map("bio")
   createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

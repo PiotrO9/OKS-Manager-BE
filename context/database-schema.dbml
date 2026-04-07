@@ -39,6 +39,7 @@ Table user_profiles {
   bio varchar
 
   created_at timestamp [default: `now()`]
+  updated_at timestamp [not null, note: 'Prisma @updatedAt — ostatnia zmiana pól profilu (bio, avatar_url)']
 }
 
 Table driving_schools {

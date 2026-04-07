@@ -3,6 +3,13 @@ import type { DrivingSchool, Vehicle } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
 import { getSupabaseAdminClient } from '../lib/supabaseAdmin';
+import {
+	ALLOWED_STANDARD_IMAGE_MIMES,
+	extractPublicStorageObjectPath,
+	fileExtensionFromMime,
+	removeStorageObjectBestEffort,
+	type UploadedPhotoFile,
+} from '../lib/supabaseStorage';
 import { parseUuidParam } from '../lib/validation/uuid';
 import {
 	type OptionalVehicleFields,
@@ -15,13 +22,9 @@ const prisma = getPrisma();
 const VEHICLE_IMAGES_BUCKET =
 	process.env.SUPABASE_VEHICLE_IMAGES_BUCKET ?? 'vehicle-images';
 
-const ALLOWED_VEHICLE_PHOTO_MIMES = new Set([
-	'image/jpeg',
-	'image/png',
-	'image/webp',
-]);
+const ALLOWED_VEHICLE_PHOTO_MIMES = ALLOWED_STANDARD_IMAGE_MIMES;
 
-export type UploadedPhotoFile = { buffer: Buffer; mimetype: string };
+export type { UploadedPhotoFile };
 
 type VehicleForAccessRow = {
 	id: string;
@@ -117,50 +120,6 @@ async function loadVehicleForOwner(
 		return { ok: false, notFound: false };
 	}
 	return { ok: true, vehicle };
-}
-
-function fileExtensionFromMime(mime: string): string | null {
-	if (mime === 'image/jpeg') {
-		return 'jpg';
-	}
-	if (mime === 'image/png') {
-		return 'png';
-	}
-	if (mime === 'image/webp') {
-		return 'webp';
-	}
-	return null;
-}
-
-function extractPublicStorageObjectPath(
-	publicUrl: string,
-	bucket: string,
-): string | null {
-	try {
-		const u = new URL(publicUrl);
-		const marker = `/object/public/${bucket}/`;
-		const idx = u.pathname.indexOf(marker);
-		if (idx === -1) {
-			return null;
-		}
-
-		return decodeURIComponent(u.pathname.slice(idx + marker.length));
-	} catch {
-		return null;
-	}
-}
-
-async function removeStorageObjectBestEffort(
-	objectPath: string,
-	bucket: string,
-): Promise<void> {
-	try {
-		await getSupabaseAdminClient()
-			.storage.from(bucket)
-			.remove([objectPath]);
-	} catch {
-		// best effort
-	}
 }
 
 async function listVehiclesBySchoolForUser(

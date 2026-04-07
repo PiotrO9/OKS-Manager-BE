@@ -14,10 +14,10 @@ src/
 ├── server.ts              # punkt wejścia, createApp(), mount routerów, error middleware
 ├── routes/                # Router Express: ścieżki, kolejność middleware, multer itd.
 ├── controllers/         # Handlery HTTP: walidacja wejścia (Zod / requireUser), odpowiedzi JSON
-├── services/            # Logika domenowa, Prisma, integracje (np. storage); rzuca AppError
+├── services/            # Logika domenowa, Prisma, integracje (np. vehicle.service, userProfile.service); rzuca AppError
 ├── schemas/             # Zod + funkcje parse (np. body pojazdu, szkoły jazdy)
 ├── middleware/          # authMiddleware, requireMinRole itd.
-├── lib/                   # Wspólne: prisma, supabase, apiResponse, validation/uuid, policies
+├── lib/                   # Wspólne: prisma, supabase, supabaseStorage (MIME / storage helpers), apiResponse, validation/uuid, policies
 └── types/                 # Rozszerzenia globalne (np. Express.Request.user)
 ```
 
@@ -39,7 +39,7 @@ Polityki i stałe reguły (np. kto może kogo rejestrować): **`lib/`** (np. `re
 ## Powiązane konteksty
 
 - API i koperty odpowiedzi: [api-guidelines.md](./api-guidelines.md)
-- Auth: [auth.md](./auth.md)
+- Auth (w tym profil, avatar, `/auth/profile`): [auth.md](./auth.md)
 - OSK (endpointy): [driving-schools-api.md](./driving-schools-api.md)
 - Pojazdy: [vehicles-api.md](./vehicles-api.md)
 - Reguły krytyczne (rezerwacje, transakcje): [backend-rules.md](./backend-rules.md)

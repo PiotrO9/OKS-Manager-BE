@@ -7,7 +7,7 @@ alwaysApply: true
 
 Montowanie w `src/server.ts` pod prefiksem **`/vehicles`**.
 
-Implementacja: `src/routes/vehicles.routes.ts`, `src/controllers/vehicles.controller.ts`, `src/services/vehicle.service.ts`, `src/schemas/vehicle.schemas.ts`.
+Implementacja: `src/routes/vehicles.routes.ts`, `src/controllers/vehicles.controller.ts`, `src/services/vehicle.service.ts`, `src/schemas/vehicle.schemas.ts`. Wspólne typy MIME i helpery ścieżek publicznego Storage: `src/lib/supabaseStorage.ts` (używane też przy uploadzie avatara użytkownika — [auth.md](./auth.md)).
 
 ## Uwierzytelnianie i autoryzacja
 

@@ -7,6 +7,8 @@ alwaysApply: true
 
 Important relations:
 
+User → UserProfile (`user_profiles`: opcjonalne `avatar_url`, `bio`; `updated_at` przy zmianach profilu w tym wierszu)
+
 User → StudentProfile / InstructorProfile
 
 Student → Courses → Lessons
