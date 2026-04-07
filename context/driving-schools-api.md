@@ -7,13 +7,13 @@ alwaysApply: true
 
 Pierwszy domenowy endpoint poza `/auth`: **lista szkół jazdy dostępnych dla zalogowanego użytkownika** (MVP — bez paginacji, filtów i wyszukiwania).
 
-Implementacja: `src/driving-schools/` (`driving-schools.routes.ts`, `driving-schools.controller.ts`), montowanie w `src/server.ts` pod prefiksem **`/driving-schools`**.
+Implementacja: `src/routes/driving-schools.routes.ts`, `src/controllers/driving-schools.controller.ts`, `src/services/oskContext.ts`, `src/schemas/driving-school.schemas.ts`; montowanie w `src/server.ts` pod prefiksem **`/driving-schools`**.
 
 ## Uwierzytelnianie
 
 Wymagany nagłówek **`Authorization: Bearer <access_token>`** (ten sam token co przy `GET /auth/me`).
 
-Middleware: **`authMiddleware`** (`src/auth/auth.middleware.ts`) — walidacja JWT (Supabase) oraz załadowanie rekordu **`User`** z Prisma do kontekstu żądania.
+Middleware: **`authMiddleware`** (`src/middleware/auth.middleware.ts`) — walidacja JWT (Supabase) oraz załadowanie rekordu **`User`** z Prisma do kontekstu żądania.
 
 Szczegóły sesji i logowania: [auth.md](./auth.md).
 
@@ -64,4 +64,5 @@ Inne role (np. nieobsługiwana wartość) → odpowiedź **403**.
 
 ## Powiązania w dokumentacji domeny
 
-Model relacji OSK ↔ użytkownicy: [system-overview.md](./system-overview.md) (sekcje users, driving schools, school assignments).
+- CRUD pojazdów i upload zdjęć: [vehicles-api.md](./vehicles-api.md).
+- Model relacji OSK ↔ użytkownicy: [system-overview.md](./system-overview.md) (sekcje users, driving schools, school assignments).

@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Auth (backend)
 
-Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/auth/`.
+Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/routes/auth.routes.ts` + `src/controllers/auth.controller.ts`.
 
 ## Przepływ sesji
 
@@ -48,7 +48,7 @@ Po udanym zapisie użytkownika backend **z poziomu aplikacji** tworzy powiązany
 
 Gdy użytkownik już istnieje w bazie po tym samym `id` (np. powtórne wywołanie rejestracji), wykonywane jest `user.update`; jeśli brakuje profilu danej roli, jest on **dopisany w tej samej transakcji** co aktualizacja użytkownika.
 
-Implementacja: `src/auth/auth.controller.ts` (`buildUserCreateWithRoleProfiles`, `ensureRoleProfilesAfterUserUpsert`).
+Implementacja: `src/controllers/auth.controller.ts` (`buildUserCreateWithRoleProfiles`, `ensureRoleProfilesAfterUserUpsert`).
 
 **Supabase:** nie trzeba konfigurować triggerów na `auth.users` ani logiki profili w panelu — tabele `public.*` obsługuje backend przez `DATABASE_URL` / Prisma.
 
@@ -60,9 +60,10 @@ Implementacja: `src/auth/auth.controller.ts` (`buildUserCreateWithRoleProfiles`,
 
 ## Pliki źródłowe
 
-- `src/auth/auth.routes.ts` — definicja tras
-- `src/auth/auth.controller.ts` — login, refresh, logout, register; opcje ciasteczka i odczyt `refresh_token`
-- `src/auth/auth.middleware.ts` — Bearer + Prisma user
+- `src/routes/auth.routes.ts` — definicja tras
+- `src/controllers/auth.controller.ts` — login, refresh, logout, register; opcje ciasteczka i odczyt `refresh_token`
+- `src/middleware/auth.middleware.ts` — Bearer + Prisma user
+- `src/lib/registerRolePolicy.ts` — kto może zarejestrować jaką rolę
 - `src/lib/supabase.ts` — klient anon (auth po stronie API)
 - Ochrona innych modułów API: m.in. `src/middleware/requireAuth.ts` (Bearer + Supabase)
 

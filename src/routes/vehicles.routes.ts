@@ -1,7 +1,5 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { authMiddleware, requireMinRole } from '../auth/auth.middleware';
-import { sendJsonError } from '../lib/apiResponse';
 import {
 	deleteVehicle,
 	getVehicleById,
@@ -9,7 +7,10 @@ import {
 	updateVehicle,
 	uploadVehiclePhoto,
 	upsertVehicle,
-} from './vehicles.controller';
+} from '../controllers/vehicles.controller';
+import { authMiddleware, requireMinRole } from '../middleware/auth.middleware';
+import { sendJsonError } from '../lib/apiResponse';
+import { asyncHandler } from '../lib/http/asyncHandler';
 
 const vehiclePhotoUpload = multer({
 	storage: multer.memoryStorage(),
@@ -23,15 +24,20 @@ function createVehiclesRouter() {
 		'/',
 		authMiddleware,
 		requireMinRole('MANAGER'),
-		listVehiclesBySchool,
+		asyncHandler(listVehiclesBySchool),
 	);
 	router.get(
 		'/:id',
 		authMiddleware,
 		requireMinRole('MANAGER'),
-		getVehicleById,
+		asyncHandler(getVehicleById),
 	);
-	router.post('/', authMiddleware, requireMinRole('MANAGER'), upsertVehicle);
+	router.post(
+		'/',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(upsertVehicle),
+	);
 	router.post(
 		'/:id/photo',
 		authMiddleware,
@@ -50,19 +56,19 @@ function createVehiclesRouter() {
 				next(err);
 			});
 		},
-		uploadVehiclePhoto,
+		asyncHandler(uploadVehiclePhoto),
 	);
 	router.patch(
 		'/:id',
 		authMiddleware,
 		requireMinRole('MANAGER'),
-		updateVehicle,
+		asyncHandler(updateVehicle),
 	);
 	router.delete(
 		'/:id',
 		authMiddleware,
 		requireMinRole('MANAGER'),
-		deleteVehicle,
+		asyncHandler(deleteVehicle),
 	);
 
 	return router;

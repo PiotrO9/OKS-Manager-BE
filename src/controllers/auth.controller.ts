@@ -2,8 +2,8 @@ import { Request, Response } from 'express';
 import { Prisma, Role, User } from '@prisma/client';
 import { sendJsonError, sendJsonSuccess } from '../lib/apiResponse';
 import { getPrisma } from '../lib/prisma';
+import { canInvokerRegisterUserWithRole } from '../lib/registerRolePolicy';
 import { getSupabaseClient } from '../lib/supabase';
-import { canInvokerRegisterUserWithRole } from './registerRolePolicy';
 
 const REFRESH_TOKEN_COOKIE = 'refresh_token';
 /** Poprzednia wersja API (clearCookie musi dopasować path do skasowania). */

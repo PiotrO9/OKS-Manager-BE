@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import { sendJsonSuccess } from '../lib/apiResponse';
-import { register, login, refresh, logout } from './auth.controller';
-import { authMiddleware } from './auth.middleware';
+import {
+	login,
+	logout,
+	refresh,
+	register,
+} from '../controllers/auth.controller';
+import { authMiddleware } from '../middleware/auth.middleware';
 
 function createAuthRouter() {
 	const router = Router();
@@ -15,7 +20,7 @@ function createAuthRouter() {
 
 	router.get('/me', authMiddleware, (req, res) => {
 		return sendJsonSuccess(res, {
-			user: (req as any).user,
+			user: req.user,
 		});
 	});
 

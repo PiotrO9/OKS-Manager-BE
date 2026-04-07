@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { sendJsonError } from '../lib/apiResponse';
+import { getPrisma } from '../lib/prisma';
 import { supabaseServerClient } from '../lib/supabase';
+
+const prisma = getPrisma();
 
 export async function requireAuth(
 	req: Request,
@@ -19,8 +22,14 @@ export async function requireAuth(
 			return sendJsonError(res, 'Nieprawidłowy token', 401);
 		}
 
-		// @ts-ignore
-		req.user = data.user;
+		const dbUser = await prisma.user.findUnique({
+			where: { id: data.user.id },
+		});
+		if (!dbUser) {
+			return sendJsonError(res, 'Użytkownik nie istnieje w bazie', 401);
+		}
+
+		req.user = dbUser;
 		return next();
 	} catch (err) {
 		// eslint-disable-next-line no-console

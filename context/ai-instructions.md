@@ -20,6 +20,7 @@ When generating code:
 - use Prisma ORM
 - use TypeScript
 - use Express
+- follow folder layers in [backend-structure.md](./backend-structure.md) (`routes` → `controllers` → `services` → `schemas` / `lib`)
 
 Focus:
 

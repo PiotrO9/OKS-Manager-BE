@@ -2,13 +2,11 @@ import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
 import cookieParser from 'cookie-parser';
-import { sendJsonError, sendJsonSuccess } from './lib/apiResponse';
-import { getPrisma } from './lib/prisma';
-import { createAuthRouter } from './auth/auth.routes';
-import { createDrivingSchoolsRouter } from './driving-schools/driving-schools.routes';
-import { createVehiclesRouter } from './vehicles/vehicles.routes';
-
-const prisma = getPrisma();
+import { sendJsonSuccess } from './lib/apiResponse';
+import { errorRequestHandler } from './lib/http/errorMiddleware';
+import { createAuthRouter } from './routes/auth.routes';
+import { createDrivingSchoolsRouter } from './routes/driving-schools.routes';
+import { createVehiclesRouter } from './routes/vehicles.routes';
 
 function parseAllowedOrigins(): string[] {
 	const raw = process.env.FRONTEND_URL?.trim();
@@ -42,19 +40,7 @@ function createApp() {
 		});
 	});
 
-	app.get('/db-test', async (req, res) => {
-		try {
-			await prisma.$connect();
-			const users = await prisma.user.findMany({ take: 1 });
-			return sendJsonSuccess(res, {
-				usersCount: users.length,
-				sample: users[0] || null,
-			});
-		} catch (err) {
-			console.error('DB test error', err);
-			return sendJsonError(res, String(err), 500);
-		}
-	});
+	app.use(errorRequestHandler);
 
 	return app;
 }

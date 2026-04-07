@@ -51,7 +51,7 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
 			return sendJsonError(res, 'User not found in DB', 401);
 		}
 
-		(req as any).user = dbUser;
+		req.user = dbUser;
 
 		next();
 	} catch (err) {
@@ -69,7 +69,7 @@ const ROLE_HIERARCHY: Record<string, number> = {
 
 function requireRole(roles: string | string[]) {
 	return function (req: Request, res: Response, next: NextFunction) {
-		const user = (req as any).user;
+		const user = req.user;
 
 		if (!user) {
 			return sendJsonError(res, 'Unauthorized', 401);
@@ -87,7 +87,7 @@ function requireRole(roles: string | string[]) {
 
 function requireMinRole(minRole: string) {
 	return function (req: Request, res: Response, next: NextFunction) {
-		const user = (req as any).user;
+		const user = req.user;
 
 		if (!user) {
 			return sendJsonError(res, 'Unauthorized', 401);

@@ -1,53 +1,58 @@
 import { Router } from 'express';
-import { authMiddleware, requireMinRole } from '../auth/auth.middleware';
 import {
-	deleteDrivingSchool,
-	getDrivingSchools,
-	getDefaultDrivingSchool,
 	createDrivingSchool,
+	deleteDrivingSchool,
+	getDefaultDrivingSchool,
+	getDrivingSchools,
 	setDefaultDrivingSchool,
 	setDefaultVehicleForDrivingSchool,
 	updateDrivingSchool,
-} from './driving-schools.controller';
+} from '../controllers/driving-schools.controller';
+import { authMiddleware, requireMinRole } from '../middleware/auth.middleware';
+import { asyncHandler } from '../lib/http/asyncHandler';
 
 function createDrivingSchoolsRouter() {
 	const router = Router();
 
-	router.get('/', authMiddleware, getDrivingSchools);
-	router.get('/default', authMiddleware, getDefaultDrivingSchool);
+	router.get('/', authMiddleware, asyncHandler(getDrivingSchools));
+	router.get(
+		'/default',
+		authMiddleware,
+		asyncHandler(getDefaultDrivingSchool),
+	);
 	router.post(
 		'/',
 		authMiddleware,
 		requireMinRole('MANAGER'),
-		createDrivingSchool,
+		asyncHandler(createDrivingSchool),
 	);
 
 	router.patch(
 		'/:id/set-default',
 		authMiddleware,
 		requireMinRole('MANAGER'),
-		setDefaultDrivingSchool,
+		asyncHandler(setDefaultDrivingSchool),
 	);
 
 	router.patch(
 		'/:id/default-vehicle',
 		authMiddleware,
 		requireMinRole('MANAGER'),
-		setDefaultVehicleForDrivingSchool,
+		asyncHandler(setDefaultVehicleForDrivingSchool),
 	);
 
 	router.patch(
 		'/:id',
 		authMiddleware,
 		requireMinRole('MANAGER'),
-		updateDrivingSchool,
+		asyncHandler(updateDrivingSchool),
 	);
 
 	router.delete(
 		'/:id',
 		authMiddleware,
 		requireMinRole('MANAGER'),
-		deleteDrivingSchool,
+		asyncHandler(deleteDrivingSchool),
 	);
 
 	return router;
