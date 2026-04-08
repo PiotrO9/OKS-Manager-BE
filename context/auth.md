@@ -56,7 +56,7 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 
 **Middleware:** `authMiddleware`. **Kto może kogo zarejestrować:** `registerRolePolicy.ts`.
 
-**Przepływ:** Supabase `auth.signUp` → zapis w aplikacji (`User` w Prisma). `id` użytkownika w `public.users` jest **taki sam** jak w Supabase Auth (`auth.users`), żeby sesja i rekord aplikacji były spójne.
+**Przepływ (skrót):** walidacja body i uprawnień → dla `role === INSTRUCTOR` wymagane jest poprawne **`schoolId`** (sprawdzenie **przed** `signUp`, żeby unikać zbędnych kont tylko w Auth) → Supabase `auth.signUp` → w jednej transakcji Prisma: zapis `User` / aktualizacja, profile roli, oraz dla instruktora z `schoolId`: **`instructor_schools`** + **`instructor_working_hours_default`**. `id` użytkownika w `public.users` jest **taki sam** jak w Supabase Auth (`auth.users`).
 
 ### Body (JSON)
 
@@ -65,6 +65,13 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 | `email`, `password`, `role`, `firstName`, `lastName` | tak | `role`: `STUDENT` lub `INSTRUCTOR` |
 | `phone` | nie | |
 | `licenseNumber` | tak, gdy `role` = `INSTRUCTOR` | W modelu `InstructorProfile` pole `license_number` jest wymagane — brak → **400** (`licenseNumber is required when role is INSTRUCTOR`) |
+| `schoolId` | tak, gdy `role` = `INSTRUCTOR` | UUID OSK. Brak / pusty / nieprawidłowy format → **400** (`schoolId is required when role is INSTRUCTOR` lub `Invalid schoolId`). **Przed** `signUp` — nie wywołujemy Supabase przy tych błędach. Dla `STUDENT` (i każdej roli innej niż `INSTRUCTOR`) pole jest **całkowicie ignorowane** (brak walidacji i nie powoduje błędów). |
+
+**Przypisanie instruktora do OSK:** wywołujący musi mieć co najmniej **`MANAGER`** (w praktyce rejestruje instruktora już tylko `ADMIN` / `MANAGER` wg `registerRolePolicy`) oraz prawo do szkoły: **właściciel** aktywnej OSK (`owner_id`) lub rola **`ADMIN`** (dowolna aktywna szkoła). Inaczej → **403**. Nieistniejąca lub usunięta szkoła → **400** `Invalid schoolId`.
+
+Jeśli rekord `users` z tym samym **`email`** ma już profil instruktora z co najmniej jednym wpisem w **`instructor_schools`** → **409** (`Instructor is already assigned to a driving school`) — nadal **przed** `signUp` (jeśli uda się to stwierdzić z bazy).
+
+**Domyślne godziny pracy** (`instructor_working_hours_default`): z `school_settings` danej OSK (`working_days_mask`, godziny rozpoczęcia/końca); bit `d` maski odpowiada `Date.getDay()` (0 = niedziela … 6 = sobota). Gdy brak ustawień, pusta maska lub `end <= start`, używany jest fallback **pn–pt 8:00–18:00**.
 
 ### Profile roli i `user_profiles` (Prisma)
 
@@ -72,7 +79,7 @@ Po udanym zapisie użytkownika backend **z poziomu aplikacji** tworzy powiązane
 
 - **`user_profiles`** — zawsze przy nowej rejestracji (`profile: { create: {} }`); `avatar_url`, `bio` mogą być puste; `updated_at` utrzymuje Prisma (`@updatedAt`).
 - **`STUDENT`** — wiersz w `student_profiles` (`user_id` → `users.id`; `pesel` opcjonalny).
-- **`INSTRUCTOR`** — wiersz w `instructor_profiles` z przekazanym `licenseNumber`.
+- **`INSTRUCTOR`** — wiersz w `instructor_profiles` z przekazanym `licenseNumber`; przy podanym `schoolId` dodatkowo **`instructor_schools`** oraz **`instructor_working_hours_default`** (logika: `src/lib/instructorSchoolRegistration.ts`, `src/lib/instructorDefaultWorkingHours.ts`).
 
 Gdy użytkownik już istnieje w bazie po tym samym `id` (np. powtórne wywołanie rejestracji), wykonywane jest `user.update`; jeśli brakuje **profilu roli** albo **`user_profiles`**, jest on **dopisywany** w tej samej transakcji co aktualizacja użytkownika (`ensureRoleProfilesAfterUserUpsert`).
 

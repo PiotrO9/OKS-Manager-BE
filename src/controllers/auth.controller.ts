@@ -4,8 +4,13 @@ import { sendJsonError, sendJsonSuccess } from '../lib/apiResponse';
 import { AppError } from '../lib/http/AppError';
 import { requireUser } from '../lib/http/requireUser';
 import { getPrisma } from '../lib/prisma';
+import {
+	attachInstructorToSchoolWithDefaultsInTx,
+	validateInstructorRegistrationSchoolBeforeSignUp,
+} from '../lib/instructorSchoolRegistration';
 import { canInvokerRegisterUserWithRole } from '../lib/registerRolePolicy';
 import { getSupabaseClient } from '../lib/supabase';
+import { parseUuidParam } from '../lib/validation/uuid';
 import {
 	type PatchProfileInput,
 	type UploadedPhotoFile,
@@ -44,6 +49,8 @@ type RegisterBody = {
 	phone?: string | null;
 	/** Wymagane przy role === INSTRUCTOR (profil w bazie wymaga numeru licencji). */
 	licenseNumber?: string | null;
+	/** Wymagane przy role === INSTRUCTOR; dla innych ról ignorowane. */
+	schoolId?: string | null;
 };
 
 type LoginBody = {
@@ -206,6 +213,36 @@ async function register(req: Request, res: Response) {
 	}
 
 	const emailTrimmed = String(email).trim();
+
+	let validatedInstructorSchoolId: string | undefined;
+	if (targetRole === Role.INSTRUCTOR) {
+		const schoolParse = parseUuidParam(body.schoolId);
+		if (schoolParse === null || schoolParse === 'invalid') {
+			return sendJsonError(
+				res,
+				schoolParse === 'invalid'
+					? 'Invalid schoolId'
+					: 'schoolId is required when role is INSTRUCTOR',
+				400,
+			);
+		}
+		validatedInstructorSchoolId = schoolParse;
+		try {
+			await validateInstructorRegistrationSchoolBeforeSignUp(
+				getPrisma(),
+				actor.role,
+				actor.id,
+				emailTrimmed,
+				validatedInstructorSchoolId,
+			);
+		} catch (err) {
+			if (err instanceof AppError) {
+				return sendJsonError(res, err.message, err.statusCode);
+			}
+			throw err;
+		}
+	}
+
 	const supabase = getSupabaseClient();
 
 	const { data, error } = await supabase.auth.signUp({
@@ -257,8 +294,21 @@ async function register(req: Request, res: Response) {
 					targetRole,
 					instructorLicenseTrimmed,
 				);
+				if (
+					targetRole === Role.INSTRUCTOR &&
+					validatedInstructorSchoolId
+				) {
+					await attachInstructorToSchoolWithDefaultsInTx(
+						tx,
+						authUserId,
+						validatedInstructorSchoolId,
+					);
+				}
 			});
 		} catch (err) {
+			if (err instanceof AppError) {
+				return sendJsonError(res, err.message, err.statusCode);
+			}
 			console.error('register: user.update failed (existingById)', err);
 			return sendJsonError(
 				res,
@@ -299,8 +349,20 @@ async function register(req: Request, res: Response) {
 	);
 
 	try {
-		await prisma.user.create({ data: userCreateData });
+		await prisma.$transaction(async (tx) => {
+			await tx.user.create({ data: userCreateData });
+			if (targetRole === Role.INSTRUCTOR && validatedInstructorSchoolId) {
+				await attachInstructorToSchoolWithDefaultsInTx(
+					tx,
+					authUserId,
+					validatedInstructorSchoolId,
+				);
+			}
+		});
 	} catch (err) {
+		if (err instanceof AppError) {
+			return sendJsonError(res, err.message, err.statusCode);
+		}
 		const isUnique =
 			err instanceof Prisma.PrismaClientKnownRequestError &&
 			err.code === 'P2002';
@@ -329,8 +391,25 @@ async function register(req: Request, res: Response) {
 							targetRole,
 							instructorLicenseTrimmed,
 						);
+						if (
+							targetRole === Role.INSTRUCTOR &&
+							validatedInstructorSchoolId
+						) {
+							await attachInstructorToSchoolWithDefaultsInTx(
+								tx,
+								authUserId,
+								validatedInstructorSchoolId,
+							);
+						}
 					});
 				} catch (updateErr) {
+					if (updateErr instanceof AppError) {
+						return sendJsonError(
+							res,
+							updateErr.message,
+							updateErr.statusCode,
+						);
+					}
 					console.error(
 						'register: user.update failed after P2002',
 						updateErr,
