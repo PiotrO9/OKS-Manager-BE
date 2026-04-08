@@ -35,6 +35,12 @@ enum PaymentStatus {
   FAILED
 }
 
+enum CourseKind {
+  THEORY_GROUP
+  PRACTICAL
+  EXTRA
+}
+
 // NOTE: DB-level constraints (EXCLUDE, CHECK) must be added as raw SQL migrations.
 // See context/db_constraints.md for recommended SQL snippets.
 
@@ -149,6 +155,7 @@ model InstructorProfile {
   leaves              InstructorLeave[]
   lessons             Lesson[] @relation("InstructorLessons")
   lessonRatings       LessonRating[] @relation("InstructorLessonRatings")
+  assignedCourses     Course[] @relation("CourseAssignedInstructor")
 
   @@map("instructor_profiles")
 }
@@ -161,7 +168,7 @@ model StudentProfile {
 
   user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   studentSchools StudentSchool[]
-  courses       Course[]
+  courseParticipants CourseParticipant[]
   lessons       Lesson[]            @relation("StudentLessons")
   lessonRatings LessonRating[]      @relation("StudentLessonRatings")
 
@@ -224,29 +231,45 @@ model CourseType {
   name      String   @map("name")
   createdAt DateTime @default(now()) @map("created_at")
 
-  courses   Course[]
-
   @@map("course_types")
 }
 
 model Course {
-  id            String          @id @default(uuid()) @db.Uuid @map("id")
-  studentId     String          @db.Uuid @map("student_id")
-  schoolId      String          @db.Uuid @map("school_id")
-  courseTypeId  String          @db.Uuid @map("course_type_id")
-  totalHours    Int             @map("total_hours")
-  status        String          @default("active") @map("status")
-  createdAt     DateTime        @default(now()) @map("created_at")
-  deletedAt     DateTime?       @map("deleted_at")
+  id           String       @id @default(uuid()) @db.Uuid @map("id")
+  schoolId    String       @db.Uuid @map("school_id")
+  name        String       @map("name")
+  category    String       @map("category")
+  kind        CourseKind   @map("kind")
+  totalHours  Int          @map("total_hours")
+  capacity    Int?         @map("capacity")
+  theoryStartDate DateTime? @db.Date @map("theory_start_date")
+  theoryEndDate   DateTime? @db.Date @map("theory_end_date")
+  instructorId String?     @db.Uuid @map("instructor_id")
+  status      String       @default("active") @map("status")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  deletedAt   DateTime?    @map("deleted_at")
 
-  studentProfile StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  school         DrivingSchool  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  courseType     CourseType     @relation(fields: [courseTypeId], references: [id])
-
-  paymentPlans   PaymentPlan[]
-  lessons        Lesson[]
+  school       DrivingSchool       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  instructor   InstructorProfile?  @relation("CourseAssignedInstructor", fields: [instructorId], references: [id], onDelete: SetNull)
+  participants CourseParticipant[]
+  paymentPlans PaymentPlan[]
+  lessons      Lesson[]
 
   @@map("courses")
+}
+
+model CourseParticipant {
+  id        String   @id @default(uuid()) @db.Uuid @map("id")
+  courseId  String   @db.Uuid @map("course_id")
+  studentId String   @db.Uuid @map("student_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  course  Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, studentId], name: "uq_course_participants_course_id_student_id")
+  @@index([studentId], name: "idx_course_participants_student_id")
+  @@map("course_participants")
 }
 
 model Lesson {
