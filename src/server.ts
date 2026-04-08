@@ -6,6 +6,7 @@ import { sendJsonSuccess } from './lib/apiResponse';
 import { errorRequestHandler } from './lib/http/errorMiddleware';
 import { createAuthRouter } from './routes/auth.routes';
 import { createDrivingSchoolsRouter } from './routes/driving-schools.routes';
+import { createInstructorsRouter } from './routes/instructors.routes';
 import { createVehiclesRouter } from './routes/vehicles.routes';
 
 function parseAllowedOrigins(): string[] {
@@ -32,6 +33,7 @@ function createApp() {
 
 	app.use('/auth', createAuthRouter());
 	app.use('/driving-schools', createDrivingSchoolsRouter());
+	app.use('/instructors', createInstructorsRouter());
 	app.use('/vehicles', createVehiclesRouter());
 
 	app.get('/test', async (req, res) => {
