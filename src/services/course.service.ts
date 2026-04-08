@@ -179,6 +179,7 @@ async function listCoursesForSchool(
 
 export type CourseDetailDto = {
 	id: string;
+	schoolId: string;
 	name: string;
 	category: string;
 	type: CourseKind;
@@ -218,6 +219,7 @@ async function getCourseDetailForOwner(
 
 	return {
 		id: row.id,
+		schoolId: row.schoolId,
 		name: row.name,
 		category: row.category,
 		type: row.kind,

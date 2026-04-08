@@ -70,7 +70,7 @@ Zapis: dla `PRACTICAL` / `EXTRA` pole `capacity` w DB jest **null**; daty teorii
 
 ## GET szczegółów — odpowiedź (200)
 
-`data.course`: `id`, `name`, `category`, `type`, `totalHours`, `capacity`, `instructor`: `{ id: User.id, name }` lub `null`.
+`data.course`: `id`, **`schoolId`** (UUID szkoły kursu), `name`, `category`, `type`, `totalHours`, `capacity`, `instructor`: `{ id: User.id, name }` lub `null`.
 
 ## PATCH — body (JSON)
 
