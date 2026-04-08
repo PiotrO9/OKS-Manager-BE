@@ -14,6 +14,7 @@ Implementacja: `src/routes/courses.routes.ts`, `src/controllers/courses.controll
 - Kurs (`Course`) należy do jednej szkoły (`schoolId`), może mieć **co najwyżej jednego** przypisanego instruktora (`instructorId` → `InstructorProfile.id`, opcjonalne).
 - Rodzaj kursu (`kind`): `THEORY_GROUP`, `PRACTICAL`, `EXTRA` (enum Prisma `CourseKind`).
 - Lista i tworzenie wymagają szkoły, do której użytkownik jest **właścicielem** (`DrivingSchool.ownerId`). Szczegóły i PATCH sprawdzają właściciela szkoły przypiętej do kursu.
+- Dozwolone wartości `kind` przy **tworzeniu** kursu muszą być zawarte w `SchoolSettings.enabledCourseKinds` danej szkoły (zob. [driving-schools-api.md](./driving-schools-api.md)). Wyłączenie typu w ustawieniach OSK **nie** zmienia istniejących kursów — blokuje tylko nowe `POST /courses` z tym `kind`.
 
 ## Uwierzytelnianie i autoryzacja
 
@@ -50,7 +51,7 @@ Szczegóły sesji: [auth.md](./auth.md).
 | `schoolId` | string (UUID) | Szkoła musi istnieć i mieć `ownerId` = bieżący użytkownik |
 | `name` | string | Po trim niepusty |
 | `category` | string | Po trim niepusty |
-| `kind` | `THEORY_GROUP` \| `PRACTICAL` \| `EXTRA` | |
+| `kind` | `THEORY_GROUP` \| `PRACTICAL` \| `EXTRA` | Musi być w `enabledCourseKinds` szkoły (patrz ustawienia OSK); inaczej **400** |
 | `totalHours` | number | Liczba całkowita dodatnia (minimum 1) |
 | `capacity` | number \| null \| omit | Dozwolone tylko dla `THEORY_GROUP`; dla `PRACTICAL` / `EXTRA` nie może być podane |
 | `instructorId` | string (UUID) \| null \| omit | Jeśli podane i nie null: musi istnieć powiązanie `InstructorSchool` dla tego profilu i `schoolId` (**400** `instructor does not belong to this school`) |
@@ -92,7 +93,7 @@ Tylko pole **`instructorId`** ma znaczenie; inne klucze są odrzucone przez Zod 
 |-----|----------|
 | **401** | Brak / niepoprawny JWT |
 | **403** | Rola poniżej MANAGER; użytkownik nie jest właścicielem szkoły przy liście/tworzeniu; nie jest właścicielem szkoły kursu przy GET / PATCH |
-| **400** | Niepoprawny `schoolId` lub `:id`; walidacja POST/PATCH (np. zasady `kind` / dat / capacity; nieprawidłowy UUID `instructorId`; instruktor spoza szkoły) |
+| **400** | Niepoprawny `schoolId` lub `:id`; walidacja POST/PATCH (np. zasady `kind` / dat / capacity; nieprawidłowy UUID `instructorId`; instruktor spoza szkoły); **POST:** brak rekordu `school_settings` (`School settings not configured`); pusta lista `enabledCourseKinds` (`No course kinds enabled for this school`); `kind` spoza listy (`Course kind is not enabled for this school`) |
 | **404** | GET/PATCH: kurs nie znaleziony lub „usunięty” (`deletedAt`) |
 
 ## Checklist smoke (ręczna)
@@ -104,3 +105,4 @@ Tylko pole **`instructorId`** ma znaczenie; inne klucze są odrzucone przez Zod 
 5. **GET/PATCH:** cudzy kurs → **403**; nieistniejący `:id` → **404**.
 6. **PATCH `{}`** → **200**, bez zmiany `instructorId` w DB.
 7. **PATCH** `instructorId: null` → **200**, pole null w DB.
+8. **POST:** `kind` niewłączony w `enabledCourseKinds` szkoły lub pusta lista typów w ustawieniach → **400**.

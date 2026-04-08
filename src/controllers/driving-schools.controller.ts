@@ -1,3 +1,4 @@
+import type { CourseKind } from '@prisma/client';
 import { Request, Response } from 'express';
 import { sendJsonSuccess } from '../lib/apiResponse';
 import { AppError } from '../lib/http/AppError';
@@ -16,12 +17,21 @@ import {
 
 const prisma = getPrisma();
 
+const DEFAULT_ENABLED_COURSE_KINDS: CourseKind[] = [
+	'THEORY_GROUP',
+	'PRACTICAL',
+	'EXTRA',
+];
+
 async function getDrivingSchools(req: Request, res: Response) {
 	const user = requireUser(req);
 
 	const [schools, owner] = await Promise.all([
 		prisma.drivingSchool.findMany({
 			where: activeSchoolClause({ ownerId: user.id }),
+			include: {
+				settings: { select: { enabledCourseKinds: true } },
+			},
 		}),
 		prisma.user.findUnique({
 			where: { id: user.id },
@@ -35,10 +45,14 @@ async function getDrivingSchools(req: Request, res: Response) {
 		owner?.defaultOskId ?? null,
 	);
 
-	const schoolsWithDefault = schools.map((school) => ({
-		...school,
-		isDefault: defaultOskId !== null && school.id === defaultOskId,
-	}));
+	const schoolsWithDefault = schools.map((school) => {
+		const { settings, ...rest } = school;
+		return {
+			...rest,
+			enabledCourseKinds: settings?.enabledCourseKinds ?? [],
+			isDefault: defaultOskId !== null && school.id === defaultOskId,
+		};
+	});
 
 	return sendJsonSuccess(res, {
 		schools: schoolsWithDefault,
@@ -54,7 +68,8 @@ async function createDrivingSchool(req: Request, res: Response) {
 		throw AppError.badRequest(message);
 	}
 
-	const { name, city, address } = parsed.data;
+	const { name, city, address, enabledCourseKinds } = parsed.data;
+	const kindsToStore = enabledCourseKinds ?? DEFAULT_ENABLED_COURSE_KINDS;
 
 	const existingCount = await prisma.drivingSchool.count({
 		where: activeSchoolClause({ ownerId: user.id }),
@@ -72,6 +87,13 @@ async function createDrivingSchool(req: Request, res: Response) {
 			},
 		});
 
+		await tx.schoolSettings.create({
+			data: {
+				schoolId: school.id,
+				enabledCourseKinds: kindsToStore,
+			},
+		});
+
 		if (isFirstSchool) {
 			await tx.user.update({
 				where: { id: user.id },
@@ -79,7 +101,12 @@ async function createDrivingSchool(req: Request, res: Response) {
 			});
 		}
 
-		return school;
+		return tx.drivingSchool.findUniqueOrThrow({
+			where: { id: school.id },
+			include: {
+				settings: { select: { enabledCourseKinds: true } },
+			},
+		});
 	});
 
 	if (!isFirstSchool) {
@@ -97,7 +124,15 @@ async function createDrivingSchool(req: Request, res: Response) {
 		);
 	}
 
-	return sendJsonSuccess(res, newSchool, 201);
+	const { settings: createdSettings, ...createdRest } = newSchool;
+	return sendJsonSuccess(
+		res,
+		{
+			...createdRest,
+			enabledCourseKinds: createdSettings?.enabledCourseKinds ?? [],
+		},
+		201,
+	);
 }
 
 async function setDefaultDrivingSchool(req: Request, res: Response) {
@@ -208,12 +243,57 @@ async function updateDrivingSchool(req: Request, res: Response) {
 		throw AppError.forbidden('Forbidden');
 	}
 
-	const updated = await prisma.drivingSchool.update({
-		where: { id },
-		data,
+	const schoolUpdate: {
+		name?: string;
+		city?: string | null;
+		address?: string | null;
+	} = {};
+	if (data.name !== undefined) {
+		schoolUpdate.name = data.name;
+	}
+	if (data.city !== undefined) {
+		schoolUpdate.city = data.city;
+	}
+	if (data.address !== undefined) {
+		schoolUpdate.address = data.address;
+	}
+
+	const hasSchoolScalarUpdate = Object.keys(schoolUpdate).length > 0;
+
+	const updated = await prisma.$transaction(async (tx) => {
+		if (hasSchoolScalarUpdate) {
+			await tx.drivingSchool.update({
+				where: { id },
+				data: schoolUpdate,
+			});
+		}
+
+		if (data.enabledCourseKinds !== undefined) {
+			await tx.schoolSettings.upsert({
+				where: { schoolId: id },
+				create: {
+					schoolId: id,
+					enabledCourseKinds: data.enabledCourseKinds,
+				},
+				update: {
+					enabledCourseKinds: data.enabledCourseKinds,
+				},
+			});
+		}
+
+		return tx.drivingSchool.findUniqueOrThrow({
+			where: { id },
+			include: {
+				settings: { select: { enabledCourseKinds: true } },
+			},
+		});
 	});
 
-	return sendJsonSuccess(res, updated);
+	const { settings: updSettings, ...updRest } = updated;
+	return sendJsonSuccess(res, {
+		...updRest,
+		enabledCourseKinds: updSettings?.enabledCourseKinds ?? [],
+	});
 }
 
 async function deleteDrivingSchool(req: Request, res: Response) {
@@ -321,8 +401,14 @@ async function getDefaultDrivingSchool(req: Request, res: Response) {
 	}
 
 	const isManager = school.ownerId === user.id;
+	const { settings: defSettings, ...defRest } = school;
 
-	return sendJsonSuccess(res, { ...school, isManager });
+	return sendJsonSuccess(res, {
+		...defRest,
+		enabledCourseKinds: defSettings?.enabledCourseKinds ?? [],
+		settings: defSettings,
+		isManager,
+	});
 }
 
 export {

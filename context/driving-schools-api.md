@@ -21,7 +21,9 @@ Szczegóły sesji i logowania: [auth.md](./auth.md).
 
 | Metoda | Ścieżka | Middleware | Opis |
 |--------|---------|------------|------|
-| GET | `/driving-schools` | `authMiddleware` | Zwraca listę `DrivingSchool` widocznych dla roli użytkownika |
+| GET | `/driving-schools` | `authMiddleware` | Zwraca listę szkół + `defaultOskId`; każdy element ma pola szkoły oraz **`enabledCourseKinds`**: tablica `CourseKind` zapisanych w `SchoolSettings` (ustawienia tworzone razem z OSK przy `POST`). |
+| POST | `/driving-schools` | `authMiddleware`, `requireMinRole('MANAGER')` | Tworzy OSK. Body: `name` (wym.), opcjonalnie `city`, `address`, **`enabledCourseKinds`** — tablica unikalnych `THEORY_GROUP` \| `PRACTICAL` \| `EXTRA` (pusta dozwolona w zapisie); jeśli pole pominięte — domyślnie wszystkie trzy. Odpowiedź zawiera szkołę + **`enabledCourseKinds`**. |
+| PATCH | `/driving-schools/:id` | `authMiddleware`, `requireMinRole('MANAGER')` | Częściowa aktualizacja: `name`, `city`, `address`, **`enabledCourseKinds`** (zastąpienie całej listy w `school_settings`; `upsert` jeśli brak rekordu). Przynajmniej jedno pole wymagane. |
 | PATCH | `/driving-schools/:id/default-vehicle` | `authMiddleware`, `requireMinRole('MANAGER')` | Ustawia domyślny pojazd szkoły: body `{ "vehicleId": "<uuid>" }`. Sukces: `data: { defaultVehicleId }`. Pojazd musi istnieć, być aktywny (`isActive`) i należeć do tej szkoły; inna szkoła / obcy pojazd → **403**; brak pojazdu lub nieaktywny → **404** (jak przy `PATCH /vehicles/:id`). |
 
 Pierwszy pojazd utworzony dla danej szkoły (`POST /vehicles` bez `id` w body, pierwszy rekord `vehicles` dla `schoolId`) ustawia automatycznie `defaultVehicleId` na szkole (transakcja), analogicznie do pierwszego OSK i `defaultOskId` użytkownika.
@@ -33,7 +35,9 @@ Zgodnie z [api-guidelines.md](./api-guidelines.md) — koperta JSON:
 - Sukces: `{ "success": true, "data": <DrivingSchool[]> }` — **`data` jest zawsze tablicą** (0 lub więcej elementów).
 - Błąd: `{ "success": false, "error": "<tekst>" }`.
 
-Model Prisma `DrivingSchool` odpowiada tabeli `driving_schools` (m.in. `id`, `name`, `city`, `address`, `ownerId`, `createdAt`).
+Model Prisma `DrivingSchool` odpowiada tabeli `driving_schools` (m.in. `id`, `name`, `city`, `address`, `ownerId`, `createdAt`). **`enabledCourseKinds`** pochodzą z powiązanych **`SchoolSettings`** (`school_settings.enabled_course_kinds`, typ `CourseKind[]` w Postgresie) i są zwracane **na poziomie DTO** (spłaszczone przy `GET`, `POST` utworzenia, `PATCH`, oraz przy `GET /driving-schools/default` obok **`settings`**).
+
+Migracja inicjalizuje brakujące `school_settings` dla istniejących szkół i ustawia pełny zestaw trzech `CourseKind`.
 
 ## Logika wg roli
 

@@ -76,6 +76,19 @@ async function createCourseForUser(
 		}
 	}
 
+	const schoolSettings = await prisma.schoolSettings.findUnique({
+		where: { schoolId: body.schoolId },
+	});
+	if (!schoolSettings) {
+		throw AppError.badRequest('School settings not configured');
+	}
+	if (schoolSettings.enabledCourseKinds.length === 0) {
+		throw AppError.badRequest('No course kinds enabled for this school');
+	}
+	if (!schoolSettings.enabledCourseKinds.includes(body.kind)) {
+		throw AppError.badRequest('Course kind is not enabled for this school');
+	}
+
 	const capacity =
 		body.kind === 'THEORY_GROUP' ? (body.capacity ?? null) : null;
 

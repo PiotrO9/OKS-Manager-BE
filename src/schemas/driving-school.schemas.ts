@@ -1,3 +1,4 @@
+import type { CourseKind } from '@prisma/client';
 import { z } from 'zod';
 import {
 	UUID_PARAM_RE,
@@ -5,6 +6,16 @@ import {
 } from '../lib/validation/uuid';
 
 export { drivingSchoolIdParamsSchema };
+
+const COURSE_KIND_VALUES = [
+	'THEORY_GROUP',
+	'PRACTICAL',
+	'EXTRA',
+] as const satisfies readonly CourseKind[];
+
+export const enabledCourseKindsFieldSchema = z
+	.array(z.enum(COURSE_KIND_VALUES))
+	.transform((arr) => [...new Set(arr)] as CourseKind[]);
 
 function firstBodyValue(val: unknown): unknown {
 	if (Array.isArray(val)) {
@@ -54,6 +65,21 @@ export const createDrivingSchoolBodySchema = z
 				path: ['address'],
 			});
 		}
+		if (body['enabledCourseKinds'] !== undefined) {
+			const parsed = enabledCourseKindsFieldSchema.safeParse(
+				body['enabledCourseKinds'],
+			);
+			if (!parsed.success) {
+				const msg =
+					parsed.error.issues[0]?.message ??
+					'Invalid enabledCourseKinds';
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: msg,
+					path: ['enabledCourseKinds'],
+				});
+			}
+		}
 	})
 	.transform((body) => {
 		const name = String(body['name']).trim();
@@ -71,7 +97,12 @@ export const createDrivingSchoolBodySchema = z
 				: (rawAddress as string).trim() === ''
 					? null
 					: (rawAddress as string).trim();
-		return { name, city, address };
+		const rawKinds = body['enabledCourseKinds'];
+		const enabledCourseKinds: CourseKind[] | undefined =
+			rawKinds === undefined
+				? undefined
+				: enabledCourseKindsFieldSchema.parse(rawKinds);
+		return { name, city, address, enabledCourseKinds };
 	});
 
 export const updateDrivingSchoolBodySchema = z
@@ -79,6 +110,7 @@ export const updateDrivingSchoolBodySchema = z
 		name: z.unknown().optional(),
 		city: z.unknown().optional(),
 		address: z.unknown().optional(),
+		enabledCourseKinds: z.unknown().optional(),
 	})
 	.superRefine((data, ctx) => {
 		const keys = Object.keys(data).filter(
@@ -89,6 +121,22 @@ export const updateDrivingSchoolBodySchema = z
 				code: z.ZodIssueCode.custom,
 				message: 'No fields to update',
 			});
+		}
+
+		if (data.enabledCourseKinds !== undefined) {
+			const parsed = enabledCourseKindsFieldSchema.safeParse(
+				data.enabledCourseKinds,
+			);
+			if (!parsed.success) {
+				const msg =
+					parsed.error.issues[0]?.message ??
+					'Invalid enabledCourseKinds';
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: msg,
+					path: ['enabledCourseKinds'],
+				});
+			}
 		}
 
 		if (data.name !== undefined) {
@@ -128,6 +176,7 @@ export const updateDrivingSchoolBodySchema = z
 			name?: string;
 			city?: string | null;
 			address?: string | null;
+			enabledCourseKinds?: CourseKind[];
 		} = {};
 
 		if (raw.name !== undefined && typeof raw.name === 'string') {
@@ -148,6 +197,11 @@ export const updateDrivingSchoolBodySchema = z
 				const t = (raw.address as string).trim();
 				out.address = t === '' ? null : t;
 			}
+		}
+		if (raw.enabledCourseKinds !== undefined) {
+			out.enabledCourseKinds = enabledCourseKindsFieldSchema.parse(
+				raw.enabledCourseKinds,
+			);
 		}
 
 		return out;

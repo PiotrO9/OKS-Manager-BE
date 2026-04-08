@@ -130,7 +130,8 @@ model SchoolSettings {
   practiceMaxDurationMinutes Int      @default(120) @map("practice_max_duration_minutes")
   theoryMinDurationMinutes   Int      @default(45) @map("theory_min_duration_minutes")
   theoryMaxDurationMinutes   Int      @default(90) @map("theory_max_duration_minutes")
-  bookingMaxDaysAhead        Int      @default(30) @map("booking_max_days_ahead")
+  bookingMaxDaysAhead        Int          @default(30) @map("booking_max_days_ahead")
+  enabledCourseKinds         CourseKind[] @default([THEORY_GROUP, PRACTICAL, EXTRA]) @map("enabled_course_kinds")
   createdAt                  DateTime @default(now()) @map("created_at")
   updatedAt                  DateTime? @map("updated_at")
 
