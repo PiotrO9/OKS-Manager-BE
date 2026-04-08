@@ -24,6 +24,7 @@ Course:
 - belongs to student
 - belongs to driving_school
 - has course_type
+- API (lista, szczegóły, POST, PATCH instruktora): [courses-api.md](./courses-api.md)
 
 Payments:
 Course → PaymentPlan → Payments

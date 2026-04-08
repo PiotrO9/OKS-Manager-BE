@@ -27,6 +27,8 @@ Authentication (Bearer, httpOnly refresh cookie, `/auth/*`): zob. [auth.md](./au
 
 Lista OSK dla zalogowanego użytkownika (role, kody błędów): zob. [driving-schools-api.md](./driving-schools-api.md).
 
+Kursy (lista, szczegóły, POST, PATCH instruktora): zob. [courses-api.md](./courses-api.md).
+
 Response format:
 
 {
