@@ -22,7 +22,7 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 | POST | `/auth/refresh` | — | Wymaga ciasteczka |
 | POST | `/auth/logout` | `authMiddleware` | Wymaga Bearer; bez poprawnego JWT → **401** |
 | GET | `/auth/me` | `authMiddleware` | Zbiór pól użytkownika + profil (patrz poniżej) |
-| PATCH | `/auth/profile` | `authMiddleware` | Aktualizacja `bio` / `phone` (co najmniej jedno pole) |
+| PATCH | `/auth/profile` | `authMiddleware` | Aktualizacja profilu — zob. poniżej (RBAC po polach; co najmniej jedno pole) |
 | POST | `/auth/profile/avatar` | `authMiddleware` | Upload avatara do Supabase Storage (multipart, pole `file`) |
 
 **`authMiddleware`**: weryfikuje JWT przez Supabase `getUser`, ładuje rekord `User` z Prisma (z `include: { profile: true }`) do `req.user`. Trasy chronione (pojazdy, szkoły jazdy itd.) używają tego samego middleware.
@@ -80,18 +80,24 @@ Implementacja: `src/controllers/auth.controller.ts` (`buildUserCreateWithRolePro
 
 ### PATCH `/auth/profile`
 
-**Body (JSON):** co najmniej jedno z pól:
+**Kontekst:** zawsze **własny** użytkownik z JWT (`req.user`). Dodatkowe pola w body (poza tabelą) są ignorowane.
 
-| Pole | Wymagane | Uwagi |
-|------|----------|--------|
-| `bio` | nie* | String lub `null` (wyczyszczenie). Max **2000** znaków — dłuższy tekst → **400**. |
-| `phone` | nie* | String lub `null`; pusty string po trim → zapis jako `null` w `users.phone`. |
+**Body (JSON):** wymagane jest **co najmniej jedno** z poniższych kluczy — inaczej **400** (`At least one of bio, phone, firstName, lastName is required`).
 
-\* Wymagane jest **co najmniej jedno** z `bio` / `phone` w body — inaczej **400** (`At least one of bio, phone is required`).
+| Pole | Kto może wysłać | Uwagi |
+|------|-----------------|--------|
+| `bio` | Dowolna zalogowana rola | String lub `null` (wyczyszczenie). Max **2000** znaków — dłużej → **400**. |
+| `phone` | Dowolna zalogowana rola | String lub `null`; pusty string po trim → `null` w `users.phone`. |
+| `firstName` | Tylko **`MANAGER`**, **`ADMIN`** | Niepusty string po trim; max **100** znaków; typ inny niż string → **400**. |
+| `lastName` | Tylko **`MANAGER`**, **`ADMIN`** | Jak `firstName`. |
 
-**Sukces (200):** `{ "success": true, "data": { "ok": true } }`.
+Jeśli w body występuje klucz `firstName` i/lub `lastName` (`Object.prototype.hasOwnProperty`), a rola wywołującego to **`STUDENT`** lub **`INSTRUCTOR`**, odpowiedź **403** `Forbidden` (bez zapisu; także gdy równolegle podano `phone` / `bio`).
 
-**Logika:** `phone` → `users`; `bio` → `user_profiles` przez **upsert** po `user_id` (nie nadpisuje `avatar_url` przy samym patchu tekstu). Błędy walidacji → **400** (`AppError`).
+**Sukces (200):** `{ "success": true, "data": { "ok": true, "user": { ... } } }` — kształt `user` jak przy **GET `/auth/me`** (świeże dane po zapisie).
+
+**Logika:** `phone` / `firstName` / `lastName` → `users` (jeden `update` w transakcji); `bio` → `user_profiles` przez **upsert** (nie nadpisuje `avatar_url` przy samym patchu tekstu). Walidacja → **400** (`AppError`).
+
+**Błędy (typowe):** **401** — jak przy innych trasach z `authMiddleware`; **403** — próba `firstName` / `lastName` przez kursanta lub instruktora (oraz konto usunięte/wyłączone jak przy middleware); **400** — walidacja; **404** po zapisie przy braku wiersza `users` jest mało prawdopodobne.
 
 ### POST `/auth/profile/avatar`
 
@@ -118,7 +124,7 @@ Implementacja: `src/controllers/auth.controller.ts` (`buildUserCreateWithRolePro
 
 - `src/routes/auth.routes.ts` — definicja tras (w tym `multer` dla avatara)
 - `src/controllers/auth.controller.ts` — login, refresh, logout, register, `getMe`, `patchProfile`, `uploadProfileAvatar`
-- `src/services/userProfile.service.ts` — patch profilu (`bio`), upload avatara, upsert `user_profiles`
+- `src/services/userProfile.service.ts` — patch profilu (`bio`, `phone`, `firstName`, `lastName` wg reguł w kontrolerze), upload avatara, upsert `user_profiles`
 - `src/lib/supabaseStorage.ts` — wspólne MIME / ścieżka publicznego URL / usuwanie obiektów (też używane przy zdjęciach pojazdów)
 - `src/middleware/auth.middleware.ts` — Bearer + Prisma user (`include: { profile: true }`)
 - `src/lib/registerRolePolicy.ts` — kto może zarejestrować jaką rolę

@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import type { Prisma } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
 import { getSupabaseAdminClient } from '../lib/supabaseAdmin';
@@ -17,11 +18,33 @@ const prisma = getPrisma();
 const AVATARS_BUCKET = process.env.SUPABASE_AVATARS_BUCKET ?? 'avatars';
 
 const BIO_MAX_LENGTH = 2000;
+const NAME_MAX_LENGTH = 100;
 
 export type PatchProfileInput = {
 	bio?: string | null;
 	phone?: string | null;
+	firstName?: string;
+	lastName?: string;
 };
+
+function validateNameField(
+	label: 'firstName' | 'lastName',
+	raw: unknown,
+): string {
+	if (typeof raw !== 'string') {
+		throw AppError.badRequest(`${label} must be a string`);
+	}
+	const t = raw.trim();
+	if (t === '') {
+		throw AppError.badRequest(`${label} must not be empty`);
+	}
+	if (t.length > NAME_MAX_LENGTH) {
+		throw AppError.badRequest(
+			`${label} too long (max ${NAME_MAX_LENGTH} characters)`,
+		);
+	}
+	return t;
+}
 
 async function patchProfileForUser(
 	userId: string,
@@ -29,9 +52,13 @@ async function patchProfileForUser(
 ): Promise<void> {
 	const hasBio = 'bio' in body;
 	const hasPhone = 'phone' in body;
+	const hasFirstName = 'firstName' in body;
+	const hasLastName = 'lastName' in body;
 
-	if (!hasBio && !hasPhone) {
-		throw AppError.badRequest('At least one of bio, phone is required');
+	if (!hasBio && !hasPhone && !hasFirstName && !hasLastName) {
+		throw AppError.badRequest(
+			'At least one of bio, phone, firstName, lastName is required',
+		);
 	}
 
 	if (hasBio && body.bio != null && typeof body.bio !== 'string') {
@@ -51,18 +78,31 @@ async function patchProfileForUser(
 		throw AppError.badRequest('phone must be a string or null');
 	}
 
+	const userUpdate: Prisma.UserUpdateInput = {};
+
+	if (hasPhone) {
+		let phoneVal: string | null;
+		if (body.phone == null) {
+			phoneVal = null;
+		} else {
+			const t = String(body.phone).trim();
+			phoneVal = t === '' ? null : t;
+		}
+		userUpdate.phone = phoneVal;
+	}
+
+	if (hasFirstName) {
+		userUpdate.firstName = validateNameField('firstName', body.firstName);
+	}
+	if (hasLastName) {
+		userUpdate.lastName = validateNameField('lastName', body.lastName);
+	}
+
 	await prisma.$transaction(async (tx) => {
-		if (hasPhone) {
-			let phoneVal: string | null;
-			if (body.phone == null) {
-				phoneVal = null;
-			} else {
-				const t = String(body.phone).trim();
-				phoneVal = t === '' ? null : t;
-			}
+		if (Object.keys(userUpdate).length > 0) {
 			await tx.user.update({
 				where: { id: userId },
-				data: { phone: phoneVal },
+				data: userUpdate,
 			});
 		}
 

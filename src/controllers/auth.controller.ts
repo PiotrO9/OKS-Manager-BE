@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Prisma, Role } from '@prisma/client';
 import { sendJsonError, sendJsonSuccess } from '../lib/apiResponse';
+import { AppError } from '../lib/http/AppError';
 import { requireUser } from '../lib/http/requireUser';
 import { getPrisma } from '../lib/prisma';
 import { canInvokerRegisterUserWithRole } from '../lib/registerRolePolicy';
@@ -493,6 +494,13 @@ function getMe(req: Request, res: Response) {
 async function patchProfile(req: Request, res: Response) {
 	const u = requireUser(req);
 	const body = req.body as Record<string, unknown>;
+	const wantsNameField =
+		Object.prototype.hasOwnProperty.call(body, 'firstName') ||
+		Object.prototype.hasOwnProperty.call(body, 'lastName');
+	if (wantsNameField && u.role !== Role.MANAGER && u.role !== Role.ADMIN) {
+		throw AppError.forbidden('Forbidden');
+	}
+
 	const patch: PatchProfileInput = {};
 	if (Object.prototype.hasOwnProperty.call(body, 'bio')) {
 		patch.bio = body.bio as string | null;
@@ -500,8 +508,27 @@ async function patchProfile(req: Request, res: Response) {
 	if (Object.prototype.hasOwnProperty.call(body, 'phone')) {
 		patch.phone = body.phone as string | null;
 	}
+	if (Object.prototype.hasOwnProperty.call(body, 'firstName')) {
+		patch.firstName = body.firstName as string;
+	}
+	if (Object.prototype.hasOwnProperty.call(body, 'lastName')) {
+		patch.lastName = body.lastName as string;
+	}
 	await userProfileService.patchProfileForUser(u.id, patch);
-	return sendJsonSuccess(res, { ok: true });
+
+	const prisma = getPrisma();
+	const updated = await prisma.user.findUnique({
+		where: { id: u.id },
+		include: { profile: true },
+	});
+	if (!updated) {
+		throw AppError.notFound('User not found');
+	}
+
+	return sendJsonSuccess(res, {
+		ok: true,
+		user: buildMeUserPayload(updated),
+	});
 }
 
 async function uploadProfileAvatar(req: Request, res: Response) {
