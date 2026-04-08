@@ -10,6 +10,7 @@ import {
 import {
 	getInstructorByIdForUser,
 	listInstructorsBySchoolForUser,
+	softDeleteInstructorForManagerOrAdmin,
 	updateInstructorForManagerOrAdmin,
 } from '../services/instructor.service';
 
@@ -75,4 +76,25 @@ async function patchInstructor(req: Request, res: Response) {
 	return sendJsonSuccess(res, data);
 }
 
-export { getInstructorById, listInstructorsBySchool, patchInstructor };
+async function deleteInstructor(req: Request, res: Response) {
+	const user = requireUser(req);
+	const paramsParsed = instructorIdParamsSchema.safeParse(req.params);
+	if (!paramsParsed.success) {
+		const message =
+			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
+		throw AppError.badRequest(message);
+	}
+
+	await softDeleteInstructorForManagerOrAdmin(
+		{ id: user.id, role: user.role },
+		paramsParsed.data.id,
+	);
+	return res.status(204).send();
+}
+
+export {
+	deleteInstructor,
+	getInstructorById,
+	listInstructorsBySchool,
+	patchInstructor,
+};

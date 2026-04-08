@@ -1,5 +1,5 @@
 ---
-description: "API — instruktorzy (/instructors): list, szczegóły, PATCH, role, body, kody odpowiedzi"
+description: "API — instruktorzy (/instructors): list, szczegóły, PATCH, DELETE (soft), role, kody odpowiedzi"
 alwaysApply: true
 ---
 
@@ -23,6 +23,9 @@ Szczegóły sesji: [auth.md](./auth.md).
 | GET | `/instructors?schoolId=<uuid>` | Lista instruktorów przypisanych do szkoły (tylko aktywni `User`). Dostęp: właściciel OSK lub ADMIN. |
 | GET | `/instructors/:id` | Szczegóły instruktora. Dostęp: właściciel co najmniej jednej OSK powiązanej z profilem instruktora; inaczej **403**. |
 | PATCH | `/instructors/:id` | Częściowa aktualizacja profilu. **MANAGER:** ten sam zakres co GET (własna OSK). **ADMIN:** dowolny aktywny instruktor (`INSTRUCTOR`, `isActive`, bez `deletedAt`). |
+| DELETE | `/instructors/:id` | Soft delete: ustawia `users.is_active = false` dla konta instruktora (bez usuwania z Supabase Auth). **MANAGER** jak PATCH (własna OSK); **ADMIN** — dowolny aktywny instruktor. **204** bez body. |
+
+Wszystkie zapytania listujące / odczyt / zapis traktują jako „istniejącego” instruktora tylko powiąznego **aktywnego** użytkownika (`role` = `INSTRUCTOR`, `is_active`, brak `deleted_at`).
 
 ## PATCH — body (JSON)
 
@@ -52,9 +55,9 @@ Oprócz powyższych (w szerszym kształcie): `userId`, `phone`, `licenseNumber`,
 | Kod | Sytuacja |
 |-----|----------|
 | **401** | Brak / niepoprawny JWT (`authMiddleware`) |
-| **403** | Rola poniżej MANAGER; MANAGER bez powiązania instruktora z własną OSK (GET / PATCH); konto wyłączone (middleware auth) |
+| **403** | Rola poniżej MANAGER; MANAGER bez powiązania instruktora z własną OSK (GET / PATCH / DELETE); konto wyłączone (middleware auth) |
 | **400** | Niepoprawny `schoolId` (lista); niepoprawny UUID `:id`; niepoprawne body PATCH (np. pusty `firstName` po trim, `experienceYears` spoza zakresu) |
-| **404** | Brak profilu; użytkownik nie jest aktywnym instruktorem (GET ukrywa jak „not found”) |
+| **404** | Brak profilu; użytkownik nie jest aktywnym instruktorem (GET / PATCH / DELETE jak „not found”; powtórny DELETE po dezaktywacji też **404**) |
 
 ## Migracje
 
@@ -70,3 +73,5 @@ Po dodaniu kolumny `qualifications` na `instructor_profiles` uruchom migracje / 
 4. **PATCH:** nadmiarowe pole `email` w JSON → **200** (pole odrzucone przez strip), email bez zmian.
 5. **PATCH:** `firstName: ""` lub same spacje → **400**.
 6. **GET /:id:** odpowiedź zawiera `qualifications` (null lub tekst).
+7. **DELETE MANAGER:** instruktor ze swojej OSK → **204**; bez powiązania → **403**; po DELETE GET → **404**.
+8. **DELETE ADMIN:** aktywny instruktor → **204**; już wyłączony → **404**.

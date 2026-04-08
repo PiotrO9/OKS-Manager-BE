@@ -1,8 +1,32 @@
+import type { Prisma } from '@prisma/client';
 import { Role } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
 
 const prisma = getPrisma();
+
+/** Soft-delete i listingi: tylko „żywy” instruktor (User powiązany z profilem). */
+const ACTIVE_INSTRUCTOR_USER_WHERE: Prisma.UserWhereInput = {
+	role: Role.INSTRUCTOR,
+	deletedAt: null,
+	isActive: true,
+};
+
+function activeInstructorProfileWhere(
+	instructorId: string,
+): Prisma.InstructorProfileWhereInput {
+	return {
+		id: instructorId,
+		user: ACTIVE_INSTRUCTOR_USER_WHERE,
+	};
+}
+
+function activeInstructorUserByIdWhere(userId: string): Prisma.UserWhereInput {
+	return {
+		id: userId,
+		...ACTIVE_INSTRUCTOR_USER_WHERE,
+	};
+}
 
 export type InstructorListItem = {
 	id: string;
@@ -47,11 +71,7 @@ export async function listInstructorsBySchoolForUser(
 		where: {
 			schoolId,
 			instructor: {
-				user: {
-					role: Role.INSTRUCTOR,
-					deletedAt: null,
-					isActive: true,
-				},
+				user: ACTIVE_INSTRUCTOR_USER_WHERE,
 			},
 		},
 		select: {
@@ -89,8 +109,8 @@ export async function getInstructorByIdForUser(
 	actor: Actor,
 	instructorId: string,
 ): Promise<InstructorDetail> {
-	const profile = await prisma.instructorProfile.findUnique({
-		where: { id: instructorId },
+	const profile = await prisma.instructorProfile.findFirst({
+		where: activeInstructorProfileWhere(instructorId),
 		select: {
 			id: true,
 			userId: true,
@@ -103,9 +123,6 @@ export async function getInstructorByIdForUser(
 					lastName: true,
 					email: true,
 					phone: true,
-					role: true,
-					deletedAt: true,
-					isActive: true,
 				},
 			},
 			instructorSchools: {
@@ -124,9 +141,6 @@ export async function getInstructorByIdForUser(
 	}
 
 	const u = profile.user;
-	if (u.role !== Role.INSTRUCTOR || u.deletedAt !== null || !u.isActive) {
-		throw AppError.notFound('Instructor not found');
-	}
 
 	const linkedToOwnedSchool = profile.instructorSchools.some(
 		(row) =>
@@ -183,10 +197,11 @@ export async function updateInstructorForManagerOrAdmin(
 		throw AppError.forbidden('Forbidden');
 	}
 
-	const profile = await prisma.instructorProfile.findUnique({
-		where: { id: instructorId },
+	const profile = await prisma.instructorProfile.findFirst({
+		where: activeInstructorProfileWhere(instructorId),
 		select: {
 			id: true,
+			userId: true,
 			experienceYears: true,
 			qualifications: true,
 			user: {
@@ -194,9 +209,6 @@ export async function updateInstructorForManagerOrAdmin(
 					firstName: true,
 					lastName: true,
 					email: true,
-					role: true,
-					deletedAt: true,
-					isActive: true,
 				},
 			},
 			instructorSchools: {
@@ -215,9 +227,6 @@ export async function updateInstructorForManagerOrAdmin(
 	}
 
 	const u = profile.user;
-	if (u.role !== Role.INSTRUCTOR || u.deletedAt !== null || !u.isActive) {
-		throw AppError.notFound('Instructor not found');
-	}
 
 	if (actor.role === Role.MANAGER) {
 		const linkedToOwnedSchool = profile.instructorSchools.some(
@@ -253,23 +262,37 @@ export async function updateInstructorForManagerOrAdmin(
 		};
 	}
 
-	const updated = await prisma.instructorProfile.update({
-		where: { id: instructorId },
-		data: {
-			...(hasProfileUpdate
-				? { experienceYears: patch.experienceYears }
-				: {}),
-			...(hasQualificationsUpdate
-				? { qualifications: patch.qualifications }
-				: {}),
-			...(hasUserUpdate
-				? {
-						user: {
-							update: userUpdate,
-						},
-					}
-				: {}),
-		},
+	const profileUpdateData: Prisma.InstructorProfileUpdateManyMutationInput =
+		{};
+	if (hasProfileUpdate) {
+		profileUpdateData.experienceYears = patch.experienceYears;
+	}
+	if (hasQualificationsUpdate) {
+		profileUpdateData.qualifications = patch.qualifications;
+	}
+
+	if (hasProfileUpdate || hasQualificationsUpdate) {
+		const { count } = await prisma.instructorProfile.updateMany({
+			where: activeInstructorProfileWhere(instructorId),
+			data: profileUpdateData,
+		});
+		if (count === 0) {
+			throw AppError.notFound('Instructor not found');
+		}
+	}
+
+	if (hasUserUpdate) {
+		const { count } = await prisma.user.updateMany({
+			where: activeInstructorUserByIdWhere(profile.userId),
+			data: userUpdate,
+		});
+		if (count === 0) {
+			throw AppError.notFound('Instructor not found');
+		}
+	}
+
+	const fresh = await prisma.instructorProfile.findFirst({
+		where: activeInstructorProfileWhere(instructorId),
 		select: {
 			id: true,
 			experienceYears: true,
@@ -284,12 +307,64 @@ export async function updateInstructorForManagerOrAdmin(
 		},
 	});
 
+	if (!fresh) {
+		throw AppError.notFound('Instructor not found');
+	}
+
 	return {
-		id: updated.id,
-		firstName: updated.user.firstName,
-		lastName: updated.user.lastName,
-		email: updated.user.email,
-		experienceYears: updated.experienceYears,
-		qualifications: updated.qualifications,
+		id: fresh.id,
+		firstName: fresh.user.firstName,
+		lastName: fresh.user.lastName,
+		email: fresh.user.email,
+		experienceYears: fresh.experienceYears,
+		qualifications: fresh.qualifications,
 	};
+}
+
+export async function softDeleteInstructorForManagerOrAdmin(
+	actor: Actor,
+	instructorId: string,
+): Promise<void> {
+	if (actor.role !== Role.ADMIN && actor.role !== Role.MANAGER) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	const profile = await prisma.instructorProfile.findFirst({
+		where: activeInstructorProfileWhere(instructorId),
+		select: {
+			userId: true,
+			instructorSchools: {
+				select: {
+					schoolId: true,
+					school: {
+						select: { ownerId: true, deletedAt: true },
+					},
+				},
+			},
+		},
+	});
+
+	if (!profile) {
+		throw AppError.notFound('Instructor not found');
+	}
+
+	if (actor.role === Role.MANAGER) {
+		const linkedToOwnedSchool = profile.instructorSchools.some(
+			(row) =>
+				row.school.deletedAt === null &&
+				row.school.ownerId === actor.id,
+		);
+		if (!linkedToOwnedSchool) {
+			throw AppError.forbidden('Forbidden');
+		}
+	}
+
+	const { count } = await prisma.user.updateMany({
+		where: activeInstructorUserByIdWhere(profile.userId),
+		data: { isActive: false },
+	});
+
+	if (count === 0) {
+		throw AppError.notFound('Instructor not found');
+	}
 }
