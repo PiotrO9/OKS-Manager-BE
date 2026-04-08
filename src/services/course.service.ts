@@ -102,6 +102,66 @@ async function createCourseForUser(
 	return toDto(created);
 }
 
+export type CourseListInstructorDto = {
+	id: string;
+	name: string;
+};
+
+export type CourseListItemDto = {
+	id: string;
+	name: string;
+	category: string;
+	type: CourseKind;
+	totalHours: number;
+	instructor: CourseListInstructorDto | null;
+};
+
+async function listCoursesForSchool(
+	userId: string,
+	schoolId: string,
+): Promise<CourseListItemDto[]> {
+	const schoolRow = await getSchoolOwnedByUser(userId, schoolId);
+	if (!schoolRow) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	const rows = await prisma.course.findMany({
+		where: {
+			schoolId: schoolRow.id,
+			deletedAt: null,
+		},
+		orderBy: { createdAt: 'desc' },
+		include: {
+			instructor: {
+				include: {
+					user: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+						},
+					},
+				},
+			},
+		},
+	});
+
+	return rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		category: row.category,
+		type: row.kind,
+		totalHours: row.totalHours,
+		instructor: row.instructor
+			? {
+					id: row.instructor.user.id,
+					name: `${row.instructor.user.firstName} ${row.instructor.user.lastName}`.trim(),
+				}
+			: null,
+	}));
+}
+
 export const courseService = {
 	createCourseForUser,
+	listCoursesForSchool,
 };
