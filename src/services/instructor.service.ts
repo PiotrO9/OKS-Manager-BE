@@ -20,6 +20,7 @@ export type InstructorDetail = {
 	phone: string | null;
 	licenseNumber: string;
 	experienceYears: number | null;
+	qualifications: string | null;
 	schoolIds: string[];
 };
 
@@ -95,6 +96,7 @@ export async function getInstructorByIdForUser(
 			userId: true,
 			licenseNumber: true,
 			experienceYears: true,
+			qualifications: true,
 			user: {
 				select: {
 					firstName: true,
@@ -152,6 +154,142 @@ export async function getInstructorByIdForUser(
 		phone: u.phone,
 		licenseNumber: profile.licenseNumber,
 		experienceYears: profile.experienceYears,
+		qualifications: profile.qualifications,
 		schoolIds,
+	};
+}
+
+export type InstructorPatchResult = {
+	id: string;
+	firstName: string;
+	lastName: string;
+	email: string;
+	experienceYears: number | null;
+	qualifications: string | null;
+};
+
+/** MANAGER — jak GET (powiązanie z własną OSK); ADMIN — dowolny aktywny instruktor. */
+export async function updateInstructorForManagerOrAdmin(
+	actor: Actor,
+	instructorId: string,
+	patch: {
+		firstName?: string;
+		lastName?: string;
+		experienceYears?: number;
+		qualifications?: string;
+	},
+): Promise<InstructorPatchResult> {
+	if (actor.role !== Role.ADMIN && actor.role !== Role.MANAGER) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	const profile = await prisma.instructorProfile.findUnique({
+		where: { id: instructorId },
+		select: {
+			id: true,
+			experienceYears: true,
+			qualifications: true,
+			user: {
+				select: {
+					firstName: true,
+					lastName: true,
+					email: true,
+					role: true,
+					deletedAt: true,
+					isActive: true,
+				},
+			},
+			instructorSchools: {
+				select: {
+					schoolId: true,
+					school: {
+						select: { ownerId: true, deletedAt: true },
+					},
+				},
+			},
+		},
+	});
+
+	if (!profile) {
+		throw AppError.notFound('Instructor not found');
+	}
+
+	const u = profile.user;
+	if (u.role !== Role.INSTRUCTOR || u.deletedAt !== null || !u.isActive) {
+		throw AppError.notFound('Instructor not found');
+	}
+
+	if (actor.role === Role.MANAGER) {
+		const linkedToOwnedSchool = profile.instructorSchools.some(
+			(row) =>
+				row.school.deletedAt === null &&
+				row.school.ownerId === actor.id,
+		);
+		if (!linkedToOwnedSchool) {
+			throw AppError.forbidden('Forbidden');
+		}
+	}
+
+	const userUpdate: { firstName?: string; lastName?: string } = {};
+	if (patch.firstName !== undefined) {
+		userUpdate.firstName = patch.firstName;
+	}
+	if (patch.lastName !== undefined) {
+		userUpdate.lastName = patch.lastName;
+	}
+
+	const hasUserUpdate = Object.keys(userUpdate).length > 0;
+	const hasProfileUpdate = patch.experienceYears !== undefined;
+	const hasQualificationsUpdate = patch.qualifications !== undefined;
+
+	if (!hasUserUpdate && !hasProfileUpdate && !hasQualificationsUpdate) {
+		return {
+			id: profile.id,
+			firstName: u.firstName,
+			lastName: u.lastName,
+			email: u.email,
+			experienceYears: profile.experienceYears,
+			qualifications: profile.qualifications,
+		};
+	}
+
+	const updated = await prisma.instructorProfile.update({
+		where: { id: instructorId },
+		data: {
+			...(hasProfileUpdate
+				? { experienceYears: patch.experienceYears }
+				: {}),
+			...(hasQualificationsUpdate
+				? { qualifications: patch.qualifications }
+				: {}),
+			...(hasUserUpdate
+				? {
+						user: {
+							update: userUpdate,
+						},
+					}
+				: {}),
+		},
+		select: {
+			id: true,
+			experienceYears: true,
+			qualifications: true,
+			user: {
+				select: {
+					firstName: true,
+					lastName: true,
+					email: true,
+				},
+			},
+		},
+	});
+
+	return {
+		id: updated.id,
+		firstName: updated.user.firstName,
+		lastName: updated.user.lastName,
+		email: updated.user.email,
+		experienceYears: updated.experienceYears,
+		qualifications: updated.qualifications,
 	};
 }

@@ -138,6 +138,7 @@ model InstructorProfile {
   userId              String                        @unique @db.Uuid @map("user_id")
   licenseNumber       String                        @map("license_number")
   experienceYears     Int?                          @map("experience_years")
+  qualifications      String?                       @map("qualifications") @db.Text
   createdAt           DateTime                      @default(now()) @map("created_at")
 
   user                User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
