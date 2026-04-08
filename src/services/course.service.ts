@@ -161,7 +161,63 @@ async function listCoursesForSchool(
 	}));
 }
 
+export type CourseDetailDto = {
+	id: string;
+	name: string;
+	category: string;
+	type: CourseKind;
+	totalHours: number;
+	capacity: number | null;
+	instructor: CourseListInstructorDto | null;
+};
+
+async function getCourseDetailForOwner(
+	userId: string,
+	courseId: string,
+): Promise<CourseDetailDto> {
+	const row = await prisma.course.findUnique({
+		where: { id: courseId },
+		include: {
+			instructor: {
+				include: {
+					user: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+						},
+					},
+				},
+			},
+			school: { select: { ownerId: true } },
+		},
+	});
+
+	if (!row || row.deletedAt !== null) {
+		throw AppError.notFound('Course not found');
+	}
+	if (row.school.ownerId !== userId) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	return {
+		id: row.id,
+		name: row.name,
+		category: row.category,
+		type: row.kind,
+		totalHours: row.totalHours,
+		capacity: row.capacity,
+		instructor: row.instructor
+			? {
+					id: row.instructor.user.id,
+					name: `${row.instructor.user.firstName} ${row.instructor.user.lastName}`.trim(),
+				}
+			: null,
+	};
+}
+
 export const courseService = {
 	createCourseForUser,
 	listCoursesForSchool,
+	getCourseDetailForOwner,
 };

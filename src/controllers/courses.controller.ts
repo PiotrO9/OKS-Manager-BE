@@ -2,7 +2,10 @@ import { Request, Response } from 'express';
 import { sendJsonSuccess } from '../lib/apiResponse';
 import { AppError } from '../lib/http/AppError';
 import { requireUser } from '../lib/http/requireUser';
-import { schoolIdQuerySchema } from '../lib/validation/uuid';
+import {
+	courseIdParamsSchema,
+	schoolIdQuerySchema,
+} from '../lib/validation/uuid';
 import { parseCreateCourseBody } from '../schemas/course.schemas';
 import { courseService } from '../services/course.service';
 
@@ -32,4 +35,19 @@ async function createCourse(req: Request, res: Response) {
 	return sendJsonSuccess(res, data);
 }
 
-export { createCourse, listCourses };
+async function getCourseById(req: Request, res: Response) {
+	const user = requireUser(req);
+	const parsed = courseIdParamsSchema.safeParse(req.params);
+	if (!parsed.success) {
+		const message = parsed.error.issues[0]?.message ?? 'Invalid id';
+		throw AppError.badRequest(message);
+	}
+
+	const course = await courseService.getCourseDetailForOwner(
+		user.id,
+		parsed.data.id,
+	);
+	return sendJsonSuccess(res, { course });
+}
+
+export { createCourse, getCourseById, listCourses };
