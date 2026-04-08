@@ -1,4 +1,4 @@
-import type { CourseKind } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
 import { sendJsonSuccess } from '../lib/apiResponse';
 import { AppError } from '../lib/http/AppError';
@@ -17,11 +17,12 @@ import {
 
 const prisma = getPrisma();
 
-const DEFAULT_ENABLED_COURSE_KINDS: CourseKind[] = [
-	'THEORY_GROUP',
-	'PRACTICAL',
-	'EXTRA',
-];
+const settingsIncludeOffered = {
+	select: {
+		enabledCourseKinds: true,
+		offeredCourseTypes: { select: { id: true, code: true, name: true } },
+	},
+} as const;
 
 async function getDrivingSchools(req: Request, res: Response) {
 	const user = requireUser(req);
@@ -30,7 +31,7 @@ async function getDrivingSchools(req: Request, res: Response) {
 		prisma.drivingSchool.findMany({
 			where: activeSchoolClause({ ownerId: user.id }),
 			include: {
-				settings: { select: { enabledCourseKinds: true } },
+				settings: settingsIncludeOffered,
 			},
 		}),
 		prisma.user.findUnique({
@@ -50,6 +51,7 @@ async function getDrivingSchools(req: Request, res: Response) {
 		return {
 			...rest,
 			enabledCourseKinds: settings?.enabledCourseKinds ?? [],
+			offeredCourseTypes: settings?.offeredCourseTypes ?? [],
 			isDefault: defaultOskId !== null && school.id === defaultOskId,
 		};
 	});
@@ -68,8 +70,7 @@ async function createDrivingSchool(req: Request, res: Response) {
 		throw AppError.badRequest(message);
 	}
 
-	const { name, city, address, enabledCourseKinds } = parsed.data;
-	const kindsToStore = enabledCourseKinds ?? DEFAULT_ENABLED_COURSE_KINDS;
+	const { name, city, address } = parsed.data;
 
 	const existingCount = await prisma.drivingSchool.count({
 		where: activeSchoolClause({ ownerId: user.id }),
@@ -87,13 +88,6 @@ async function createDrivingSchool(req: Request, res: Response) {
 			},
 		});
 
-		await tx.schoolSettings.create({
-			data: {
-				schoolId: school.id,
-				enabledCourseKinds: kindsToStore,
-			},
-		});
-
 		if (isFirstSchool) {
 			await tx.user.update({
 				where: { id: user.id },
@@ -104,7 +98,7 @@ async function createDrivingSchool(req: Request, res: Response) {
 		return tx.drivingSchool.findUniqueOrThrow({
 			where: { id: school.id },
 			include: {
-				settings: { select: { enabledCourseKinds: true } },
+				settings: settingsIncludeOffered,
 			},
 		});
 	});
@@ -130,6 +124,7 @@ async function createDrivingSchool(req: Request, res: Response) {
 		{
 			...createdRest,
 			enabledCourseKinds: createdSettings?.enabledCourseKinds ?? [],
+			offeredCourseTypes: createdSettings?.offeredCourseTypes ?? [],
 		},
 		201,
 	);
@@ -243,6 +238,16 @@ async function updateDrivingSchool(req: Request, res: Response) {
 		throw AppError.forbidden('Forbidden');
 	}
 
+	if (data.offeredCourseTypeIds !== undefined) {
+		const ids = data.offeredCourseTypeIds;
+		const found = await prisma.courseType.count({
+			where: { id: { in: ids } },
+		});
+		if (found !== ids.length) {
+			throw AppError.badRequest('Invalid offeredCourseTypeIds');
+		}
+	}
+
 	const schoolUpdate: {
 		name?: string;
 		city?: string | null;
@@ -259,6 +264,9 @@ async function updateDrivingSchool(req: Request, res: Response) {
 	}
 
 	const hasSchoolScalarUpdate = Object.keys(schoolUpdate).length > 0;
+	const hasSettingsUpdate =
+		data.enabledCourseKinds !== undefined ||
+		data.offeredCourseTypeIds !== undefined;
 
 	const updated = await prisma.$transaction(async (tx) => {
 		if (hasSchoolScalarUpdate) {
@@ -268,23 +276,49 @@ async function updateDrivingSchool(req: Request, res: Response) {
 			});
 		}
 
-		if (data.enabledCourseKinds !== undefined) {
+		if (hasSettingsUpdate) {
+			const createData: Prisma.SchoolSettingsUncheckedCreateInput = {
+				schoolId: id,
+				enabledCourseKinds:
+					data.enabledCourseKinds !== undefined
+						? data.enabledCourseKinds
+						: [],
+			};
+
+			if (
+				data.offeredCourseTypeIds !== undefined &&
+				data.offeredCourseTypeIds.length > 0
+			) {
+				createData.offeredCourseTypes = {
+					connect: data.offeredCourseTypeIds.map((cid) => ({
+						id: cid,
+					})),
+				};
+			}
+
+			const updateData: Prisma.SchoolSettingsUpdateInput = {};
+			if (data.enabledCourseKinds !== undefined) {
+				updateData.enabledCourseKinds = {
+					set: data.enabledCourseKinds,
+				};
+			}
+			if (data.offeredCourseTypeIds !== undefined) {
+				updateData.offeredCourseTypes = {
+					set: data.offeredCourseTypeIds.map((cid) => ({ id: cid })),
+				};
+			}
+
 			await tx.schoolSettings.upsert({
 				where: { schoolId: id },
-				create: {
-					schoolId: id,
-					enabledCourseKinds: data.enabledCourseKinds,
-				},
-				update: {
-					enabledCourseKinds: data.enabledCourseKinds,
-				},
+				create: createData,
+				update: updateData,
 			});
 		}
 
 		return tx.drivingSchool.findUniqueOrThrow({
 			where: { id },
 			include: {
-				settings: { select: { enabledCourseKinds: true } },
+				settings: settingsIncludeOffered,
 			},
 		});
 	});
@@ -293,6 +327,7 @@ async function updateDrivingSchool(req: Request, res: Response) {
 	return sendJsonSuccess(res, {
 		...updRest,
 		enabledCourseKinds: updSettings?.enabledCourseKinds ?? [],
+		offeredCourseTypes: updSettings?.offeredCourseTypes ?? [],
 	});
 }
 
@@ -393,7 +428,15 @@ async function getDefaultDrivingSchool(req: Request, res: Response) {
 
 	const school = await prisma.drivingSchool.findUnique({
 		where: { id: defaultOskId },
-		include: { settings: true },
+		include: {
+			settings: {
+				include: {
+					offeredCourseTypes: {
+						select: { id: true, code: true, name: true },
+					},
+				},
+			},
+		},
 	});
 
 	if (!school || school.deletedAt !== null) {
@@ -403,10 +446,22 @@ async function getDefaultDrivingSchool(req: Request, res: Response) {
 	const isManager = school.ownerId === user.id;
 	const { settings: defSettings, ...defRest } = school;
 
+	const offeredCourseTypes = defSettings?.offeredCourseTypes ?? [];
+	const enabledCourseKinds = defSettings?.enabledCourseKinds ?? [];
+
+	const settingsScalars =
+		defSettings === null
+			? null
+			: (() => {
+					const { offeredCourseTypes: _rel, ...rest } = defSettings;
+					return rest;
+				})();
+
 	return sendJsonSuccess(res, {
 		...defRest,
-		enabledCourseKinds: defSettings?.enabledCourseKinds ?? [],
-		settings: defSettings,
+		enabledCourseKinds,
+		offeredCourseTypes,
+		settings: settingsScalars,
 		isManager,
 	});
 }

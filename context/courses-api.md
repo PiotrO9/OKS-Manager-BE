@@ -14,7 +14,8 @@ Implementacja: `src/routes/courses.routes.ts`, `src/controllers/courses.controll
 - Kurs (`Course`) należy do jednej szkoły (`schoolId`), może mieć **co najwyżej jednego** przypisanego instruktora (`instructorId` → `InstructorProfile.id`, opcjonalne).
 - Rodzaj kursu (`kind`): `THEORY_GROUP`, `PRACTICAL`, `EXTRA` (enum Prisma `CourseKind`).
 - Lista i tworzenie wymagają szkoły, do której użytkownik jest **właścicielem** (`DrivingSchool.ownerId`). Szczegóły i PATCH sprawdzają właściciela szkoły przypiętej do kursu.
-- Dozwolone wartości `kind` przy **tworzeniu** kursu muszą być zawarte w `SchoolSettings.enabledCourseKinds` danej szkoły (zob. [driving-schools-api.md](./driving-schools-api.md)). Wyłączenie typu w ustawieniach OSK **nie** zmienia istniejących kursów — blokuje tylko nowe `POST /courses` z tym `kind`.
+- Dozwolone wartości `kind` przy **tworzeniu** kursu muszą być zawarte w `SchoolSettings.enabledCourseKinds` danej szkoły (zob. [driving-schools-api.md](./driving-schools-api.md)). Dopóki nie ma rekordu `school_settings` lub lista kinds jest pusta, `POST /courses` zwraca **400**. Wyłączenie typu w ustawieniach OSK **nie** zmienia istniejących kursów — blokuje tylko nowe `POST /courses` z tym `kind`.
+- Kategoria w polu **`category`** to nadal dowolny string w API; lista **`offeredCourseTypes`** w ustawieniach OSK służy pod przyszłą walidację / front (np. select); pełna spójność z `CourseType` przy `POST /courses` może być dodana później (`courseTypeId`).
 
 ## Uwierzytelnianie i autoryzacja
 

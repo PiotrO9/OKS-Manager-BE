@@ -9,6 +9,7 @@ import { createDrivingSchoolsRouter } from './routes/driving-schools.routes';
 import { createInstructorsRouter } from './routes/instructors.routes';
 import { createVehiclesRouter } from './routes/vehicles.routes';
 import { createCoursesRouter } from './routes/courses.routes';
+import { createCourseTypesRouter } from './routes/course-types.routes';
 
 function parseAllowedOrigins(): string[] {
 	const raw = process.env.FRONTEND_URL?.trim();
@@ -37,6 +38,7 @@ function createApp() {
 	app.use('/instructors', createInstructorsRouter());
 	app.use('/vehicles', createVehiclesRouter());
 	app.use('/courses', createCoursesRouter());
+	app.use('/course-types', createCourseTypesRouter());
 
 	app.get('/test', async (req, res) => {
 		return sendJsonSuccess(res, {
