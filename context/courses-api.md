@@ -1,5 +1,5 @@
 ---
-description: "API — kursy (/courses): lista, szczegóły, utworzenie, PATCH instruktora, role, identyfikatory instruktora"
+description: "API — kursy (/courses): lista, szczegóły, utworzenie, PATCH (instruktor, capacity), role, identyfikatory instruktora"
 alwaysApply: true
 ---
 
@@ -37,7 +37,7 @@ Szczegóły sesji: [auth.md](./auth.md).
 | GET | `/courses?schoolId=<uuid>` | Lista kursów danej szkoły (tylko `deletedAt` null). Dostęp: **właściciel** szkoły o podanym `schoolId`; inaczej **403**. Sort: `createdAt` malejąco. |
 | GET | `/courses/:id` | Szczegóły kursu (jak poniżej). Dostęp: **właściciel** szkoły kursu; brak kursu / soft-delete → **404**; obcy właściciel → **403**. |
 | POST | `/courses` | Utworzenie kursu w szkole (body poniżej). Właściciel `schoolId` z body. |
-| PATCH | `/courses/:id` | Częściowa aktualizacja: wyłącznie **`instructorId`** (przypisanie, zmiana lub usunięcie). Patrz sekcja PATCH. |
+| PATCH | `/courses/:id` | Częściowa aktualizacja: **`instructorId`** i/lub **`capacity`** (opcjonalnie, niezależnie). Patrz sekcja PATCH. |
 
 ## GET lista — query
 
@@ -74,13 +74,21 @@ Zapis: dla `PRACTICAL` / `EXTRA` pole `capacity` w DB jest **null**; daty teorii
 
 ## PATCH — body (JSON)
 
-Tylko pole **`instructorId`** ma znaczenie; inne klucze są odrzucone przez Zod (brak `.strict()` — nadmiarowe pola zwykle ignorowane).
+**Częściowe pola:** brak klucza `instructorId` = brak zmiany instruktora; brak klucza `capacity` = brak zmiany pojemności. Można wysłać jedno lub oba. **Brak zapisu** do DB tylko gdy w body **nie ma ani `instructorId`, ani `capacity`** (np. `{}`) — odpowiedź jak GET szczegółów (**200**). Inne klucze poza schematem nie są w `patchCourseBodySchema` (brak `.strict()` — nadmiarowe pola zwykle ignorowane).
 
-| Body | Zachowanie |
-|------|------------|
-| `{}` lub brak klucza `instructorId` | **Brak zapisu** do DB; odpowiedź jak GET szczegółów (**200**). |
-| `{ "instructorId": null }` | Usunięcie przypisania (`instructorId` = null). |
-| `{ "instructorId": "<uuid>" }` | Ustawienie instruktora po sprawdzeniu powiązania z szkołą kursu (`InstructorSchool`). |
+| Pole | Typ | Uwagi |
+|------|-----|--------|
+| `instructorId` | string (UUID) \| null \| omit | Jak wcześniej: `null` = usuń przypisanie; UUID = ustaw po walidacji `InstructorSchool` (**400** jeśli spoza szkoły). |
+| `capacity` | number \| null \| omit | Liczba całkowita **≥ 0** lub `null` (brak limitu w sensie MVP). **Niepusta** liczba przy kursie **`PRACTICAL` / `EXTRA`** → **400** (`capacity is only allowed for THEORY_GROUP courses`). Dla tych typów `capacity: null` jest dozwolone (idempotentnie utrzymuje **null** w DB). |
+
+| Body (przykłady) | Zachowanie |
+|------------------|------------|
+| `{}` | Brak zmian w DB; **200**. |
+| `{ "instructorId": null }` | `instructorId` = null. |
+| `{ "instructorId": "<uuid>" }` | Ustawienie instruktora po sprawdzeniu powiązania z OSK. |
+| `{ "capacity": 20 }` na `THEORY_GROUP` | Aktualizacja limitu. |
+| `{ "capacity": null }` na `THEORY_GROUP` | Usunięcie limitu (`null` w DB). |
+| `{ "instructorId": "...", "capacity": 10 }` | Oba pola aktualizowane w jednym żądaniu (jeśli walidacja OK). |
 
 **Właściciel:** tylko `ownerId` szkoły przypiętej do kursu; inaczej **403**. Kurs nieistniejący / `deletedAt` ustawione → **404**. Instruktor niepowiązany z tą OSK → **400** (ten sam komunikat co przy POST).
 
@@ -104,6 +112,8 @@ Tylko pole **`instructorId`** ma znaczenie; inne klucze są odrzucone przez Zod 
 3. **POST:** THEORY_GROUP bez dat → **400**; PRACTICAL z `capacity` → **400**.
 4. **POST:** `instructorId` z innej OSK → **400**.
 5. **GET/PATCH:** cudzy kurs → **403**; nieistniejący `:id` → **404**.
-6. **PATCH `{}`** → **200**, bez zmiany `instructorId` w DB.
+6. **PATCH `{}`** → **200**, bez zmian w DB (ani instruktor, ani `capacity`).
 7. **PATCH** `instructorId: null` → **200**, pole null w DB.
 8. **POST:** `kind` niewłączony w `enabledCourseKinds` szkoły lub pusta lista typów w ustawieniach → **400**.
+9. **PATCH** `capacity: 20` na kursie `THEORY_GROUP` → **200**, zapis w DB.
+10. **PATCH** `capacity` (liczba, nie null) na kursie `PRACTICAL` / `EXTRA` → **400**.

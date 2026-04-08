@@ -92,7 +92,7 @@ export function parseCreateCourseBody(
 	return { ok: true, data: parsed.data };
 }
 
-/** Partial update: brak klucza `instructorId` = brak zmiany tego pola. */
+/** Partial update: brak klucza = brak zmiany danego pola (`instructorId`, `capacity`). */
 export const patchCourseBodySchema = z.object({
 	instructorId: z
 		.string()
@@ -100,6 +100,12 @@ export const patchCourseBodySchema = z.object({
 		.regex(UUID_PARAM_RE, 'Invalid instructorId')
 		.nullable()
 		.optional(),
+	capacity: z
+		.number()
+		.int('capacity must be an integer')
+		.min(0, 'capacity must be >= 0')
+		.optional()
+		.nullable(),
 });
 
 export type PatchCourseBody = z.infer<typeof patchCourseBodySchema>;

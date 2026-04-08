@@ -237,15 +237,17 @@ async function patchCourseInstructorForOwner(
 	courseId: string,
 	body: PatchCourseBody,
 ): Promise<CourseDetailDto> {
-	const shouldUpdate = Object.prototype.hasOwnProperty.call(
+	const hasInstructorKey = Object.prototype.hasOwnProperty.call(
 		body,
 		'instructorId',
 	);
-	if (!shouldUpdate) {
+	const hasCapacityKey = Object.prototype.hasOwnProperty.call(
+		body,
+		'capacity',
+	);
+	if (!hasInstructorKey && !hasCapacityKey) {
 		return getCourseDetailForOwner(userId, courseId);
 	}
-
-	const nextInstructorId = body.instructorId;
 
 	const row = await prisma.course.findUnique({
 		where: { id: courseId },
@@ -261,23 +263,53 @@ async function patchCourseInstructorForOwner(
 		throw AppError.forbidden('Forbidden');
 	}
 
-	if (nextInstructorId !== null) {
-		const link = await prisma.instructorSchool.findFirst({
-			where: {
-				instructorId: nextInstructorId,
-				schoolId: row.schoolId,
-			},
-		});
-		if (!link) {
-			throw AppError.badRequest(
-				'instructor does not belong to this school',
-			);
+	if (
+		hasCapacityKey &&
+		body.capacity != null &&
+		row.kind !== 'THEORY_GROUP'
+	) {
+		throw AppError.badRequest(
+			'capacity is only allowed for THEORY_GROUP courses',
+		);
+	}
+
+	const data: {
+		instructorId?: string | null;
+		capacity?: number | null;
+	} = {};
+
+	if (hasInstructorKey) {
+		const nextInstructorId = body.instructorId;
+		if (nextInstructorId != null) {
+			const link = await prisma.instructorSchool.findFirst({
+				where: {
+					instructorId: nextInstructorId,
+					schoolId: row.schoolId,
+				},
+			});
+			if (!link) {
+				throw AppError.badRequest(
+					'instructor does not belong to this school',
+				);
+			}
 		}
+		data.instructorId = nextInstructorId ?? null;
+	}
+
+	if (
+		hasCapacityKey &&
+		(row.kind === 'THEORY_GROUP' || body.capacity === null)
+	) {
+		data.capacity = body.capacity ?? null;
+	}
+
+	if (Object.keys(data).length === 0) {
+		return getCourseDetailForOwner(userId, courseId);
 	}
 
 	await prisma.course.update({
 		where: { id: courseId },
-		data: { instructorId: nextInstructorId },
+		data,
 	});
 
 	return getCourseDetailForOwner(userId, courseId);
