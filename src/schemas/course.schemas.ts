@@ -91,3 +91,26 @@ export function parseCreateCourseBody(
 	}
 	return { ok: true, data: parsed.data };
 }
+
+/** Partial update: brak klucza `instructorId` = brak zmiany tego pola. */
+export const patchCourseBodySchema = z.object({
+	instructorId: z
+		.string()
+		.trim()
+		.regex(UUID_PARAM_RE, 'Invalid instructorId')
+		.nullable()
+		.optional(),
+});
+
+export type PatchCourseBody = z.infer<typeof patchCourseBodySchema>;
+
+export function parsePatchCourseBody(
+	body: unknown,
+): { ok: true; data: PatchCourseBody } | { ok: false; error: string } {
+	const parsed = patchCourseBodySchema.safeParse(body);
+	if (!parsed.success) {
+		const message = parsed.error.issues[0]?.message ?? 'Invalid body';
+		return { ok: false, error: message };
+	}
+	return { ok: true, data: parsed.data };
+}

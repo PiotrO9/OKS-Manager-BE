@@ -1,7 +1,10 @@
 import type { Course, CourseKind, DrivingSchool } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
-import type { CreateCourseBody } from '../schemas/course.schemas';
+import type {
+	CreateCourseBody,
+	PatchCourseBody,
+} from '../schemas/course.schemas';
 
 const prisma = getPrisma();
 
@@ -216,8 +219,60 @@ async function getCourseDetailForOwner(
 	};
 }
 
+async function patchCourseInstructorForOwner(
+	userId: string,
+	courseId: string,
+	body: PatchCourseBody,
+): Promise<CourseDetailDto> {
+	const shouldUpdate = Object.prototype.hasOwnProperty.call(
+		body,
+		'instructorId',
+	);
+	if (!shouldUpdate) {
+		return getCourseDetailForOwner(userId, courseId);
+	}
+
+	const nextInstructorId = body.instructorId;
+
+	const row = await prisma.course.findUnique({
+		where: { id: courseId },
+		include: {
+			school: { select: { ownerId: true } },
+		},
+	});
+
+	if (!row || row.deletedAt !== null) {
+		throw AppError.notFound('Course not found');
+	}
+	if (row.school.ownerId !== userId) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	if (nextInstructorId !== null) {
+		const link = await prisma.instructorSchool.findFirst({
+			where: {
+				instructorId: nextInstructorId,
+				schoolId: row.schoolId,
+			},
+		});
+		if (!link) {
+			throw AppError.badRequest(
+				'instructor does not belong to this school',
+			);
+		}
+	}
+
+	await prisma.course.update({
+		where: { id: courseId },
+		data: { instructorId: nextInstructorId },
+	});
+
+	return getCourseDetailForOwner(userId, courseId);
+}
+
 export const courseService = {
 	createCourseForUser,
 	listCoursesForSchool,
 	getCourseDetailForOwner,
+	patchCourseInstructorForOwner,
 };

@@ -6,7 +6,10 @@ import {
 	courseIdParamsSchema,
 	schoolIdQuerySchema,
 } from '../lib/validation/uuid';
-import { parseCreateCourseBody } from '../schemas/course.schemas';
+import {
+	parseCreateCourseBody,
+	parsePatchCourseBody,
+} from '../schemas/course.schemas';
 import { courseService } from '../services/course.service';
 
 async function listCourses(req: Request, res: Response) {
@@ -50,4 +53,25 @@ async function getCourseById(req: Request, res: Response) {
 	return sendJsonSuccess(res, { course });
 }
 
-export { createCourse, getCourseById, listCourses };
+async function patchCourse(req: Request, res: Response) {
+	const user = requireUser(req);
+	const paramsParsed = courseIdParamsSchema.safeParse(req.params);
+	if (!paramsParsed.success) {
+		const message = paramsParsed.error.issues[0]?.message ?? 'Invalid id';
+		throw AppError.badRequest(message);
+	}
+
+	const bodyParsed = parsePatchCourseBody(req.body);
+	if (!bodyParsed.ok) {
+		throw AppError.badRequest(bodyParsed.error);
+	}
+
+	const course = await courseService.patchCourseInstructorForOwner(
+		user.id,
+		paramsParsed.data.id,
+		bodyParsed.data,
+	);
+	return sendJsonSuccess(res, { course });
+}
+
+export { createCourse, getCourseById, listCourses, patchCourse };

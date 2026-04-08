@@ -3,6 +3,7 @@ import {
 	createCourse,
 	getCourseById,
 	listCourses,
+	patchCourse,
 } from '../controllers/courses.controller';
 import { asyncHandler } from '../lib/http/asyncHandler';
 import { authMiddleware, requireMinRole } from '../middleware/auth.middleware';
@@ -22,6 +23,13 @@ function createCoursesRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		asyncHandler(getCourseById),
+	);
+
+	router.patch(
+		'/:id',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(patchCourse),
 	);
 
 	router.post(
