@@ -73,6 +73,26 @@ Jeśli rekord `users` z tym samym **`email`** ma już profil instruktora z co na
 
 **Domyślne godziny pracy** (`instructor_working_hours_default`): z `school_settings` danej OSK (`working_days_mask`, godziny rozpoczęcia/końca); bit `d` maski odpowiada `Date.getDay()` (0 = niedziela … 6 = sobota). Gdy brak ustawień, pusta maska lub `end <= start`, używany jest fallback **pn–pt 8:00–18:00**.
 
+### Sukces (`data`)
+
+| `role` | HTTP | `data` (skrót) |
+|--------|------|----------------|
+| `STUDENT` | **200** | `{ user, session }` — jak odpowiedź Supabase `signUp` |
+| `INSTRUCTOR` | **201** | `{ instructor, user, session }` — `instructor`: `{ id, userId, name, email }` (`id` = `instructor_profiles.id`, `userId` = `users.id` / Auth), `name` z `firstName` + `lastName`, `user` i `session` nadal z Supabase (np. do natychmiastowego logowania) |
+
+### Błędy — Supabase i DB (uzupełnienie)
+
+Komunikaty z Supabase **nie** są przekazywane do klienta w surowej postaci (poza ustalonymi poniżej); pełny błąd jest logowany po stronie serwera (`console.error`).
+
+| Kod | Przykładowy `error` (string w kopercie API) | Kiedy |
+|-----|---------------------------------------------|--------|
+| **400** | `Email already exists` | Duplikat / „już zarejestrowany” przy `signUp` (heurystyka na komunikacie/kodzie Supabase) |
+| **500** | `Failed to create user` | Inne błędy `signUp` (sieć, konfiguracja itd.) |
+| **500** | `Failed to create instructor` | Błąd transakcji Prisma po udanym `signUp`, gdy `role === INSTRUCTOR` (bez jawnego `AppError`) |
+| **500** | `Failed to complete user registration` | Jak wyżej, gdy `role === STUDENT` |
+
+Pozostaje **403** (brak uprawnień), **409** (konflikty email / identifier / instruktor już w szkole) oraz dotychczasowe **400** walidacji body.
+
 ### Profile roli i `user_profiles` (Prisma)
 
 Po udanym zapisie użytkownika backend **z poziomu aplikacji** tworzy powiązane rekordy (bez triggerów w Supabase / PostgreSQL):
@@ -83,7 +103,7 @@ Po udanym zapisie użytkownika backend **z poziomu aplikacji** tworzy powiązane
 
 Gdy użytkownik już istnieje w bazie po tym samym `id` (np. powtórne wywołanie rejestracji), wykonywane jest `user.update`; jeśli brakuje **profilu roli** albo **`user_profiles`**, jest on **dopisywany** w tej samej transakcji co aktualizacja użytkownika (`ensureRoleProfilesAfterUserUpsert`).
 
-Implementacja: `src/controllers/auth.controller.ts` (`buildUserCreateWithRoleProfiles`, `ensureRoleProfilesAfterUserUpsert`).
+Implementacja: `src/controllers/auth.controller.ts` (`buildUserCreateWithRoleProfiles`, `ensureRoleProfilesAfterUserUpsert`, `completeRegisterSuccessResponse`); mapowanie błędów `signUp`: `src/lib/supabaseSignUpErrors.ts`.
 
 ### PATCH `/auth/profile`
 

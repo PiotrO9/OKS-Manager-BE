@@ -1,3 +1,4 @@
+import type { Session, User } from '@supabase/supabase-js';
 import { Request, Response } from 'express';
 import { Prisma, Role } from '@prisma/client';
 import { sendJsonError, sendJsonSuccess } from '../lib/apiResponse';
@@ -10,6 +11,10 @@ import {
 } from '../lib/instructorSchoolRegistration';
 import { canInvokerRegisterUserWithRole } from '../lib/registerRolePolicy';
 import { getSupabaseClient } from '../lib/supabase';
+import {
+	logAuthSignUpError,
+	mapAuthSignUpErrorForClient,
+} from '../lib/supabaseSignUpErrors';
 import { parseUuidParam } from '../lib/validation/uuid';
 import {
 	type PatchProfileInput,
@@ -174,6 +179,62 @@ function registerDbProfileFromRequest(
 
 type RequestWithUser = Request & { user: AuthRequestUser };
 
+function registerDbFailureClientMessage(targetRole: Role): string {
+	return targetRole === Role.INSTRUCTOR
+		? 'Failed to create instructor'
+		: 'Failed to complete user registration';
+}
+
+async function completeRegisterSuccessResponse(
+	res: Response,
+	targetRole: Role,
+	authUserId: string,
+	emailTrimmed: string,
+	firstName: string,
+	lastName: string,
+	authPayload: { user: User; session: Session | null },
+): Promise<Response> {
+	if (targetRole !== Role.INSTRUCTOR) {
+		return sendJsonSuccess(res, {
+			user: authPayload.user,
+			session: authPayload.session,
+		});
+	}
+
+	const prisma = getPrisma();
+	const profile = await prisma.instructorProfile.findUnique({
+		where: { userId: authUserId },
+		select: { id: true },
+	});
+	if (!profile) {
+		console.error('register: instructor profile missing after success', {
+			authUserId,
+		});
+		return sendJsonError(res, 'Failed to create instructor', 500);
+	}
+
+	const nameFromParts = [firstName, lastName]
+		.map((s) => String(s).trim())
+		.filter((s) => s.length > 0)
+		.join(' ')
+		.trim();
+
+	return sendJsonSuccess(
+		res,
+		{
+			instructor: {
+				id: profile.id,
+				userId: authUserId,
+				name: nameFromParts || emailTrimmed,
+				email: emailTrimmed,
+			},
+			user: authPayload.user,
+			session: authPayload.session,
+		},
+		201,
+	);
+}
+
 async function register(req: Request, res: Response) {
 	const actor = (req as RequestWithUser).user;
 	const body: RegisterBody = req.body;
@@ -251,7 +312,9 @@ async function register(req: Request, res: Response) {
 	});
 
 	if (error) {
-		return sendJsonError(res, error.message, 400);
+		logAuthSignUpError(error);
+		const mapped = mapAuthSignUpErrorForClient(error);
+		return sendJsonError(res, mapped.clientMessage, mapped.statusCode);
 	}
 
 	const authUserId = data.user?.id;
@@ -312,15 +375,25 @@ async function register(req: Request, res: Response) {
 			console.error('register: user.update failed (existingById)', err);
 			return sendJsonError(
 				res,
-				'Failed to complete user registration',
+				registerDbFailureClientMessage(targetRole),
 				500,
 			);
 		}
 
-		return sendJsonSuccess(res, {
-			user: data.user,
-			session: data.session,
-		});
+		if (!data.user) {
+			console.error('register: missing user in signUp response');
+			return sendJsonError(res, 'Registration incomplete', 500);
+		}
+
+		return completeRegisterSuccessResponse(
+			res,
+			targetRole,
+			authUserId,
+			emailTrimmed,
+			firstName,
+			lastName,
+			{ user: data.user, session: data.session },
+		);
 	}
 
 	const existingByEmail = await prisma.user.findUnique({
@@ -416,14 +489,24 @@ async function register(req: Request, res: Response) {
 					);
 					return sendJsonError(
 						res,
-						'Failed to complete user registration',
+						registerDbFailureClientMessage(targetRole),
 						500,
 					);
 				}
-				return sendJsonSuccess(res, {
-					user: data.user,
-					session: data.session,
-				});
+				if (!data.user) {
+					console.error('register: missing user in signUp response');
+					return sendJsonError(res, 'Registration incomplete', 500);
+				}
+
+				return completeRegisterSuccessResponse(
+					res,
+					targetRole,
+					authUserId,
+					emailTrimmed,
+					firstName,
+					lastName,
+					{ user: data.user, session: data.session },
+				);
 			}
 		}
 
@@ -431,13 +514,27 @@ async function register(req: Request, res: Response) {
 			'register: Prisma user.create failed after signUp — orphan auth user may exist',
 			err,
 		);
-		return sendJsonError(res, 'Failed to complete user registration', 500);
+		return sendJsonError(
+			res,
+			registerDbFailureClientMessage(targetRole),
+			500,
+		);
 	}
 
-	return sendJsonSuccess(res, {
-		user: data.user,
-		session: data.session,
-	});
+	if (!data.user) {
+		console.error('register: missing user in signUp response');
+		return sendJsonError(res, 'Registration incomplete', 500);
+	}
+
+	return completeRegisterSuccessResponse(
+		res,
+		targetRole,
+		authUserId,
+		emailTrimmed,
+		firstName,
+		lastName,
+		{ user: data.user, session: data.session },
+	);
 }
 
 async function login(req: Request, res: Response) {
