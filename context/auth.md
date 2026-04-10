@@ -127,6 +127,10 @@ Gdy użytkownik już istnieje w bazie po tym samym `id` (np. powtórne wywołani
 
 Implementacja: `src/controllers/auth.controller.ts` (`buildUserCreateWithRoleProfiles`, `ensureRoleProfilesAfterUserUpsert`, `completeRegisterSuccessResponse`); mapowanie błędów `signUp`: `src/lib/supabaseSignUpErrors.ts`.
 
+## Studenci — lista (`GET /students`)
+
+Paginowana lista kursantów przypisanych do OSK (`student_schools`), opcjonalnie ograniczona do uczestników danego kursu (`course_participants`). **Middleware:** `authMiddleware`, **`requireMinRole('INSTRUCTOR')`**. Parametry query, kształt odpowiedzi, kody błędów i reguły **MANAGER** / **INSTRUCTOR** / **ADMIN**: [students-api.md](./students-api.md).
+
 ## Studenci — przypisanie / zmiana OSK (`PATCH /students/:userId/driving-school`)
 
 **Middleware:** `authMiddleware`, **`requireMinRole('MANAGER')`** — **`MANAGER`** i **`ADMIN`**.
@@ -205,7 +209,7 @@ Jeśli w body występuje klucz `firstName` i/lub `lastName` (`Object.prototype.h
 - `src/controllers/auth.controller.ts` — login, refresh, logout, register, `getMe`, `patchProfile`, `uploadProfileAvatar`
 - `src/services/meContext.service.ts` — kontekst OSK dla **`GET /auth/me`** / **`PATCH /auth/profile`** (`loadDrivingSchoolContextForMe`)
 - `src/lib/studentSchoolRegistration.ts` — walidacja i zapis **`student_schools`** (rejestracja + użycie z serwisu studenci)
-- `src/routes/students.routes.ts`, `src/services/students.service.ts` — **`PATCH /students/:userId/driving-school`**, **`PATCH /students/:userId/pkk`**
+- `src/routes/students.routes.ts`, `src/services/students.service.ts` — **`GET /students`** (lista), **`PATCH /students/:userId/driving-school`**, **`PATCH /students/:userId/pkk`**
 - `src/services/userProfile.service.ts` — patch profilu (`bio`, `phone`, `firstName`, `lastName` wg reguł w kontrolerze), upload avatara, upsert `user_profiles`
 - `src/lib/supabaseStorage.ts` — wspólne MIME / ścieżka publicznego URL / usuwanie obiektów (też używane przy zdjęciach pojazdów)
 - `src/middleware/auth.middleware.ts` — Bearer + Prisma user (`include: { profile: true }`)

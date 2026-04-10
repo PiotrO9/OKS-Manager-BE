@@ -7,15 +7,28 @@ import { getPrisma } from '../lib/prisma';
 import {
 	assignStudentDrivingSchoolBodySchema,
 	assignStudentToCourseBodySchema,
+	listStudentsQuerySchema,
 	patchStudentPkkBodySchema,
 	studentUserIdParamsSchema,
 } from '../lib/validation/uuid';
 import {
 	assignStudentDrivingSchoolForAdminOrManager,
+	listStudentsForSchool,
 	patchStudentPkkForStaff,
 } from '../services/students.service';
 
 const prisma = getPrisma();
+
+async function listStudents(req: Request, res: Response) {
+	const user = requireUser(req);
+	const parsed = listStudentsQuerySchema.safeParse(req.query);
+	if (!parsed.success) {
+		const message = parsed.error.issues[0]?.message ?? 'Invalid query';
+		throw AppError.badRequest(message);
+	}
+	const result = await listStudentsForSchool(user.id, user.role, parsed.data);
+	return sendJsonSuccess(res, result);
+}
 
 async function patchStudentDrivingSchool(req: Request, res: Response) {
 	const user = requireUser(req);
@@ -181,4 +194,9 @@ async function assignStudentToCourse(req: Request, res: Response) {
 	}
 }
 
-export { assignStudentToCourse, patchStudentDrivingSchool, patchStudentPkk };
+export {
+	assignStudentToCourse,
+	listStudents,
+	patchStudentDrivingSchool,
+	patchStudentPkk,
+};

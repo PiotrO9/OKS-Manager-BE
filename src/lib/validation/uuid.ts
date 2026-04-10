@@ -116,3 +116,21 @@ export const courseIdParamsSchema = z.object({
 export const assignStudentToCourseBodySchema = z.object({
 	courseId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid courseId'),
 });
+
+export const listStudentsQuerySchema = z.object({
+	schoolId: zodPreprocessQueryFirst(
+		z
+			.string({ required_error: 'schoolId is required' })
+			.min(1, 'schoolId is required')
+			.regex(UUID_PARAM_RE, 'Invalid schoolId'),
+	),
+	courseId: zodPreprocessQueryFirst(
+		z.string().trim().regex(UUID_PARAM_RE, 'Invalid courseId').optional(),
+	),
+	page: zodPreprocessQueryFirst(z.coerce.number().int().min(1).default(1)),
+	limit: zodPreprocessQueryFirst(
+		z.coerce.number().int().min(1).max(100).default(20),
+	),
+});
+
+export type ListStudentsQuery = z.infer<typeof listStudentsQuerySchema>;

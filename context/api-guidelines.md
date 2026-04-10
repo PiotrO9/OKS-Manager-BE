@@ -29,6 +29,8 @@ Lista OSK dla zalogowanego użytkownika (role, kody błędów): zob. [driving-sc
 
 Kursy (lista, szczegóły, POST, PATCH instruktora): zob. [courses-api.md](./courses-api.md).
 
+Kursanci (lista z paginacją i filtrem kursu, PATCH OSK/PKK): zob. [students-api.md](./students-api.md).
+
 Response format:
 
 {

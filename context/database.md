@@ -26,6 +26,8 @@ Course:
 - has course_type
 - API (lista, szczegóły, POST, PATCH instruktora): [courses-api.md](./courses-api.md)
 
+Lista kursantów w OSK (paginacja, filtr kursu): [students-api.md](./students-api.md)
+
 Payments:
 Course → PaymentPlan → Payments
 

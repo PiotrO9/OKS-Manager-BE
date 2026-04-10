@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
 	assignStudentToCourse,
+	listStudents,
 	patchStudentDrivingSchool,
 	patchStudentPkk,
 } from '../controllers/students.controller';
@@ -9,6 +10,13 @@ import { authMiddleware, requireMinRole } from '../middleware/auth.middleware';
 
 function createStudentsRouter() {
 	const router = Router();
+
+	router.get(
+		'/',
+		authMiddleware,
+		requireMinRole('INSTRUCTOR'),
+		asyncHandler(listStudents),
+	);
 
 	router.patch(
 		'/:userId/driving-school',
