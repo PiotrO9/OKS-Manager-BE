@@ -18,6 +18,7 @@ src/
 ├── schemas/             # Zod + funkcje parse (np. body pojazdu, szkoły jazdy)
 ├── middleware/          # authMiddleware, requireMinRole itd.
 ├── lib/                   # Wspólne: prisma, supabase, supabaseStorage (MIME / storage helpers), apiResponse, validation/uuid, policies
+├── swagger/               # OpenAPI: init Zod, registerPath, generator, Swagger UI — zob. context/openapi-swagger.md
 └── types/                 # Rozszerzenia globalne (np. Express.Request.user)
 ```
 
@@ -27,6 +28,7 @@ src/
 2. **`controllers/<obszar>.controller.ts`** — cienka warstwa: `requireUser`, `safeParse` schematów, `sendJsonSuccess`, **bez** dużych zapytań Prisma w jednym bloku handlera.
 3. **`services/<obszar>.service.ts`** (lub rozszerzenie istniejącego serwisu) — transakcje, reguły własności, konflikty; **`throw AppError.*`** zamiast ręcznego `sendJsonError` w wielu miejscach.
 4. **`schemas/<obszar>.schemas.ts`** — gdy potrzebny Zod lub powtarzalny parse (zgodnie z [api-guidelines.md](./api-guidelines.md)).
+5. **`src/swagger/registerOpenApiPaths.ts`** — dopisz `registry.registerPath` dla nowej trasy (te same schematy Zod co w kontrolerze), patrz [openapi-swagger.md](./openapi-swagger.md).
 
 Polityki i stałe reguły (np. kto może kogo rejestrować): **`lib/`** (np. `registerRolePolicy.ts`).
 
@@ -39,6 +41,7 @@ Polityki i stałe reguły (np. kto może kogo rejestrować): **`lib/`** (np. `re
 ## Powiązane konteksty
 
 - API i koperty odpowiedzi: [api-guidelines.md](./api-guidelines.md)
+- OpenAPI / Swagger: [openapi-swagger.md](./openapi-swagger.md)
 - Auth (w tym profil, avatar, `/auth/profile`): [auth.md](./auth.md)
 - OSK (endpointy): [driving-schools-api.md](./driving-schools-api.md)
 - Pojazdy: [vehicles-api.md](./vehicles-api.md)

@@ -25,6 +25,8 @@ Rules:
 
 Authentication (Bearer, httpOnly refresh cookie, `/auth/*`): zob. [auth.md](./auth.md).
 
+Dokumentacja maszynowa (OpenAPI, Swagger UI, generowanie z Zod): zob. [openapi-swagger.md](./openapi-swagger.md).
+
 Lista OSK dla zalogowanego użytkownika (role, kody błędów): zob. [driving-schools-api.md](./driving-schools-api.md).
 
 Kursy (lista, szczegóły, POST, PATCH instruktora): zob. [courses-api.md](./courses-api.md).

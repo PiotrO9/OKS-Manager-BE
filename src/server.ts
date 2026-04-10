@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './swagger/zodOpenApiInit';
 import cors from 'cors';
 import express from 'express';
 import cookieParser from 'cookie-parser';
@@ -11,6 +12,7 @@ import { createStudentsRouter } from './routes/students.routes';
 import { createVehiclesRouter } from './routes/vehicles.routes';
 import { createCoursesRouter } from './routes/courses.routes';
 import { createCourseTypesRouter } from './routes/course-types.routes';
+import { setupSwagger } from './swagger/setupSwagger';
 
 function parseAllowedOrigins(): string[] {
 	const raw = process.env.FRONTEND_URL?.trim();
@@ -47,6 +49,8 @@ function createApp() {
 			message: 'OSK Manager API - test endpoint',
 		});
 	});
+
+	setupSwagger(app);
 
 	app.use(errorRequestHandler);
 
