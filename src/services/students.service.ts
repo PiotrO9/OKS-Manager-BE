@@ -185,6 +185,51 @@ export async function patchStudentPkkForStaff(
 	return { userId: studentUserId, pkkNumber };
 }
 
+export type PatchStudentResult = {
+	userId: string;
+	notes: string | null;
+};
+
+export async function patchStudentForStaff(
+	actorId: string,
+	actorRole: Role,
+	studentUserId: string,
+	data: { notes: string | null },
+): Promise<PatchStudentResult> {
+	const studentUser = await prisma.user.findUnique({
+		where: { id: studentUserId },
+		select: {
+			id: true,
+			role: true,
+			deletedAt: true,
+			isActive: true,
+			studentProfile: { select: { id: true } },
+		},
+	});
+
+	if (!studentUser || studentUser.deletedAt !== null) {
+		throw AppError.notFound('User not found');
+	}
+
+	if (!studentUser.isActive) {
+		throw AppError.forbidden('Account is disabled');
+	}
+
+	if (studentUser.role !== Role.STUDENT || !studentUser.studentProfile) {
+		throw AppError.badRequest('User is not a student');
+	}
+
+	await assertActorCanPatchStudentPkk(actorId, actorRole, studentUserId);
+
+	const updated = await prisma.studentProfile.update({
+		where: { userId: studentUserId },
+		data: { notes: data.notes },
+		select: { notes: true },
+	});
+
+	return { userId: studentUserId, notes: updated.notes };
+}
+
 export async function patchCourseParticipantStatusForStaff(
 	actorId: string,
 	actorRole: Role,
@@ -311,6 +356,7 @@ export type StudentDetailDto = {
 	lastName: string;
 	email: string;
 	pkkNumber: string | null;
+	notes: string | null;
 	courses: StudentCourseDto[];
 };
 
@@ -396,6 +442,7 @@ export async function getStudentDetail(
 		select: {
 			id: true,
 			pkkNumber: true,
+			notes: true,
 			user: {
 				select: {
 					id: true,
@@ -433,6 +480,7 @@ export async function getStudentDetail(
 		lastName: student.user.lastName,
 		email: student.user.email,
 		pkkNumber: student.pkkNumber,
+		notes: student.notes,
 		courses: student.courseParticipants.map((cp) => ({
 			id: cp.course.id,
 			name: cp.course.name,

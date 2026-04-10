@@ -172,6 +172,7 @@ model StudentProfile {
   userId        String              @unique @db.Uuid @map("user_id")
   pesel         String?             @unique @map("pesel")
   pkkNumber     String?             @unique @map("pkk_number") @db.VarChar(20)
+  notes         String?             @map("notes")
   createdAt     DateTime            @default(now()) @map("created_at")
 
   user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -1,5 +1,5 @@
 ---
-description: "API — kursanci (/students): lista z paginacją i filtrem kursu, szczegóły z kursami i statusem uczestnictwa (enum ACTIVE/FINISHED), przypisanie OSK, PKK, wpis na kurs, PATCH statusu uczestnictwa — role, kody odpowiedzi"
+description: "API — kursanci (/students): lista z paginacją i filtrem kursu, szczegóły z kursami, notatki (`notes`), statusem uczestnictwa (enum ACTIVE/FINISHED), przypisanie OSK, PKK, wpis na kurs, PATCH statusu uczestnictwa — role, kody odpowiedzi"
 alwaysApply: true
 ---
 
@@ -7,7 +7,7 @@ alwaysApply: true
 
 Montowanie w `src/server.ts` pod prefiksem **`/students`**.
 
-Implementacja: `src/routes/students.routes.ts`, `src/controllers/students.controller.ts`, `src/services/students.service.ts`, walidacja w `src/lib/validation/uuid.ts` m.in.: `listStudentsQuerySchema`, `studentDetailParamsSchema`, `studentDetailQuerySchema`, **`studentCourseParamsSchema`**, **`patchCourseParticipantStatusBodySchema`** (`courseParticipantStatusSchema`).
+Implementacja: `src/routes/students.routes.ts`, `src/controllers/students.controller.ts`, `src/services/students.service.ts`, walidacja w `src/lib/validation/uuid.ts` m.in.: `listStudentsQuerySchema`, `studentDetailParamsSchema`, `studentDetailQuerySchema`, **`patchStudentBodySchema`**, **`studentCourseParamsSchema`**, **`patchCourseParticipantStatusBodySchema`** (`courseParticipantStatusSchema`).
 
 Operacje **PATCH** (OSK, PKK) i przypisanie do kursu opisuje też [auth.md](./auth.md) (sekcje studenci).
 
@@ -22,7 +22,8 @@ Szczegóły sesji: [auth.md](./auth.md).
 | Metoda | Ścieżka | Middleware (skrót) | Opis |
 |--------|---------|--------------------|------|
 | GET | `/students` | `authMiddleware`, `requireMinRole('INSTRUCTOR')` | Paginowana lista kursantów w OSK; opcjonalnie filtr po kursie. |
-| GET | `/students/:userId` | `authMiddleware`, `requireMinRole('STUDENT')` | Szczegóły kursanta (`users.id` w ścieżce) z listą kursów w OSK i `status` z **`course_participants`**. |
+| GET | `/students/:userId` | `authMiddleware`, `requireMinRole('STUDENT')` | Szczegóły kursanta (`users.id` w ścieżce) z **`notes`**, listą kursów w OSK i `status` z **`course_participants`**. |
+| PATCH | `/students/:userId` | `requireMinRole('INSTRUCTOR')` | Aktualizacja **`student_profiles.notes`** (body z polem **`notes`**) — reguły jak przy PKK — [auth.md](./auth.md). |
 | PATCH | `/students/:userId/driving-school` | `requireMinRole('MANAGER')` | Przypisanie / zmiana OSK — [auth.md](./auth.md). |
 | PATCH | `/students/:userId/pkk` | `requireMinRole('INSTRUCTOR')` | PKK — [auth.md](./auth.md). |
 | POST | `/students/:userId/courses` | `requireMinRole('INSTRUCTOR')` | Uczestnictwo w kursie (`course_participants`); domyślny **`status`** = **`ACTIVE`**. |
@@ -130,6 +131,7 @@ Pole **`status`** w każdym elemencie `courses[]` pochodzi z **`course_participa
     "lastName": "...",
     "email": "...",
     "pkkNumber": null,
+    "notes": null,
     "courses": [
       {
         "id": "<course_id>",
@@ -143,6 +145,26 @@ Pole **`status`** w każdym elemencie `courses[]` pochodzi z **`course_participa
 ```
 
 (`"status"` może być także `"FINISHED"`.)
+
+## PATCH `/students/:userId` — notatki
+
+**Middleware:** `authMiddleware`, **`requireMinRole('INSTRUCTOR')`** ( **`INSTRUCTOR`**, **`MANAGER`**, **`ADMIN`**; **`STUDENT`** → **403**).
+
+**Body (JSON):** `{ "notes": string | null }` — pole **`notes`** wymagane. Pusty string / same spacje → zapis jako **`null`**. Maks. **5000** znaków — inaczej **400**.
+
+**Autoryzacja:** ta sama co **`PATCH /students/:userId/pkk`** (`assertActorCanPatchStudentPkk`).
+
+## Sukces (200) — kształt `data`
+
+```json
+{
+  "success": true,
+  "data": {
+    "userId": "<users.id>",
+    "notes": null
+  }
+}
+```
 
 ## PATCH `/students/:userId/courses/:courseId/status`
 

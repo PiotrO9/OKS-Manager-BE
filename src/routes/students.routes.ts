@@ -4,6 +4,7 @@ import {
 	getStudentDetail,
 	listStudents,
 	patchCourseParticipantStatus,
+	patchStudent,
 	patchStudentDrivingSchool,
 	patchStudentPkk,
 } from '../controllers/students.controller';
@@ -25,6 +26,13 @@ function createStudentsRouter() {
 		authMiddleware,
 		requireMinRole('STUDENT'),
 		asyncHandler(getStudentDetail),
+	);
+
+	router.patch(
+		'/:userId',
+		authMiddleware,
+		requireMinRole('INSTRUCTOR'),
+		asyncHandler(patchStudent),
 	);
 
 	router.patch(

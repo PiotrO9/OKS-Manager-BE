@@ -9,6 +9,7 @@ import {
 	assignStudentToCourseBodySchema,
 	listStudentsQuerySchema,
 	patchCourseParticipantStatusBodySchema,
+	patchStudentBodySchema,
 	patchStudentPkkBodySchema,
 	studentCourseParamsSchema,
 	studentDetailParamsSchema,
@@ -20,6 +21,7 @@ import {
 	getStudentDetail as fetchStudentDetail,
 	listStudentsForSchool,
 	patchCourseParticipantStatusForStaff,
+	patchStudentForStaff,
 	patchStudentPkkForStaff,
 } from '../services/students.service';
 
@@ -57,6 +59,30 @@ async function getStudentDetail(req: Request, res: Response) {
 		user.role,
 		paramsParsed.data.userId,
 		queryParsed.data.schoolId,
+	);
+	return sendJsonSuccess(res, data);
+}
+
+async function patchStudent(req: Request, res: Response) {
+	const user = requireUser(req);
+	const paramsParsed = studentUserIdParamsSchema.safeParse(req.params);
+	if (!paramsParsed.success) {
+		const message =
+			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
+		throw AppError.badRequest(message);
+	}
+
+	const bodyParsed = patchStudentBodySchema.safeParse(req.body);
+	if (!bodyParsed.success) {
+		const message = bodyParsed.error.issues[0]?.message ?? 'Invalid body';
+		throw AppError.badRequest(message);
+	}
+
+	const data = await patchStudentForStaff(
+		user.id,
+		user.role,
+		paramsParsed.data.userId,
+		{ notes: bodyParsed.data.notes },
 	);
 	return sendJsonSuccess(res, data);
 }
@@ -258,6 +284,7 @@ export {
 	getStudentDetail,
 	listStudents,
 	patchCourseParticipantStatus,
+	patchStudent,
 	patchStudentDrivingSchool,
 	patchStudentPkk,
 };

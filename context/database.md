@@ -9,7 +9,7 @@ Important relations:
 
 User → UserProfile (`user_profiles`: opcjonalne `avatar_url`, `bio`; `updated_at` przy zmianach profilu w tym wierszu)
 
-User → StudentProfile / InstructorProfile
+User → StudentProfile / InstructorProfile (**`student_profiles`**: m.in. opcjonalne **`notes`** — tekst, edycja przez **`PATCH /students/:userId`**)
 
 Student → Courses (przez **`course_participants`**, pole **`status`**: enum **`CourseParticipantStatus`** — **`ACTIVE`** domyślnie, **`FINISHED`**; w MVP tylko ręczna zmiana API, patrz [students-api.md](./students-api.md)) → Lessons
 

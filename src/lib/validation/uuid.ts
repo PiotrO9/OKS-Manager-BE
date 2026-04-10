@@ -101,6 +101,25 @@ export const assignStudentDrivingSchoolBodySchema = z.object({
 	schoolId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid schoolId'),
 });
 
+export const patchStudentBodySchema = z.object({
+	notes: z.preprocess(
+		(val) => {
+			if (val === null || val === undefined) {
+				return null;
+			}
+			if (typeof val !== 'string') {
+				return val;
+			}
+			const t = val.trim();
+			return t === '' ? null : t;
+		},
+		z.union([
+			z.null(),
+			z.string().max(5000, 'Notes must not exceed 5000 characters'),
+		]),
+	),
+});
+
 export const patchStudentPkkBodySchema = z.object({
 	pkkNumber: z.preprocess(
 		(val) => {
