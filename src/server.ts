@@ -7,6 +7,7 @@ import { errorRequestHandler } from './lib/http/errorMiddleware';
 import { createAuthRouter } from './routes/auth.routes';
 import { createDrivingSchoolsRouter } from './routes/driving-schools.routes';
 import { createInstructorsRouter } from './routes/instructors.routes';
+import { createStudentsRouter } from './routes/students.routes';
 import { createVehiclesRouter } from './routes/vehicles.routes';
 import { createCoursesRouter } from './routes/courses.routes';
 import { createCourseTypesRouter } from './routes/course-types.routes';
@@ -36,6 +37,7 @@ function createApp() {
 	app.use('/auth', createAuthRouter());
 	app.use('/driving-schools', createDrivingSchoolsRouter());
 	app.use('/instructors', createInstructorsRouter());
+	app.use('/students', createStudentsRouter());
 	app.use('/vehicles', createVehiclesRouter());
 	app.use('/courses', createCoursesRouter());
 	app.use('/course-types', createCourseTypesRouter());

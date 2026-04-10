@@ -67,7 +67,7 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 
 **Middleware:** `authMiddleware`. **Kto może kogo zarejestrować:** `registerRolePolicy.ts`.
 
-**Przepływ (skrót):** walidacja body i uprawnień → dla `role === INSTRUCTOR` wymagane jest poprawne **`schoolId`** (sprawdzenie **przed** `signUp`, żeby unikać zbędnych kont tylko w Auth) → Supabase `auth.signUp` → w jednej transakcji Prisma: zapis `User` / aktualizacja, profile roli, oraz dla instruktora z `schoolId`: **`instructor_schools`** + **`instructor_working_hours_default`**. `id` użytkownika w `public.users` jest **taki sam** jak w Supabase Auth (`auth.users`).
+**Przepływ (skrót):** walidacja body i uprawnień → dla `role === INSTRUCTOR` oraz (gdy dotyczy) dla `role === STUDENT` rozstrzygane jest **`schoolId`** / domyślna OSK managera (**przed** `signUp**) → Supabase `auth.signUp` → w jednej transakcji Prisma: zapis `User` / aktualizacja, profile roli; dla instruktora: **`instructor_schools`** + **`instructor_working_hours_default`**; dla kursanta z wybraną OSK: **`student_schools`** (zastępuje wcześniejsze przypisania tego kursanta). `id` użytkownika w `public.users` jest **taki sam** jak w Supabase Auth (`auth.users`).
 
 ### Body (JSON)
 
@@ -76,9 +76,19 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 | `email`, `password`, `role`, `firstName`, `lastName` | tak | `role`: `STUDENT` lub `INSTRUCTOR` |
 | `phone` | nie | |
 | `licenseNumber` | tak, gdy `role` = `INSTRUCTOR` | W modelu `InstructorProfile` pole `license_number` jest wymagane — brak → **400** (`licenseNumber is required when role is INSTRUCTOR`) |
-| `schoolId` | tak, gdy `role` = `INSTRUCTOR` | UUID OSK. Brak / pusty / nieprawidłowy format → **400** (`schoolId is required when role is INSTRUCTOR` lub `Invalid schoolId`). **Przed** `signUp` — nie wywołujemy Supabase przy tych błędach. Dla `STUDENT` (i każdej roli innej niż `INSTRUCTOR`) pole jest **całkowicie ignorowane** (brak walidacji i nie powoduje błędów). |
+| `schoolId` | zależnie od `role` i wywołującego | Patrz poniżej (INSTRUCTOR vs STUDENT). |
+
+**`schoolId` gdy `role` = `INSTRUCTOR`:** w praktyce rejestruje **`ADMIN`** lub **`MANAGER`**. UUID OSK — jak wcześniej: dla **`MANAGER`** bez `schoolId` używana jest **`defaultOskId`** (brak → **400** `Manager has no default school assigned`); dla **`ADMIN`** brak `schoolId` → **400** `schoolId is required when role is INSTRUCTOR`. Nieprawidłowy UUID / nieaktywna OSK → **400** `Invalid schoolId`; brak prawa do szkoły → **403**.
+
+**`schoolId` gdy `role` = `STUDENT`:** rejestrują **`ADMIN`**, **`MANAGER`**, **`INSTRUCTOR`**.
+
+- **`MANAGER`:** bez `schoolId` → **`defaultOskId`** (brak → **400** jak wyżej); z `schoolId` → musi być **właścicielem** tej OSK.
+- **`ADMIN`:** `schoolId` **opcjonalne** — brak pola oznacza kursanta **bez** wpisu w `student_schools` (można później `PATCH /students/:userId/driving-school`).
+- **`INSTRUCTOR`:** bez `schoolId` → dozwolone tylko gdy ma **dokładnie jedną** aktywną OSK w `instructor_schools`; przy **wielu** szkołach → **400** `schoolId is required when instructor belongs to multiple schools`; przy **zero** → **400** `Instructor is not assigned to any school`. Z `schoolId` → instruktor musi być przypisany do tej OSK (**403** / **400** jak przy walidacji).
 
 **Przypisanie instruktora do OSK:** wywołujący musi mieć co najmniej **`MANAGER`** (w praktyce rejestruje instruktora już tylko `ADMIN` / `MANAGER` wg `registerRolePolicy`) oraz prawo do szkoły: **właściciel** aktywnej OSK (`owner_id`) lub rola **`ADMIN`** (dowolna aktywna szkoła). Inaczej → **403**. Nieistniejąca lub usunięta szkoła → **400** `Invalid schoolId`.
+
+**Przypisanie kursanta do OSK przy rejestracji:** te same zasady co przy **`validateStudentRegistrationSchoolBeforeSignUp`** (`src/lib/studentSchoolRegistration.ts`) — **właściciel** OSK lub **`ADMIN`**, dla instruktora wyłącznie szkoły z jego **`instructor_schools`**.
 
 Jeśli rekord `users` z tym samym **`email`** ma już profil instruktora z co najmniej jednym wpisem w **`instructor_schools`** → **409** (`Instructor is already assigned to a driving school`) — nadal **przed** `signUp` (jeśli uda się to stwierdzić z bazy).
 
@@ -109,12 +119,29 @@ Pozostaje **403** (brak uprawnień), **409** (konflikty email / identifier / ins
 Po udanym zapisie użytkownika backend **z poziomu aplikacji** tworzy powiązane rekordy (bez triggerów w Supabase / PostgreSQL):
 
 - **`user_profiles`** — zawsze przy nowej rejestracji (`profile: { create: {} }`); `avatar_url`, `bio` mogą być puste; `updated_at` utrzymuje Prisma (`@updatedAt`).
-- **`STUDENT`** — wiersz w `student_profiles` (`user_id` → `users.id`; `pesel` opcjonalny).
+- **`STUDENT`** — wiersz w `student_profiles` (`user_id` → `users.id`; `pesel` opcjonalny); przy ustalonej OSK w flow rejestracji dodatkowo **`student_schools`** (logika: `src/lib/studentSchoolRegistration.ts`).
 - **`INSTRUCTOR`** — wiersz w `instructor_profiles` z przekazanym `licenseNumber`; przy podanym `schoolId` dodatkowo **`instructor_schools`** oraz **`instructor_working_hours_default`** (logika: `src/lib/instructorSchoolRegistration.ts`, `src/lib/instructorDefaultWorkingHours.ts`).
 
 Gdy użytkownik już istnieje w bazie po tym samym `id` (np. powtórne wywołanie rejestracji), wykonywane jest `user.update`; jeśli brakuje **profilu roli** albo **`user_profiles`**, jest on **dopisywany** w tej samej transakcji co aktualizacja użytkownika (`ensureRoleProfilesAfterUserUpsert`).
 
 Implementacja: `src/controllers/auth.controller.ts` (`buildUserCreateWithRoleProfiles`, `ensureRoleProfilesAfterUserUpsert`, `completeRegisterSuccessResponse`); mapowanie błędów `signUp`: `src/lib/supabaseSignUpErrors.ts`.
+
+## Studenci — przypisanie / zmiana OSK (`PATCH /students/:userId/driving-school`)
+
+**Middleware:** `authMiddleware`, **`requireMinRole('MANAGER')`** — **`MANAGER`** i **`ADMIN`**.
+
+**Body (JSON):** `{ "schoolId": "<UUID>" }` — aktywna OSK; **400** `Invalid schoolId` gdy nieistniejąca / soft-delete.
+
+- **`ADMIN`:** dowolna aktywna OSK; cel musi być użytkownikiem z rolą **`STUDENT`** i istniejącym **`student_profiles`** (**400** `User is not a student` w przeciwnym razie).
+- **`MANAGER`:** tylko OSK, której jest **właścicielem**; w przeciwnym razie **403**.
+
+Zapis w DB **zastępuje** wcześniejsze wpisy **`student_schools`** tego kursanta jednym powiązaniem (jedna OSK w modelu operacji).
+
+**Sukces (200):** `{ "success": true, "data": { "userId", "drivingSchool": { "id", "name", "city", "address" } } }`.
+
+**Błędy (typowe):** **401** — brak Bearer; **403** — niewłaściwa rola wywołującego, OSK nie należy do managera, konto kursanta wyłączone; **404** — brak użytkownika (lub usunięty); **400** — body / nie-kursant.
+
+**Implementacja:** `src/routes/students.routes.ts`, `src/controllers/students.controller.ts`, `src/services/students.service.ts`.
 
 ### PATCH `/auth/profile`
 
@@ -163,6 +190,8 @@ Jeśli w body występuje klucz `firstName` i/lub `lastName` (`Object.prototype.h
 - `src/routes/auth.routes.ts` — definicja tras (w tym `multer` dla avatara)
 - `src/controllers/auth.controller.ts` — login, refresh, logout, register, `getMe`, `patchProfile`, `uploadProfileAvatar`
 - `src/services/meContext.service.ts` — kontekst OSK dla **`GET /auth/me`** / **`PATCH /auth/profile`** (`loadDrivingSchoolContextForMe`)
+- `src/lib/studentSchoolRegistration.ts` — walidacja i zapis **`student_schools`** (rejestracja + użycie z serwisu studenci)
+- `src/routes/students.routes.ts`, `src/services/students.service.ts` — **`PATCH /students/:userId/driving-school`**
 - `src/services/userProfile.service.ts` — patch profilu (`bio`, `phone`, `firstName`, `lastName` wg reguł w kontrolerze), upload avatara, upsert `user_profiles`
 - `src/lib/supabaseStorage.ts` — wspólne MIME / ścieżka publicznego URL / usuwanie obiektów (też używane przy zdjęciach pojazdów)
 - `src/middleware/auth.middleware.ts` — Bearer + Prisma user (`include: { profile: true }`)

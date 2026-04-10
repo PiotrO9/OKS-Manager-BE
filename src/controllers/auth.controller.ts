@@ -9,6 +9,10 @@ import {
 	attachInstructorToSchoolWithDefaultsInTx,
 	validateInstructorRegistrationSchoolBeforeSignUp,
 } from '../lib/instructorSchoolRegistration';
+import {
+	attachStudentToSchoolReplaceInTx,
+	validateStudentRegistrationSchoolBeforeSignUp,
+} from '../lib/studentSchoolRegistration';
 import { canInvokerRegisterUserWithRole } from '../lib/registerRolePolicy';
 import { getSupabaseClient } from '../lib/supabase';
 import {
@@ -326,6 +330,132 @@ async function register(req: Request, res: Response) {
 		}
 	}
 
+	let validatedStudentSchoolId: string | undefined;
+	if (targetRole === Role.STUDENT) {
+		const prismaForSchool = getPrisma();
+		const rawStudentSchool = body.schoolId;
+		const hasExplicitStudentSchool =
+			rawStudentSchool !== undefined &&
+			rawStudentSchool !== null &&
+			String(rawStudentSchool).trim() !== '';
+
+		if (actor.role === Role.ADMIN) {
+			if (hasExplicitStudentSchool) {
+				const schoolParse = parseUuidParam(body.schoolId);
+				if (schoolParse === null || schoolParse === 'invalid') {
+					return sendJsonError(res, 'Invalid schoolId', 400);
+				}
+				try {
+					await validateStudentRegistrationSchoolBeforeSignUp(
+						prismaForSchool,
+						actor.role,
+						actor.id,
+						schoolParse,
+					);
+				} catch (err) {
+					if (err instanceof AppError) {
+						return sendJsonError(res, err.message, err.statusCode);
+					}
+					throw err;
+				}
+				validatedStudentSchoolId = schoolParse;
+			}
+		} else if (actor.role === Role.MANAGER) {
+			let resolvedStudentSchoolId: string | null;
+			if (hasExplicitStudentSchool) {
+				const schoolParse = parseUuidParam(body.schoolId);
+				if (schoolParse === null || schoolParse === 'invalid') {
+					return sendJsonError(res, 'Invalid schoolId', 400);
+				}
+				resolvedStudentSchoolId = schoolParse;
+			} else {
+				resolvedStudentSchoolId = actor.defaultOskId ?? null;
+			}
+			if (resolvedStudentSchoolId === null) {
+				return sendJsonError(
+					res,
+					'Manager has no default school assigned',
+					400,
+				);
+			}
+			try {
+				await validateStudentRegistrationSchoolBeforeSignUp(
+					prismaForSchool,
+					actor.role,
+					actor.id,
+					resolvedStudentSchoolId,
+				);
+			} catch (err) {
+				if (err instanceof AppError) {
+					return sendJsonError(res, err.message, err.statusCode);
+				}
+				throw err;
+			}
+			validatedStudentSchoolId = resolvedStudentSchoolId;
+		} else if (actor.role === Role.INSTRUCTOR) {
+			let resolvedStudentSchoolId: string | null = null;
+			if (hasExplicitStudentSchool) {
+				const schoolParse = parseUuidParam(body.schoolId);
+				if (schoolParse === null || schoolParse === 'invalid') {
+					return sendJsonError(res, 'Invalid schoolId', 400);
+				}
+				resolvedStudentSchoolId = schoolParse;
+				try {
+					await validateStudentRegistrationSchoolBeforeSignUp(
+						prismaForSchool,
+						actor.role,
+						actor.id,
+						resolvedStudentSchoolId,
+					);
+				} catch (err) {
+					if (err instanceof AppError) {
+						return sendJsonError(res, err.message, err.statusCode);
+					}
+					throw err;
+				}
+				validatedStudentSchoolId = resolvedStudentSchoolId;
+			} else {
+				const instructorLinks =
+					await prismaForSchool.instructorSchool.findMany({
+						where: {
+							instructor: { userId: actor.id },
+							school: { deletedAt: null },
+						},
+						select: { schoolId: true },
+					});
+				if (instructorLinks.length === 0) {
+					return sendJsonError(
+						res,
+						'Instructor is not assigned to any school',
+						400,
+					);
+				}
+				if (instructorLinks.length > 1) {
+					return sendJsonError(
+						res,
+						'schoolId is required when instructor belongs to multiple schools',
+						400,
+					);
+				}
+				resolvedStudentSchoolId = instructorLinks[0]!.schoolId;
+				try {
+					await validateStudentRegistrationSchoolBeforeSignUp(
+						prismaForSchool,
+						actor.role,
+						actor.id,
+						resolvedStudentSchoolId,
+					);
+				} catch (err) {
+					if (err instanceof AppError) {
+						return sendJsonError(res, err.message, err.statusCode);
+					}
+					throw err;
+				}
+				validatedStudentSchoolId = resolvedStudentSchoolId;
+			}
+		}
+	}
+
 	const supabase = getSupabaseClient();
 
 	const { data, error } = await supabase.auth.signUp({
@@ -387,6 +517,13 @@ async function register(req: Request, res: Response) {
 						tx,
 						authUserId,
 						validatedInstructorSchoolId,
+					);
+				}
+				if (targetRole === Role.STUDENT && validatedStudentSchoolId) {
+					await attachStudentToSchoolReplaceInTx(
+						tx,
+						authUserId,
+						validatedStudentSchoolId,
 					);
 				}
 			});
@@ -453,6 +590,13 @@ async function register(req: Request, res: Response) {
 					validatedInstructorSchoolId,
 				);
 			}
+			if (targetRole === Role.STUDENT && validatedStudentSchoolId) {
+				await attachStudentToSchoolReplaceInTx(
+					tx,
+					authUserId,
+					validatedStudentSchoolId,
+				);
+			}
 		});
 	} catch (err) {
 		if (err instanceof AppError) {
@@ -494,6 +638,16 @@ async function register(req: Request, res: Response) {
 								tx,
 								authUserId,
 								validatedInstructorSchoolId,
+							);
+						}
+						if (
+							targetRole === Role.STUDENT &&
+							validatedStudentSchoolId
+						) {
+							await attachStudentToSchoolReplaceInTx(
+								tx,
+								authUserId,
+								validatedStudentSchoolId,
 							);
 						}
 					});
