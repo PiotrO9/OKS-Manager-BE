@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+	assignStudentToCourse,
 	patchStudentDrivingSchool,
 	patchStudentPkk,
 } from '../controllers/students.controller';
@@ -21,6 +22,13 @@ function createStudentsRouter() {
 		authMiddleware,
 		requireMinRole('INSTRUCTOR'),
 		asyncHandler(patchStudentPkk),
+	);
+
+	router.post(
+		'/:userId/courses',
+		authMiddleware,
+		requireMinRole('INSTRUCTOR'),
+		asyncHandler(assignStudentToCourse),
 	);
 
 	return router;

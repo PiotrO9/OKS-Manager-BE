@@ -112,3 +112,7 @@ export const drivingSchoolIdParamsSchema = z.object({
 export const courseIdParamsSchema = z.object({
 	id: z.string().trim().regex(UUID_PARAM_RE, 'Invalid course id'),
 });
+
+export const assignStudentToCourseBodySchema = z.object({
+	courseId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid courseId'),
+});
