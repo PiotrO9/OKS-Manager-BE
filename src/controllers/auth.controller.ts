@@ -837,9 +837,21 @@ function buildMeUserPayload(user: AuthRequestUser) {
 
 async function buildMeResponsePayload(user: AuthRequestUser) {
 	const context = await loadDrivingSchoolContextForMe(user.id, user.role);
-	return {
+	const base = {
 		...buildMeUserPayload(user),
 		...context,
+	};
+	if (user.role !== Role.STUDENT) {
+		return base;
+	}
+	const prisma = getPrisma();
+	const sp = await prisma.studentProfile.findUnique({
+		where: { userId: user.id },
+		select: { pkkNumber: true },
+	});
+	return {
+		...base,
+		pkkNumber: sp?.pkkNumber ?? null,
 	};
 }
 

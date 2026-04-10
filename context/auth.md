@@ -43,6 +43,7 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 | `bio` | string \| null | `user_profiles.bio` |
 | `profileUpdatedAt` | string (ISO date) \| null | `user_profiles.updated_at` (brak wiersza profilu → `null`) |
 | `role` | enum | `STUDENT`, `INSTRUCTOR`, … |
+| `pkkNumber` | string \| `null` | Tylko dla **`STUDENT`**: numer PKK z `student_profiles.pkk_number` (brak → `null`). Dla innych ról pole **nie występuje** w obiekcie `user`. |
 | `drivingSchools` | tablica | Aktywne OSK (`driving_schools.deleted_at IS NULL`) widoczne dla danej roli — patrz poniżej |
 | `defaultOskId` | string (UUID) \| `null` | Tylko sensowne dla **`MANAGER`**: domyślna OSK właściciela po rekonsyliacji (`getResolvedDefaultOskIdForOwner`). Dla **`STUDENT`**, **`INSTRUCTOR`**, **`ADMIN`**: zawsze `null`. |
 
@@ -119,7 +120,7 @@ Pozostaje **403** (brak uprawnień), **409** (konflikty email / identifier / ins
 Po udanym zapisie użytkownika backend **z poziomu aplikacji** tworzy powiązane rekordy (bez triggerów w Supabase / PostgreSQL):
 
 - **`user_profiles`** — zawsze przy nowej rejestracji (`profile: { create: {} }`); `avatar_url`, `bio` mogą być puste; `updated_at` utrzymuje Prisma (`@updatedAt`).
-- **`STUDENT`** — wiersz w `student_profiles` (`user_id` → `users.id`; `pesel` opcjonalny); przy ustalonej OSK w flow rejestracji dodatkowo **`student_schools`** (logika: `src/lib/studentSchoolRegistration.ts`).
+- **`STUDENT`** — wiersz w `student_profiles` (`user_id` → `users.id`; `pesel` i `pkk_number` opcjonalne — PKK ustawiane osobno, nie przy rejestracji); przy ustalonej OSK w flow rejestracji dodatkowo **`student_schools`** (logika: `src/lib/studentSchoolRegistration.ts`).
 - **`INSTRUCTOR`** — wiersz w `instructor_profiles` z przekazanym `licenseNumber`; przy podanym `schoolId` dodatkowo **`instructor_schools`** oraz **`instructor_working_hours_default`** (logika: `src/lib/instructorSchoolRegistration.ts`, `src/lib/instructorDefaultWorkingHours.ts`).
 
 Gdy użytkownik już istnieje w bazie po tym samym `id` (np. powtórne wywołanie rejestracji), wykonywane jest `user.update`; jeśli brakuje **profilu roli** albo **`user_profiles`**, jest on **dopisywany** w tej samej transakcji co aktualizacja użytkownika (`ensureRoleProfilesAfterUserUpsert`).
@@ -142,6 +143,19 @@ Zapis w DB **zastępuje** wcześniejsze wpisy **`student_schools`** tego kursant
 **Błędy (typowe):** **401** — brak Bearer; **403** — niewłaściwa rola wywołującego, OSK nie należy do managera, konto kursanta wyłączone; **404** — brak użytkownika (lub usunięty); **400** — body / nie-kursant.
 
 **Implementacja:** `src/routes/students.routes.ts`, `src/controllers/students.controller.ts`, `src/services/students.service.ts`.
+
+## Studenci — PKK (`PATCH /students/:userId/pkk`)
+
+**Middleware:** `authMiddleware`, **`requireMinRole('INSTRUCTOR')`** — **`INSTRUCTOR`**, **`MANAGER`**, **`ADMIN`**.
+
+**Body (JSON):** `{ "pkkNumber": "<20 cyfr>" | null }` — wymagany klucz `pkkNumber`; `null` lub pusty string po trim usuwa numer z profilu. Format: dokładnie **20** cyfr — inaczej **400** (`PKK must be exactly 20 digits`). Duplikat globalny (`student_profiles.pkk_number` unique) → **409** `PKK number already in use`.
+
+- **`ADMIN`:** dowolny użytkownik z rolą **`STUDENT`** (i istniejącym **`student_profiles`**).
+- **`MANAGER` / `INSTRUCTOR`:** tylko gdy kursant ma aktywne **`student_schools`** w OSK współdzielonej z wywołującym (manager — właściciel szkoły; instruktor — przypisany do tej szkoły). Brak wspólnej OSK lub brak przypisania kursanta do OSK → **403**.
+
+**Sukces (200):** `{ "success": true, "data": { "userId", "pkkNumber": string | null } }`.
+
+**Implementacja:** te same pliki co `PATCH /students/:userId/driving-school` (`patchStudentPkk`, `patchStudentPkkForStaff`).
 
 ### PATCH `/auth/profile`
 
@@ -191,7 +205,7 @@ Jeśli w body występuje klucz `firstName` i/lub `lastName` (`Object.prototype.h
 - `src/controllers/auth.controller.ts` — login, refresh, logout, register, `getMe`, `patchProfile`, `uploadProfileAvatar`
 - `src/services/meContext.service.ts` — kontekst OSK dla **`GET /auth/me`** / **`PATCH /auth/profile`** (`loadDrivingSchoolContextForMe`)
 - `src/lib/studentSchoolRegistration.ts` — walidacja i zapis **`student_schools`** (rejestracja + użycie z serwisu studenci)
-- `src/routes/students.routes.ts`, `src/services/students.service.ts` — **`PATCH /students/:userId/driving-school`**
+- `src/routes/students.routes.ts`, `src/services/students.service.ts` — **`PATCH /students/:userId/driving-school`**, **`PATCH /students/:userId/pkk`**
 - `src/services/userProfile.service.ts` — patch profilu (`bio`, `phone`, `firstName`, `lastName` wg reguł w kontrolerze), upload avatara, upsert `user_profiles`
 - `src/lib/supabaseStorage.ts` — wspólne MIME / ścieżka publicznego URL / usuwanie obiektów (też używane przy zdjęciach pojazdów)
 - `src/middleware/auth.middleware.ts` — Bearer + Prisma user (`include: { profile: true }`)

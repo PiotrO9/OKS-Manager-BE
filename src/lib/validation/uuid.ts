@@ -86,6 +86,25 @@ export const assignStudentDrivingSchoolBodySchema = z.object({
 	schoolId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid schoolId'),
 });
 
+export const patchStudentPkkBodySchema = z.object({
+	pkkNumber: z.preprocess(
+		(val) => {
+			if (val === null) {
+				return null;
+			}
+			if (typeof val !== 'string') {
+				return val;
+			}
+			const t = val.trim();
+			return t === '' ? null : t;
+		},
+		z.union([
+			z.null(),
+			z.string().regex(/^\d{20}$/, 'PKK must be exactly 20 digits'),
+		]),
+	),
+});
+
 export const drivingSchoolIdParamsSchema = z.object({
 	id: z.string().trim().regex(UUID_PARAM_RE, 'Invalid driving school id'),
 });

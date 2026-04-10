@@ -1,5 +1,8 @@
 import { Router } from 'express';
-import { patchStudentDrivingSchool } from '../controllers/students.controller';
+import {
+	patchStudentDrivingSchool,
+	patchStudentPkk,
+} from '../controllers/students.controller';
 import { asyncHandler } from '../lib/http/asyncHandler';
 import { authMiddleware, requireMinRole } from '../middleware/auth.middleware';
 
@@ -11,6 +14,13 @@ function createStudentsRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		asyncHandler(patchStudentDrivingSchool),
+	);
+
+	router.patch(
+		'/:userId/pkk',
+		authMiddleware,
+		requireMinRole('INSTRUCTOR'),
+		asyncHandler(patchStudentPkk),
 	);
 
 	return router;
