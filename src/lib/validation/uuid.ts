@@ -132,6 +132,17 @@ export const assignStudentToCourseBodySchema = z.object({
 	courseId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid courseId'),
 });
 
+export const courseParticipantStatusSchema = z.enum(['ACTIVE', 'FINISHED']);
+
+export const patchCourseParticipantStatusBodySchema = z.object({
+	status: courseParticipantStatusSchema,
+});
+
+export const studentCourseParamsSchema = z.object({
+	userId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid user id'),
+	courseId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid course id'),
+});
+
 export const listStudentsQuerySchema = z.object({
 	schoolId: zodPreprocessQueryFirst(
 		z

@@ -41,6 +41,11 @@ enum CourseKind {
   EXTRA
 }
 
+enum CourseParticipantStatus {
+  ACTIVE
+  FINISHED
+}
+
 // NOTE: DB-level constraints (EXCLUDE, CHECK) must be added as raw SQL migrations.
 // See context/db_constraints.md for recommended SQL snippets.
 
@@ -264,10 +269,10 @@ model Course {
 }
 
 model CourseParticipant {
-  id        String   @id @default(uuid()) @db.Uuid @map("id")
-  courseId  String   @db.Uuid @map("course_id")
-  studentId String   @db.Uuid @map("student_id")
-  status    String   @default("ACTIVE") @map("status")
+  id        String                  @id @default(uuid()) @db.Uuid @map("id")
+  courseId  String                  @db.Uuid @map("course_id")
+  studentId String                  @db.Uuid @map("student_id")
+  status    CourseParticipantStatus @default(ACTIVE) @map("status")
   createdAt DateTime @default(now()) @map("created_at")
 
   course  Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)

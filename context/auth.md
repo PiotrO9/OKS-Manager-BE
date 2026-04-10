@@ -165,6 +165,14 @@ Zapis w DB **zastępuje** wcześniejsze wpisy **`student_schools`** tego kursant
 
 **Implementacja:** te same pliki co `PATCH /students/:userId/driving-school` (`patchStudentPkk`, `patchStudentPkkForStaff`).
 
+## Studenci — wpis na kurs (`POST /students/:userId/courses`)
+
+Tworzy rekord **`course_participants`** (kursant ↔ kurs). **Middleware:** `authMiddleware`, **`requireMinRole('INSTRUCTOR')`**. **`ADMIN`** → **403**. Szczegóły body, konflikt duplikatu zapisu, reguły OSK (manager / instruktor): [students-api.md](./students-api.md) (tabela tras i logika w kontrolerze). Domyślny **`status`** uczestnictwa: **`ACTIVE`**.
+
+## Studenci — status uczestnictwa w kursie (`PATCH /students/:userId/courses/:courseId/status`)
+
+Ręczna zmiana **`course_participants.status`** na **`ACTIVE`** lub **`FINISHED`** (enum w Prisma / PostgreSQL). **Middleware:** jak przy wpisie na kurs. Brak automatycznej zmiany statusu w MVP. Pełny opis autoryzacji, body i odpowiedzi: [students-api.md](./students-api.md).
+
 ### PATCH `/auth/profile`
 
 **Kontekst:** zawsze **własny** użytkownik z JWT (`req.user`). Dodatkowe pola w body (poza tabelą) są ignorowane.
@@ -213,7 +221,7 @@ Jeśli w body występuje klucz `firstName` i/lub `lastName` (`Object.prototype.h
 - `src/controllers/auth.controller.ts` — login, refresh, logout, register, `getMe`, `patchProfile`, `uploadProfileAvatar`
 - `src/services/meContext.service.ts` — kontekst OSK dla **`GET /auth/me`** / **`PATCH /auth/profile`** (`loadDrivingSchoolContextForMe`)
 - `src/lib/studentSchoolRegistration.ts` — walidacja i zapis **`student_schools`** (rejestracja + użycie z serwisu studenci)
-- `src/routes/students.routes.ts`, `src/services/students.service.ts` — **`GET /students`** (lista), **`GET /students/:userId`** (szczegóły z kursami), **`PATCH /students/:userId/driving-school`**, **`PATCH /students/:userId/pkk`**
+- `src/routes/students.routes.ts`, `src/services/students.service.ts`, `src/controllers/students.controller.ts` — **`GET /students`** (lista), **`GET /students/:userId`** (szczegóły z kursami i statusem uczestnictwa), **`PATCH /students/:userId/driving-school`**, **`PATCH /students/:userId/pkk`**, **`POST /students/:userId/courses`**, **`PATCH /students/:userId/courses/:courseId/status`**
 - `src/services/userProfile.service.ts` — patch profilu (`bio`, `phone`, `firstName`, `lastName` wg reguł w kontrolerze), upload avatara, upsert `user_profiles`
 - `src/lib/supabaseStorage.ts` — wspólne MIME / ścieżka publicznego URL / usuwanie obiektów (też używane przy zdjęciach pojazdów)
 - `src/middleware/auth.middleware.ts` — Bearer + Prisma user (`include: { profile: true }`)

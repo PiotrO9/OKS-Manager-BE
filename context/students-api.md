@@ -1,5 +1,5 @@
 ---
-description: "API — kursanci (/students): lista z paginacją i filtrem kursu, szczegóły z kursami i statusem, przypisanie OSK, PKK, wpis na kurs — role, kody odpowiedzi"
+description: "API — kursanci (/students): lista z paginacją i filtrem kursu, szczegóły z kursami i statusem uczestnictwa (enum ACTIVE/FINISHED), przypisanie OSK, PKK, wpis na kurs, PATCH statusu uczestnictwa — role, kody odpowiedzi"
 alwaysApply: true
 ---
 
@@ -7,7 +7,7 @@ alwaysApply: true
 
 Montowanie w `src/server.ts` pod prefiksem **`/students`**.
 
-Implementacja: `src/routes/students.routes.ts`, `src/controllers/students.controller.ts`, `src/services/students.service.ts`, walidacja: `listStudentsQuerySchema`, `studentDetailParamsSchema`, `studentDetailQuerySchema` w `src/lib/validation/uuid.ts`.
+Implementacja: `src/routes/students.routes.ts`, `src/controllers/students.controller.ts`, `src/services/students.service.ts`, walidacja w `src/lib/validation/uuid.ts` m.in.: `listStudentsQuerySchema`, `studentDetailParamsSchema`, `studentDetailQuerySchema`, **`studentCourseParamsSchema`**, **`patchCourseParticipantStatusBodySchema`** (`courseParticipantStatusSchema`).
 
 Operacje **PATCH** (OSK, PKK) i przypisanie do kursu opisuje też [auth.md](./auth.md) (sekcje studenci).
 
@@ -25,7 +25,16 @@ Szczegóły sesji: [auth.md](./auth.md).
 | GET | `/students/:userId` | `authMiddleware`, `requireMinRole('STUDENT')` | Szczegóły kursanta (`users.id` w ścieżce) z listą kursów w OSK i `status` z **`course_participants`**. |
 | PATCH | `/students/:userId/driving-school` | `requireMinRole('MANAGER')` | Przypisanie / zmiana OSK — [auth.md](./auth.md). |
 | PATCH | `/students/:userId/pkk` | `requireMinRole('INSTRUCTOR')` | PKK — [auth.md](./auth.md). |
-| POST | `/students/:userId/courses` | `requireMinRole('INSTRUCTOR')` | Uczestnictwo w kursie (`course_participants`). |
+| POST | `/students/:userId/courses` | `requireMinRole('INSTRUCTOR')` | Uczestnictwo w kursie (`course_participants`); domyślny **`status`** = **`ACTIVE`**. |
+| PATCH | `/students/:userId/courses/:courseId/status` | `requireMinRole('INSTRUCTOR')` | Ręczna zmiana **`course_participants.status`** (`ACTIVE` \| `FINISHED`); reguły OSK jak przy POST na kurs. |
+
+---
+
+## Status uczestnictwa w kursie (`course_participants.status`)
+
+- W bazie i w Prisma: enum **`CourseParticipantStatus`** — wartości: **`ACTIVE`** (domyślna przy utworzeniu rekordu), **`FINISHED`**.
+- **MVP:** brak automatycznej zmiany statusu (np. po liczbie jazd); wyłącznie **ręczna** aktualizacja przez endpoint **PATCH** (personel z uprawnieniami do OSK kursu).
+- Niepoprawna wartość w body → **400** (walidacja Zod). Brak wpisu uczestnictwa (para kursant + kurs) → **404**.
 
 ---
 
@@ -107,7 +116,7 @@ Brak osobnego N+1 dla kursów: lista nie dołącza wszystkich kursów kursanta (
 - Kursant bez wpisów na kursy w tej OSK → `courses: []`.
 - Brak profilu kursanta lub brak przypisania do podanej OSK → **404** `Student not found` (oraz gdy użytkownik w `where` nie pasuje — np. wykluczenie przez `users.deleted_at`).
 
-Pole **`status`** pochodzi z kolumny **`course_participants.status`** (domyślnie `ACTIVE` po migracji).
+Pole **`status`** w każdym elemencie `courses[]` pochodzi z **`course_participants.status`** (enum: **`ACTIVE`** \| **`FINISHED`**).
 
 ## Sukces (200) — kształt `data`
 
@@ -132,6 +141,45 @@ Pole **`status`** pochodzi z kolumny **`course_participants.status`** (domyślni
   }
 }
 ```
+
+(`"status"` może być także `"FINISHED"`.)
+
+## PATCH `/students/:userId/courses/:courseId/status`
+
+**Middleware:** `authMiddleware`, **`requireMinRole('INSTRUCTOR')`** — w praktyce **`INSTRUCTOR`**, **`MANAGER`** ( **`ADMIN`** otrzyma **403**, spójnie z przypisaniem na kurs).
+
+**Parametry ścieżki:** **`:userId`** — `users.id` kursanta; **`:courseId`** — `courses.id`.
+
+**Body (JSON):** `{ "status": "ACTIVE" | "FINISHED" }` — inna wartość / brak pola → **400**.
+
+## Autoryzacja (zmiana statusu)
+
+Ta sama logika co przy **`POST /students/:userId/courses`**: kurs istnieje i nie jest soft-delete; kursant ma **`student_schools`** dla szkoły tego kursu; **`MANAGER`** — wyłącznie właściciel **`driving_schools`** dla `course.schoolId`; **`INSTRUCTOR`** — wpis **`instructor_schools`** dla tej szkoły. Brak spełnienia warunków → **403**. Kursant nie jest uczestnikiem danego kursu → **404** `Student is not enrolled in this course`.
+
+## Sukces (200) — kształt `data`
+
+```json
+{
+  "success": true,
+  "data": {
+    "participant": {
+      "id": "<course_participants.id>",
+      "courseId": "<courses.id>",
+      "studentId": "<student_profiles.id>",
+      "status": "FINISHED"
+    }
+  }
+}
+```
+
+## Błędy (PATCH status — typowe)
+
+| Kod | Sytuacja |
+|-----|----------|
+| **400** | Nieprawidłowy `:userId`, `:courseId` lub body (`status` poza dozwolonym zbiorem). |
+| **401** | Brak lub nieważny Bearer. |
+| **403** | **`ADMIN`**; brak uprawnień do OSK kursu; kursant nie przypisany do szkoły kursu; wyłączone konto. |
+| **404** | Brak użytkownika / nie-kursant; brak kursu; brak uczestnictwa w kursie. |
 
 ## Błędy (szczegóły — typowe)
 

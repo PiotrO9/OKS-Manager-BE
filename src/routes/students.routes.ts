@@ -3,6 +3,7 @@ import {
 	assignStudentToCourse,
 	getStudentDetail,
 	listStudents,
+	patchCourseParticipantStatus,
 	patchStudentDrivingSchool,
 	patchStudentPkk,
 } from '../controllers/students.controller';
@@ -45,6 +46,13 @@ function createStudentsRouter() {
 		authMiddleware,
 		requireMinRole('INSTRUCTOR'),
 		asyncHandler(assignStudentToCourse),
+	);
+
+	router.patch(
+		'/:userId/courses/:courseId/status',
+		authMiddleware,
+		requireMinRole('INSTRUCTOR'),
+		asyncHandler(patchCourseParticipantStatus),
 	);
 
 	return router;

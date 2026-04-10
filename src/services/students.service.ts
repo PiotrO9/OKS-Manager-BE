@@ -1,4 +1,4 @@
-import { Prisma, Role } from '@prisma/client';
+import { CourseParticipantStatus, Prisma, Role } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
 import {
@@ -185,11 +185,123 @@ export async function patchStudentPkkForStaff(
 	return { userId: studentUserId, pkkNumber };
 }
 
+export async function patchCourseParticipantStatusForStaff(
+	actorId: string,
+	actorRole: Role,
+	studentUserId: string,
+	courseId: string,
+	status: CourseParticipantStatus,
+): Promise<PatchCourseParticipantStatusResult> {
+	if (actorRole === Role.ADMIN) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	const studentUser = await prisma.user.findUnique({
+		where: { id: studentUserId },
+		select: {
+			id: true,
+			role: true,
+			deletedAt: true,
+			isActive: true,
+			studentProfile: { select: { id: true } },
+		},
+	});
+
+	if (!studentUser || studentUser.deletedAt !== null) {
+		throw AppError.notFound('User not found');
+	}
+
+	if (!studentUser.isActive) {
+		throw AppError.forbidden('Account is disabled');
+	}
+
+	if (studentUser.role !== Role.STUDENT || !studentUser.studentProfile) {
+		throw AppError.badRequest('User is not a student');
+	}
+
+	const studentProfileId = studentUser.studentProfile.id;
+
+	const course = await prisma.course.findFirst({
+		where: { id: courseId, deletedAt: null },
+		select: { id: true, schoolId: true },
+	});
+
+	if (!course) {
+		throw AppError.notFound('Course not found');
+	}
+
+	const studentInSchool = await prisma.studentSchool.findFirst({
+		where: {
+			student: { userId: studentUserId },
+			schoolId: course.schoolId,
+			school: { deletedAt: null },
+		},
+	});
+
+	if (!studentInSchool) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	if (actorRole === Role.MANAGER) {
+		const ownsSchool = await prisma.drivingSchool.findFirst({
+			where: { id: course.schoolId, ownerId: actorId, deletedAt: null },
+		});
+		if (!ownsSchool) {
+			throw AppError.forbidden('Forbidden');
+		}
+	} else if (actorRole === Role.INSTRUCTOR) {
+		const instructorInSchool = await prisma.instructorSchool.findFirst({
+			where: {
+				instructor: { userId: actorId },
+				schoolId: course.schoolId,
+				school: { deletedAt: null },
+			},
+		});
+		if (!instructorInSchool) {
+			throw AppError.forbidden('Forbidden');
+		}
+	} else {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	const existing = await prisma.courseParticipant.findFirst({
+		where: { courseId, studentId: studentProfileId },
+		select: { id: true },
+	});
+
+	if (!existing) {
+		throw AppError.notFound('Student is not enrolled in this course');
+	}
+
+	return prisma.courseParticipant.update({
+		where: {
+			uq_course_participants_course_id_student_id: {
+				courseId,
+				studentId: studentProfileId,
+			},
+		},
+		data: { status },
+		select: {
+			id: true,
+			courseId: true,
+			studentId: true,
+			status: true,
+		},
+	});
+}
+
 export type StudentCourseDto = {
 	id: string;
 	name: string;
 	category: string;
-	status: string;
+	status: CourseParticipantStatus;
+};
+
+export type PatchCourseParticipantStatusResult = {
+	id: string;
+	courseId: string;
+	studentId: string;
+	status: CourseParticipantStatus;
 };
 
 export type StudentDetailDto = {

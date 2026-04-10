@@ -8,7 +8,9 @@ import {
 	assignStudentDrivingSchoolBodySchema,
 	assignStudentToCourseBodySchema,
 	listStudentsQuerySchema,
+	patchCourseParticipantStatusBodySchema,
 	patchStudentPkkBodySchema,
+	studentCourseParamsSchema,
 	studentDetailParamsSchema,
 	studentDetailQuerySchema,
 	studentUserIdParamsSchema,
@@ -17,6 +19,7 @@ import {
 	assignStudentDrivingSchoolForAdminOrManager,
 	getStudentDetail as fetchStudentDetail,
 	listStudentsForSchool,
+	patchCourseParticipantStatusForStaff,
 	patchStudentPkkForStaff,
 } from '../services/students.service';
 
@@ -221,10 +224,40 @@ async function assignStudentToCourse(req: Request, res: Response) {
 	}
 }
 
+async function patchCourseParticipantStatus(req: Request, res: Response) {
+	const actor = requireUser(req);
+
+	const paramsParsed = studentCourseParamsSchema.safeParse(req.params);
+	if (!paramsParsed.success) {
+		const message =
+			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
+		throw AppError.badRequest(message);
+	}
+
+	const bodyParsed = patchCourseParticipantStatusBodySchema.safeParse(
+		req.body,
+	);
+	if (!bodyParsed.success) {
+		const message = bodyParsed.error.issues[0]?.message ?? 'Invalid body';
+		throw AppError.badRequest(message);
+	}
+
+	const participant = await patchCourseParticipantStatusForStaff(
+		actor.id,
+		actor.role,
+		paramsParsed.data.userId,
+		paramsParsed.data.courseId,
+		bodyParsed.data.status,
+	);
+
+	return sendJsonSuccess(res, { participant });
+}
+
 export {
 	assignStudentToCourse,
 	getStudentDetail,
 	listStudents,
+	patchCourseParticipantStatus,
 	patchStudentDrivingSchool,
 	patchStudentPkk,
 };

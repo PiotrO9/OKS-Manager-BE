@@ -11,7 +11,7 @@ User → UserProfile (`user_profiles`: opcjonalne `avatar_url`, `bio`; `updated_
 
 User → StudentProfile / InstructorProfile
 
-Student → Courses (przez **`course_participants`**, pole **`status`** uczestnictwa w kursie) → Lessons
+Student → Courses (przez **`course_participants`**, pole **`status`**: enum **`CourseParticipantStatus`** — **`ACTIVE`** domyślnie, **`FINISHED`**; w MVP tylko ręczna zmiana API, patrz [students-api.md](./students-api.md)) → Lessons
 
 Lesson:
 
