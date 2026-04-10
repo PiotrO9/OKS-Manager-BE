@@ -1,5 +1,5 @@
 ---
-description: "API — kursanci (/students): lista z paginacją i filtrem kursu, przypisanie OSK, PKK, wpis na kurs — role, kody odpowiedzi"
+description: "API — kursanci (/students): lista z paginacją i filtrem kursu, szczegóły z kursami i statusem, przypisanie OSK, PKK, wpis na kurs — role, kody odpowiedzi"
 alwaysApply: true
 ---
 
@@ -7,7 +7,7 @@ alwaysApply: true
 
 Montowanie w `src/server.ts` pod prefiksem **`/students`**.
 
-Implementacja: `src/routes/students.routes.ts`, `src/controllers/students.controller.ts`, `src/services/students.service.ts`, walidacja query listy: `listStudentsQuerySchema` w `src/lib/validation/uuid.ts`.
+Implementacja: `src/routes/students.routes.ts`, `src/controllers/students.controller.ts`, `src/services/students.service.ts`, walidacja: `listStudentsQuerySchema`, `studentDetailParamsSchema`, `studentDetailQuerySchema` w `src/lib/validation/uuid.ts`.
 
 Operacje **PATCH** (OSK, PKK) i przypisanie do kursu opisuje też [auth.md](./auth.md) (sekcje studenci).
 
@@ -22,6 +22,7 @@ Szczegóły sesji: [auth.md](./auth.md).
 | Metoda | Ścieżka | Middleware (skrót) | Opis |
 |--------|---------|--------------------|------|
 | GET | `/students` | `authMiddleware`, `requireMinRole('INSTRUCTOR')` | Paginowana lista kursantów w OSK; opcjonalnie filtr po kursie. |
+| GET | `/students/:userId` | `authMiddleware`, `requireMinRole('STUDENT')` | Szczegóły kursanta (`users.id` w ścieżce) z listą kursów w OSK i `status` z **`course_participants`**. |
 | PATCH | `/students/:userId/driving-school` | `requireMinRole('MANAGER')` | Przypisanie / zmiana OSK — [auth.md](./auth.md). |
 | PATCH | `/students/:userId/pkk` | `requireMinRole('INSTRUCTOR')` | PKK — [auth.md](./auth.md). |
 | POST | `/students/:userId/courses` | `requireMinRole('INSTRUCTOR')` | Uczestnictwo w kursie (`course_participants`). |
@@ -84,7 +85,64 @@ Pusta strona (np. `page` poza zakresem): `data: []`, `total` — pełna liczba r
 
 Brak osobnego N+1 dla kursów: lista nie dołącza wszystkich kursów kursanta (MVP).
 
-## Błędy (typowe)
+---
+
+## GET `/students/:userId` — query
+
+| Parametr | Wymagane | Uwagi |
+|----------|----------|--------|
+| `schoolId` | tak | UUID OSK; kursant musi mieć **`student_schools`** dla tej szkoły (aktywna, `deleted_at` null). |
+
+**`:userId`** — `users.id` kursanta (ten sam identyfikator co w innych trasach `/students/:userId/*`).
+
+## Autoryzacja (szczegóły)
+
+- **`STUDENT`:** tylko **własny** profil (`:userId` = `req.user.id`); inny `userId` → **403**.
+- **`INSTRUCTOR` / `MANAGER`:** ta sama reguła co przy liście dla danej `schoolId` (instruktor — `instructor_schools`; manager — `driving_schools.owner_id`).
+- **`ADMIN`:** dostęp bez sprawdzania właścicielstwa OSK (filtrowanie po `schoolId` w query).
+
+## Logika szczegółów
+
+- Jedno zapytanie Prisma: `student_profiles` + `course_participants` z powiązanym `course` (tylko kursy należące do podanej OSK i z `deleted_at` null).
+- Kursant bez wpisów na kursy w tej OSK → `courses: []`.
+- Brak profilu kursanta lub brak przypisania do podanej OSK → **404** `Student not found` (oraz gdy użytkownik w `where` nie pasuje — np. wykluczenie przez `users.deleted_at`).
+
+Pole **`status`** pochodzi z kolumny **`course_participants.status`** (domyślnie `ACTIVE` po migracji).
+
+## Sukces (200) — kształt `data`
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "<student_profile_id>",
+    "userId": "<users.id>",
+    "firstName": "...",
+    "lastName": "...",
+    "email": "...",
+    "pkkNumber": null,
+    "courses": [
+      {
+        "id": "<course_id>",
+        "name": "...",
+        "category": "...",
+        "status": "ACTIVE"
+      }
+    ]
+  }
+}
+```
+
+## Błędy (szczegóły — typowe)
+
+| Kod | Sytuacja |
+|-----|----------|
+| **400** | Brak / nieprawidłowe `schoolId`, nieprawidłowy `:userId`. |
+| **401** | Brak lub nieważny Bearer. |
+| **403** | Kursant próbuje czytać cudze dane; brak uprawnień do OSK (manager / instruktor). |
+| **404** | Kursant nie istnieje w kontekście podanej OSK (patrz logika powyżej). |
+
+## Błędy — GET `/students` lista (typowe)
 
 | Kod | Sytuacja |
 |-----|----------|

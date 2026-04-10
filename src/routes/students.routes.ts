@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
 	assignStudentToCourse,
+	getStudentDetail,
 	listStudents,
 	patchStudentDrivingSchool,
 	patchStudentPkk,
@@ -16,6 +17,13 @@ function createStudentsRouter() {
 		authMiddleware,
 		requireMinRole('INSTRUCTOR'),
 		asyncHandler(listStudents),
+	);
+
+	router.get(
+		'/:userId',
+		authMiddleware,
+		requireMinRole('STUDENT'),
+		asyncHandler(getStudentDetail),
 	);
 
 	router.patch(

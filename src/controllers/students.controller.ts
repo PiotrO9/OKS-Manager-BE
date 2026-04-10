@@ -9,10 +9,13 @@ import {
 	assignStudentToCourseBodySchema,
 	listStudentsQuerySchema,
 	patchStudentPkkBodySchema,
+	studentDetailParamsSchema,
+	studentDetailQuerySchema,
 	studentUserIdParamsSchema,
 } from '../lib/validation/uuid';
 import {
 	assignStudentDrivingSchoolForAdminOrManager,
+	getStudentDetail as fetchStudentDetail,
 	listStudentsForSchool,
 	patchStudentPkkForStaff,
 } from '../services/students.service';
@@ -28,6 +31,31 @@ async function listStudents(req: Request, res: Response) {
 	}
 	const result = await listStudentsForSchool(user.id, user.role, parsed.data);
 	return sendJsonSuccess(res, result);
+}
+
+async function getStudentDetail(req: Request, res: Response) {
+	const user = requireUser(req);
+
+	const paramsParsed = studentDetailParamsSchema.safeParse(req.params);
+	if (!paramsParsed.success) {
+		const message =
+			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
+		throw AppError.badRequest(message);
+	}
+
+	const queryParsed = studentDetailQuerySchema.safeParse(req.query);
+	if (!queryParsed.success) {
+		const message = queryParsed.error.issues[0]?.message ?? 'Invalid query';
+		throw AppError.badRequest(message);
+	}
+
+	const data = await fetchStudentDetail(
+		user.id,
+		user.role,
+		paramsParsed.data.userId,
+		queryParsed.data.schoolId,
+	);
+	return sendJsonSuccess(res, data);
 }
 
 async function patchStudentDrivingSchool(req: Request, res: Response) {
@@ -172,7 +200,7 @@ async function assignStudentToCourse(req: Request, res: Response) {
 	});
 
 	if (existing) {
-		return sendJsonSuccess(res, { participant: existing });
+		throw AppError.conflict('Student is already enrolled in this course');
 	}
 
 	try {
@@ -185,10 +213,9 @@ async function assignStudentToCourse(req: Request, res: Response) {
 			err instanceof Prisma.PrismaClientKnownRequestError &&
 			err.code === 'P2002'
 		) {
-			const participant = await prisma.courseParticipant.findFirst({
-				where: { courseId, studentId: studentProfileId },
-			});
-			return sendJsonSuccess(res, { participant });
+			throw AppError.conflict(
+				'Student is already enrolled in this course',
+			);
 		}
 		throw err;
 	}
@@ -196,6 +223,7 @@ async function assignStudentToCourse(req: Request, res: Response) {
 
 export {
 	assignStudentToCourse,
+	getStudentDetail,
 	listStudents,
 	patchStudentDrivingSchool,
 	patchStudentPkk,

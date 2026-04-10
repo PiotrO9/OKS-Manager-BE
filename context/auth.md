@@ -131,6 +131,10 @@ Implementacja: `src/controllers/auth.controller.ts` (`buildUserCreateWithRolePro
 
 Paginowana lista kursantów przypisanych do OSK (`student_schools`), opcjonalnie ograniczona do uczestników danego kursu (`course_participants`). **Middleware:** `authMiddleware`, **`requireMinRole('INSTRUCTOR')`**. Parametry query, kształt odpowiedzi, kody błędów i reguły **MANAGER** / **INSTRUCTOR** / **ADMIN**: [students-api.md](./students-api.md).
 
+## Studenci — szczegóły (`GET /students/:userId`)
+
+Szczegóły kursanta z listą kursów w wybranej OSK oraz statusem uczestnictwa (`course_participants.status`). **Middleware:** `authMiddleware`, **`requireMinRole('STUDENT')`** (minimalny poziom — dostęp mają wszystkie role). Query **`schoolId`** (wymagane), autoryzacja wg roli (kursant tylko własne `userId`, personel wg OSK): [students-api.md](./students-api.md).
+
 ## Studenci — przypisanie / zmiana OSK (`PATCH /students/:userId/driving-school`)
 
 **Middleware:** `authMiddleware`, **`requireMinRole('MANAGER')`** — **`MANAGER`** i **`ADMIN`**.
@@ -209,7 +213,7 @@ Jeśli w body występuje klucz `firstName` i/lub `lastName` (`Object.prototype.h
 - `src/controllers/auth.controller.ts` — login, refresh, logout, register, `getMe`, `patchProfile`, `uploadProfileAvatar`
 - `src/services/meContext.service.ts` — kontekst OSK dla **`GET /auth/me`** / **`PATCH /auth/profile`** (`loadDrivingSchoolContextForMe`)
 - `src/lib/studentSchoolRegistration.ts` — walidacja i zapis **`student_schools`** (rejestracja + użycie z serwisu studenci)
-- `src/routes/students.routes.ts`, `src/services/students.service.ts` — **`GET /students`** (lista), **`PATCH /students/:userId/driving-school`**, **`PATCH /students/:userId/pkk`**
+- `src/routes/students.routes.ts`, `src/services/students.service.ts` — **`GET /students`** (lista), **`GET /students/:userId`** (szczegóły z kursami), **`PATCH /students/:userId/driving-school`**, **`PATCH /students/:userId/pkk`**
 - `src/services/userProfile.service.ts` — patch profilu (`bio`, `phone`, `firstName`, `lastName` wg reguł w kontrolerze), upload avatara, upsert `user_profiles`
 - `src/lib/supabaseStorage.ts` — wspólne MIME / ścieżka publicznego URL / usuwanie obiektów (też używane przy zdjęciach pojazdów)
 - `src/middleware/auth.middleware.ts` — Bearer + Prisma user (`include: { profile: true }`)

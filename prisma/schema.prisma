@@ -267,6 +267,7 @@ model CourseParticipant {
   id        String   @id @default(uuid()) @db.Uuid @map("id")
   courseId  String   @db.Uuid @map("course_id")
   studentId String   @db.Uuid @map("student_id")
+  status    String   @default("ACTIVE") @map("status")
   createdAt DateTime @default(now()) @map("created_at")
 
   course  Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)

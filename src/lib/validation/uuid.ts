@@ -82,6 +82,21 @@ export const studentUserIdParamsSchema = z.object({
 	userId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid user id'),
 });
 
+export const studentDetailParamsSchema = z.object({
+	userId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid user id'),
+});
+
+export const studentDetailQuerySchema = z.object({
+	schoolId: zodPreprocessQueryFirst(
+		z
+			.string({ required_error: 'schoolId is required' })
+			.min(1, 'schoolId is required')
+			.regex(UUID_PARAM_RE, 'Invalid schoolId'),
+	),
+});
+
+export type StudentDetailQuery = z.infer<typeof studentDetailQuerySchema>;
+
 export const assignStudentDrivingSchoolBodySchema = z.object({
 	schoolId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid schoolId'),
 });

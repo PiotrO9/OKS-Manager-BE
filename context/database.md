@@ -11,7 +11,7 @@ User → UserProfile (`user_profiles`: opcjonalne `avatar_url`, `bio`; `updated_
 
 User → StudentProfile / InstructorProfile
 
-Student → Courses → Lessons
+Student → Courses (przez **`course_participants`**, pole **`status`** uczestnictwa w kursie) → Lessons
 
 Lesson:
 
@@ -26,7 +26,7 @@ Course:
 - has course_type
 - API (lista, szczegóły, POST, PATCH instruktora): [courses-api.md](./courses-api.md)
 
-Lista kursantów w OSK (paginacja, filtr kursu): [students-api.md](./students-api.md)
+Lista kursantów w OSK (paginacja, filtr kursu) i szczegóły z kursami: [students-api.md](./students-api.md)
 
 Payments:
 Course → PaymentPlan → Payments
