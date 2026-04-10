@@ -28,7 +28,7 @@ function createAuthRouter() {
 	// inaczej przeglądarka nie zastosuje nagłówków kasujących ciasteczko refresh_token.
 	router.post('/logout', authMiddleware, logout);
 
-	router.get('/me', authMiddleware, getMe);
+	router.get('/me', authMiddleware, asyncHandler(getMe));
 	router.patch('/profile', authMiddleware, asyncHandler(patchProfile));
 	router.post(
 		'/profile/avatar',

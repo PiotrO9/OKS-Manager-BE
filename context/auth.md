@@ -43,6 +43,17 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 | `bio` | string \| null | `user_profiles.bio` |
 | `profileUpdatedAt` | string (ISO date) \| null | `user_profiles.updated_at` (brak wiersza profilu → `null`) |
 | `role` | enum | `STUDENT`, `INSTRUCTOR`, … |
+| `drivingSchools` | tablica | Aktywne OSK (`driving_schools.deleted_at IS NULL`) widoczne dla danej roli — patrz poniżej |
+| `defaultOskId` | string (UUID) \| `null` | Tylko sensowne dla **`MANAGER`**: domyślna OSK właściciela po rekonsyliacji (`getResolvedDefaultOskIdForOwner`). Dla **`STUDENT`**, **`INSTRUCTOR`**, **`ADMIN`**: zawsze `null`. |
+
+**`drivingSchools`** — elementy `{ id, name, city, address }` (`city` / `address` mogą być `null`):
+
+| Rola | Skąd dane |
+|------|-----------|
+| **STUDENT** | Powiązania `student_schools` → szkoła. Gdy w aplikacji nie ma jeszcze przypisań kursanta do OSK, tablica bywa **pusta**. |
+| **INSTRUCTOR** | Powiązania `instructor_schools` → szkoła |
+| **MANAGER** | OSK, których użytkownik jest **właścicielem** (`owner_id`), posortowane po `created_at` rosnąco |
+| **ADMIN** | Zawsze **pusta** (brak modelu „przypisanej” OSK dla admina w tej wersji API) |
 
 **Błędy:**
 
@@ -120,7 +131,7 @@ Implementacja: `src/controllers/auth.controller.ts` (`buildUserCreateWithRolePro
 
 Jeśli w body występuje klucz `firstName` i/lub `lastName` (`Object.prototype.hasOwnProperty`), a rola wywołującego to **`STUDENT`** lub **`INSTRUCTOR`**, odpowiedź **403** `Forbidden` (bez zapisu; także gdy równolegle podano `phone` / `bio`).
 
-**Sukces (200):** `{ "success": true, "data": { "ok": true, "user": { ... } } }` — kształt `user` jak przy **GET `/auth/me`** (świeże dane po zapisie).
+**Sukces (200):** `{ "success": true, "data": { "ok": true, "user": { ... } } }` — kształt `user` jak przy **GET `/auth/me`** (świeże dane po zapisie), w tym **`drivingSchools`** i **`defaultOskId`**.
 
 **Logika:** `phone` / `firstName` / `lastName` → `users` (jeden `update` w transakcji); `bio` → `user_profiles` przez **upsert** (nie nadpisuje `avatar_url` przy samym patchu tekstu). Walidacja → **400** (`AppError`).
 
@@ -151,6 +162,7 @@ Jeśli w body występuje klucz `firstName` i/lub `lastName` (`Object.prototype.h
 
 - `src/routes/auth.routes.ts` — definicja tras (w tym `multer` dla avatara)
 - `src/controllers/auth.controller.ts` — login, refresh, logout, register, `getMe`, `patchProfile`, `uploadProfileAvatar`
+- `src/services/meContext.service.ts` — kontekst OSK dla **`GET /auth/me`** / **`PATCH /auth/profile`** (`loadDrivingSchoolContextForMe`)
 - `src/services/userProfile.service.ts` — patch profilu (`bio`, `phone`, `firstName`, `lastName` wg reguł w kontrolerze), upload avatara, upsert `user_profiles`
 - `src/lib/supabaseStorage.ts` — wspólne MIME / ścieżka publicznego URL / usuwanie obiektów (też używane przy zdjęciach pojazdów)
 - `src/middleware/auth.middleware.ts` — Bearer + Prisma user (`include: { profile: true }`)

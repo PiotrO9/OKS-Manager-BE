@@ -16,6 +16,7 @@ import {
 	mapAuthSignUpErrorForClient,
 } from '../lib/supabaseSignUpErrors';
 import { parseUuidParam } from '../lib/validation/uuid';
+import { loadDrivingSchoolContextForMe } from '../services/meContext.service';
 import {
 	type PatchProfileInput,
 	type UploadedPhotoFile,
@@ -680,12 +681,21 @@ function buildMeUserPayload(user: AuthRequestUser) {
 	};
 }
 
-function getMe(req: Request, res: Response) {
+async function buildMeResponsePayload(user: AuthRequestUser) {
+	const context = await loadDrivingSchoolContextForMe(user.id, user.role);
+	return {
+		...buildMeUserPayload(user),
+		...context,
+	};
+}
+
+async function getMe(req: Request, res: Response) {
 	const user = req.user;
 	if (!user) {
 		return sendJsonError(res, 'Unauthorized', 401);
 	}
-	return sendJsonSuccess(res, { user: buildMeUserPayload(user) });
+	const payload = await buildMeResponsePayload(user);
+	return sendJsonSuccess(res, { user: payload });
 }
 
 async function patchProfile(req: Request, res: Response) {
@@ -724,7 +734,7 @@ async function patchProfile(req: Request, res: Response) {
 
 	return sendJsonSuccess(res, {
 		ok: true,
-		user: buildMeUserPayload(updated),
+		user: await buildMeResponsePayload(updated),
 	});
 }
 
