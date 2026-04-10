@@ -138,27 +138,76 @@ Availability consists of 4 layers:
 ### 1. Default weekly schedule
 
 - instructorWorkingHoursDefault
+- one entry per (instructorId, dayOfWeek) — UNIQUE constraint enforced
+- dayOfWeek: 0 (Sunday) – 6 (Saturday)
+- startTime / endTime: stored as @db.Time, format HH:mm
 
-### 2. Daily override
+### 2. Daily override (exceptions)
 
 - instructorWorkingHours
+- one entry per (instructorId, date) — UNIQUE constraint enforced
+- isDayOff = true → day fully blocked
+- isDayOff = false → startTime and endTime REQUIRED (validated in service layer)
+- exception takes PRIORITY over weekly default
 
 ### 3. Manual blocks
 
 - instructorTimeBlocks
+- type: InstructorTimeBlockType enum (BREAK, MEETING, OTHER)
+- stored as full DateTime (start_time, end_time)
+- cuts out fragments from the base window within the day
 
 ### 4. Leaves (highest priority)
 
 - instructorLeaves
+- multi-day range (startDate, endDate)
+- overrides everything else
 
 ---
 
 ### Availability Priority:
 
-1. leaves
-2. timeBlocks
-3. lessons
-4. workingHours (override → default)
+1. leaves (highest — blocks entire day range)
+2. workingHours override → default (determines base window)
+3. timeBlocks + lessons (subtract from base window)
+
+---
+
+### Timezone:
+
+All times are stored and processed in **Europe/Warsaw** (UTC+1/UTC+2).
+No explicit timezone column — assumed local Polish time throughout.
+
+---
+
+### Computed availability algorithm:
+
+```
+1. Check InstructorLeave for date            → unavailable (reason: leave)
+2. Check InstructorWorkingHours for date
+   a. isDayOff = true                        → unavailable (reason: day_off)
+   b. isDayOff = false + hours               → baseWindow = exception hours
+3. Fallback: InstructorWorkingHoursDefault for dayOfWeek(date)
+   → no entry                               → unavailable (reason: no_schedule)
+   → entry found                            → baseWindow = weekly hours
+4. Subtract InstructorTimeBlock entries for date
+5. Subtract Lesson entries for date (status != CANCELLED)
+6. Return free windows: [{ start: HH:mm, end: HH:mm }]
+```
+
+---
+
+### API endpoints (prefix: /instructors/:instructorId/availability):
+
+- GET  /weekly
+- PUT  /weekly/:dayOfWeek
+- DELETE /weekly/:dayOfWeek
+- GET  /exceptions?from=YYYY-MM-DD&to=YYYY-MM-DD
+- PUT  /exceptions/:date
+- DELETE /exceptions/:date
+- GET  /compute?date=YYYY-MM-DD
+
+Authorization: MANAGER (own instructors) | ADMIN (all)
 
 ---
 

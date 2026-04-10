@@ -8,6 +8,7 @@ import {
 } from '../controllers/instructors.controller';
 import { asyncHandler } from '../lib/http/asyncHandler';
 import { authMiddleware, requireMinRole } from '../middleware/auth.middleware';
+import { createInstructorAvailabilityRouter } from './instructor-availability.routes';
 
 function createInstructorsRouter() {
 	const router = Router();
@@ -41,6 +42,11 @@ function createInstructorsRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		asyncHandler(deleteInstructor),
+	);
+
+	router.use(
+		'/:instructorId/availability',
+		createInstructorAvailabilityRouter(),
 	);
 
 	return router;

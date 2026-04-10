@@ -46,6 +46,12 @@ enum CourseParticipantStatus {
   FINISHED
 }
 
+enum InstructorTimeBlockType {
+  BREAK
+  MEETING
+  OTHER
+}
+
 // NOTE: DB-level constraints (EXCLUDE, CHECK) must be added as raw SQL migrations.
 // See context/db_constraints.md for recommended SQL snippets.
 
@@ -319,6 +325,7 @@ model InstructorWorkingHoursDefault {
 
   instructor   InstructorProfile @relation(fields: [instructorId], references: [id], onDelete: Cascade)
 
+  @@unique([instructorId, dayOfWeek], name: "uq_instructor_working_hours_default_instructor_id_day_of_week")
   @@map("instructor_working_hours_default")
 }
 
@@ -338,13 +345,13 @@ model InstructorWorkingHours {
 }
 
 model InstructorTimeBlock {
-  id           String   @id @default(uuid()) @db.Uuid @map("id")
-  instructorId String   @db.Uuid @map("instructor_id")
-  schoolId     String?  @db.Uuid @map("school_id")
-  startTime    DateTime @map("start_time")
-  endTime      DateTime @map("end_time")
-  type         String   @map("type")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id           String                   @id @default(uuid()) @db.Uuid @map("id")
+  instructorId String                   @db.Uuid @map("instructor_id")
+  schoolId     String?                  @db.Uuid @map("school_id")
+  startTime    DateTime                 @map("start_time")
+  endTime      DateTime                 @map("end_time")
+  type         InstructorTimeBlockType  @map("type")
+  createdAt    DateTime                 @default(now()) @map("created_at")
 
   instructor   InstructorProfile @relation(fields: [instructorId], references: [id], onDelete: Cascade)
   school       DrivingSchool?    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
