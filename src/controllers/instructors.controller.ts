@@ -4,10 +4,12 @@ import { AppError } from '../lib/http/AppError';
 import { requireUser } from '../lib/http/requireUser';
 import { instructorAdminPatchBodySchema } from '../lib/validation/instructorAdminPatch';
 import {
+	assignInstructorToSchoolBodySchema,
 	instructorIdParamsSchema,
 	schoolIdQuerySchema,
 } from '../lib/validation/uuid';
 import {
+	assignInstructorToSchoolForManagerOrAdmin,
 	getInstructorByIdForUser,
 	listInstructorsBySchoolForUser,
 	softDeleteInstructorForManagerOrAdmin,
@@ -92,7 +94,31 @@ async function deleteInstructor(req: Request, res: Response) {
 	return res.status(204).send();
 }
 
+async function assignInstructorToSchool(req: Request, res: Response) {
+	const user = requireUser(req);
+	const paramsParsed = instructorIdParamsSchema.safeParse(req.params);
+	if (!paramsParsed.success) {
+		const message =
+			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
+		throw AppError.badRequest(message);
+	}
+
+	const bodyParsed = assignInstructorToSchoolBodySchema.safeParse(req.body);
+	if (!bodyParsed.success) {
+		const message = bodyParsed.error.issues[0]?.message ?? 'Invalid body';
+		throw AppError.badRequest(message);
+	}
+
+	const data = await assignInstructorToSchoolForManagerOrAdmin(
+		{ id: user.id, role: user.role },
+		paramsParsed.data.id,
+		bodyParsed.data.schoolId,
+	);
+	return sendJsonSuccess(res, data, 201);
+}
+
 export {
+	assignInstructorToSchool,
 	deleteInstructor,
 	getInstructorById,
 	listInstructorsBySchool,

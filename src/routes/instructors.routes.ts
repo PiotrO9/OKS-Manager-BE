@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+	assignInstructorToSchool,
 	deleteInstructor,
 	getInstructorById,
 	listInstructorsBySchool,
@@ -22,6 +23,12 @@ function createInstructorsRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		asyncHandler(getInstructorById),
+	);
+	router.post(
+		'/:id/schools',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(assignInstructorToSchool),
 	);
 	router.patch(
 		'/:id',

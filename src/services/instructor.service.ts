@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { Role } from '@prisma/client';
+import { addInstructorToSchoolInTx } from '../lib/instructorSchoolRegistration';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
 
@@ -319,6 +320,44 @@ export async function updateInstructorForManagerOrAdmin(
 		experienceYears: fresh.experienceYears,
 		qualifications: fresh.qualifications,
 	};
+}
+
+export async function assignInstructorToSchoolForManagerOrAdmin(
+	actor: Actor,
+	instructorId: string,
+	schoolId: string,
+): Promise<{ instructorId: string; schoolId: string }> {
+	if (actor.role !== Role.ADMIN && actor.role !== Role.MANAGER) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	const profile = await prisma.instructorProfile.findFirst({
+		where: activeInstructorProfileWhere(instructorId),
+		select: { id: true },
+	});
+
+	if (!profile) {
+		throw AppError.notFound('Instructor not found');
+	}
+
+	const school = await prisma.drivingSchool.findUnique({
+		where: { id: schoolId },
+		select: { id: true, ownerId: true, deletedAt: true },
+	});
+
+	if (!school || school.deletedAt !== null) {
+		throw AppError.badRequest('Invalid schoolId');
+	}
+
+	if (actor.role === Role.MANAGER && school.ownerId !== actor.id) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	await prisma.$transaction(async (tx) => {
+		await addInstructorToSchoolInTx(tx, profile.id, schoolId);
+	});
+
+	return { instructorId: profile.id, schoolId };
 }
 
 export async function softDeleteInstructorForManagerOrAdmin(

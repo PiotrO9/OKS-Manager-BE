@@ -277,17 +277,38 @@ async function register(req: Request, res: Response) {
 
 	let validatedInstructorSchoolId: string | undefined;
 	if (targetRole === Role.INSTRUCTOR) {
-		const schoolParse = parseUuidParam(body.schoolId);
-		if (schoolParse === null || schoolParse === 'invalid') {
+		const rawSchool = body.schoolId;
+		const hasExplicitSchool =
+			rawSchool !== undefined &&
+			rawSchool !== null &&
+			String(rawSchool).trim() !== '';
+
+		let resolvedSchoolId: string | null;
+
+		if (hasExplicitSchool) {
+			const schoolParse = parseUuidParam(body.schoolId);
+			if (schoolParse === null || schoolParse === 'invalid') {
+				return sendJsonError(res, 'Invalid schoolId', 400);
+			}
+			resolvedSchoolId = schoolParse;
+		} else {
+			resolvedSchoolId =
+				actor.role === Role.MANAGER
+					? (actor.defaultOskId ?? null)
+					: null;
+		}
+
+		if (resolvedSchoolId === null) {
 			return sendJsonError(
 				res,
-				schoolParse === 'invalid'
-					? 'Invalid schoolId'
+				actor.role === Role.MANAGER
+					? 'Manager has no default school assigned'
 					: 'schoolId is required when role is INSTRUCTOR',
 				400,
 			);
 		}
-		validatedInstructorSchoolId = schoolParse;
+
+		validatedInstructorSchoolId = resolvedSchoolId;
 		try {
 			await validateInstructorRegistrationSchoolBeforeSignUp(
 				getPrisma(),

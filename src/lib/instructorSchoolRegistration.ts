@@ -45,6 +45,53 @@ export async function validateInstructorRegistrationSchoolBeforeSignUp(
 
 type Tx = Prisma.TransactionClient;
 
+/**
+ * Dodaje powiązanie instruktora z szkołą i — jeśli instruktor nie ma jeszcze wierszy
+ * domyślnych godzin — tworzy je z ustawień szkoły (unik duplikatów przy kolejnych OSK).
+ */
+export async function addInstructorToSchoolInTx(
+	tx: Tx,
+	instructorProfileId: string,
+	schoolId: string,
+): Promise<void> {
+	const school = await tx.drivingSchool.findUnique({
+		where: { id: schoolId },
+		include: { settings: true },
+	});
+	if (!school || school.deletedAt !== null) {
+		throw AppError.badRequest('Invalid schoolId');
+	}
+
+	const existingLink = await tx.instructorSchool.findFirst({
+		where: { instructorId: instructorProfileId, schoolId },
+	});
+	if (existingLink) {
+		throw AppError.conflict('Already assigned');
+	}
+
+	const hourRows = buildInstructorWorkingHoursDefaultRows(
+		school.settings ?? null,
+	);
+
+	await tx.instructorSchool.create({
+		data: { instructorId: instructorProfileId, schoolId },
+	});
+
+	const existingDefaultsCount = await tx.instructorWorkingHoursDefault.count({
+		where: { instructorId: instructorProfileId },
+	});
+	if (existingDefaultsCount === 0) {
+		await tx.instructorWorkingHoursDefault.createMany({
+			data: hourRows.map((r) => ({
+				instructorId: instructorProfileId,
+				dayOfWeek: r.dayOfWeek,
+				startTime: r.startTime,
+				endTime: r.endTime,
+			})),
+		});
+	}
+}
+
 export async function attachInstructorToSchoolWithDefaultsInTx(
 	tx: Tx,
 	userId: string,
@@ -68,27 +115,5 @@ export async function attachInstructorToSchoolWithDefaultsInTx(
 		);
 	}
 
-	const school = await tx.drivingSchool.findUnique({
-		where: { id: schoolId },
-		include: { settings: true },
-	});
-	if (!school || school.deletedAt !== null) {
-		throw AppError.badRequest('Invalid schoolId');
-	}
-
-	const hourRows = buildInstructorWorkingHoursDefaultRows(
-		school.settings ?? null,
-	);
-
-	await tx.instructorSchool.create({
-		data: { instructorId: profile.id, schoolId },
-	});
-	await tx.instructorWorkingHoursDefault.createMany({
-		data: hourRows.map((r) => ({
-			instructorId: profile.id,
-			dayOfWeek: r.dayOfWeek,
-			startTime: r.startTime,
-			endTime: r.endTime,
-		})),
-	});
+	await addInstructorToSchoolInTx(tx, profile.id, schoolId);
 }
