@@ -177,7 +177,9 @@ function mapLesson(
 		startTime: row.startTime.toISOString(),
 		endTime: row.endTime.toISOString(),
 	};
-	if (opts.includeInstructor) {
+	const includeInstructorEffective =
+		opts.includeInstructor || row.lessonType === LessonType.THEORY;
+	if (includeInstructorEffective) {
 		item.instructor = {
 			id: row.instructorProfile.id,
 			firstName: row.instructorProfile.user.firstName,
@@ -236,7 +238,9 @@ function mapInstructorEvent(
 		capacity: row.capacity,
 		participantCount: row.participants.length,
 	};
-	if (opts.includeInstructor) {
+	const includeInstructorEffective =
+		opts.includeInstructor || row.type === EventType.THEORY;
+	if (includeInstructorEffective) {
 		item.instructor = {
 			id: row.instructor.id,
 			firstName: row.instructor.user.firstName,
