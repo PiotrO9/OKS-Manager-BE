@@ -41,10 +41,10 @@ Tworzenie zaplanowanej lekcji.
 | `instructorId` | string | UUID — `InstructorProfile.id` |
 | `startTime` | string | ISO 8601 datetime |
 | `endTime` | string | ISO 8601; musi być **po** `startTime` |
-| `lessonType` | string | enum Prisma: **`THEORY`** \| **`PRACTICE`** |
-| `vehicleId` | string | opcjonalne UUID; **wymagane** gdy `lessonType === PRACTICE`; **brak** dla THEORY |
+| `lessonType` | string | stała **`PRACTICE`** — rezerwacja przez to API dotyczy wyłącznie jazdy; **teoria grupowa** wyłącznie przez **`POST /events`** (`type: THEORY`) |
+| `vehicleId` | string | UUID — **wymagane** (jazda zawsze z pojazdem) |
 
-**Reguły biznesowe:** start i koniec w **jednej dobie UTC** (`assertInstructorTimeWindowAvailable`); okno w `bookingMaxDaysAhead` ze `SchoolSettings` (względem dnia UTC lekcji); `startTime` w przyszłości; kursant musi być uczestnikiem kursu (`CourseParticipant`); instruktor przypisany do szkoły kursu (`InstructorSchool`); jeśli kurs ma `instructorId`, musi zgadzać się z `body.instructorId`; brak nakładania na inne lekcje / `InstructorEvent` instruktora; dla **PRACTICE** — pojazd aktywny w szkole kursu, przypisany do instruktora, wolny w czasie (lekcja lub event DRIVE).
+**Reguły biznesowe:** start i koniec w **jednej dobie UTC** (`assertInstructorTimeWindowAvailable`); okno w `bookingMaxDaysAhead` ze `SchoolSettings` (względem dnia UTC lekcji); `startTime` w przyszłości; kursant musi być uczestnikiem kursu (`CourseParticipant`); instruktor przypisany do szkoły kursu (`InstructorSchool`); jeśli kurs ma `instructorId`, musi zgadzać się z `body.instructorId`; brak nakładania na inne lekcje / `InstructorEvent` instruktora; pojazd aktywny w szkole kursu, przypisany do instruktora, wolny w czasie (lekcja lub event DRIVE).
 
 ### Odpowiedź (201)
 
@@ -74,7 +74,7 @@ Tworzenie zaplanowanej lekcji.
 |-----|----------|
 | **401** | Brak / niepoprawny JWT |
 | **403** | Rola poniżej MANAGER; MANAGER bez powiązania z kursem szkoły; konto kursanta wyłączone |
-| **400** | Niepoprawne body; THEORY z `vehicleId`; PRACTICE bez `vehicleId`; `startTime` ≥ `endTime`; czas w przeszłości; poza `bookingMaxDaysAhead`; instruktor nie w szkole kursu; niezgodność z instruktorem przypisanym do kursu |
+| **400** | Niepoprawne body (m.in. `lessonType` ≠ `PRACTICE`, brak `vehicleId`); `startTime` ≥ `endTime`; czas w przeszłości; poza `bookingMaxDaysAhead`; instruktor nie w szkole kursu; niezgodność z instruktorem przypisanym do kursu |
 | **404** | Kurs nie istnieje; użytkownik nie jest studentem; brak uczestnictwa w kursie |
 | **409** | Slot poza dostępnością instruktora; kolizja z lekcją / eventem instruktora; pojazd zajęty |
 
@@ -93,7 +93,7 @@ Użycie: wybór pojazdu w modalu rezerwacji przy konkretnym slocie.
 1. Klik w slot z `GET /driving-schools/:id/availability/slots` — znany jest `instructorId`, `date`, `startTime`, `endTime`, `schoolId`.
 2. Równolegle: `GET /students?schoolId=...` oraz `GET /vehicles?schoolId=...&startTime=...&endTime=...` (ISO złożone z daty + godzin slotu).
 3. Po wyborze kursanta: `GET /students/:userId?schoolId=...` — lista kursów w `courses[]`.
-4. `POST /lessons` z wybranym `courseId`, `studentId`, `instructorId`, czasem, typem lekcji, pojazdem (PRACTICE).
+4. `POST /lessons` z wybranym `courseId`, `studentId`, `instructorId`, czasem, `lessonType: "PRACTICE"`, `vehicleId`.
 
 ---
 

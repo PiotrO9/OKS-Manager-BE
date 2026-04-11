@@ -25,8 +25,6 @@ export type ScheduleInstructorEventItemDto = {
 	id: string;
 	/** Enum Prisma `EventType` — blok instruktora (DRIVE / THEORY). */
 	eventType: EventType;
-	/** To samo co `eventType` (alias pod klientów oczekujące `eventKind`). */
-	eventKind: EventType;
 	/**
 	 * Odpowiednik wizualny jak przy lekcji: THEORY → THEORY, DRIVE → PRACTICE
 	 * (ułatwia jeden kod kalendarza dla lekcji i eventów).
@@ -91,25 +89,28 @@ type EventRow = {
 	}[];
 };
 
-/** Lessons overlapping [dateFrom, dateTo] (UTC calendar days), excluding cancelled. */
-function buildDateRangeWhere(dateFrom: string, dateTo: string) {
+/**
+ * Overlap filter for [dateFrom, dateTo] (UTC calendar days).
+ * @param excludeCancelled — dla `Lesson` wyklucz `CANCELLED`; dla `InstructorEvent` ustaw `false`.
+ */
+function buildDateRangeWhere(
+	dateFrom: string,
+	dateTo: string,
+	excludeCancelled = false,
+) {
 	const rangeStart = new Date(`${dateFrom}T00:00:00.000Z`);
 	const rangeEnd = new Date(`${dateTo}T23:59:59.999Z`);
-	return {
-		status: { not: LessonStatus.CANCELLED },
+	const overlap = {
 		startTime: { lt: rangeEnd },
 		endTime: { gt: rangeStart },
 	};
-}
-
-/** Instructor events overlapping [dateFrom, dateTo] (UTC calendar days). */
-function buildEventDateRangeWhere(dateFrom: string, dateTo: string) {
-	const rangeStart = new Date(`${dateFrom}T00:00:00.000Z`);
-	const rangeEnd = new Date(`${dateTo}T23:59:59.999Z`);
-	return {
-		startTime: { lt: rangeEnd },
-		endTime: { gt: rangeStart },
-	};
+	if (excludeCancelled) {
+		return {
+			...overlap,
+			status: { not: LessonStatus.CANCELLED },
+		};
+	}
+	return overlap;
 }
 
 const lessonInclude = {
@@ -177,11 +178,7 @@ function mapLesson(
 		startTime: row.startTime.toISOString(),
 		endTime: row.endTime.toISOString(),
 	};
-	const includeInstructorEffective =
-		opts.includeInstructor ||
-		row.lessonType === LessonType.THEORY ||
-		row.lessonType === LessonType.PRACTICE;
-	if (includeInstructorEffective) {
+	if (opts.includeInstructor) {
 		item.instructor = {
 			id: row.instructorProfile.id,
 			firstName: row.instructorProfile.user.firstName,
@@ -232,7 +229,6 @@ function mapInstructorEvent(
 		kind: 'instructor_event',
 		id: row.id,
 		eventType: row.type,
-		eventKind: row.type,
 		type: eventTypeToCalendarLessonType(row.type),
 		status: 'SCHEDULED',
 		startTime: row.startTime.toISOString(),
@@ -270,7 +266,7 @@ export async function getMySchedule(
 		throw AppError.forbidden('Forbidden');
 	}
 
-	const where = buildDateRangeWhere(query.dateFrom, query.dateTo);
+	const where = buildDateRangeWhere(query.dateFrom, query.dateTo, true);
 
 	if (actor.role === Role.INSTRUCTOR) {
 		const profile = await prisma.instructorProfile.findUnique({
@@ -280,9 +276,10 @@ export async function getMySchedule(
 		if (!profile) {
 			throw AppError.notFound('Instructor profile not found');
 		}
-		const eventWhere = buildEventDateRangeWhere(
+		const eventWhere = buildDateRangeWhere(
 			query.dateFrom,
 			query.dateTo,
+			false,
 		);
 		const [rows, eventRows] = await Promise.all([
 			prisma.lesson.findMany({
@@ -319,9 +316,10 @@ export async function getMySchedule(
 		if (!profile) {
 			throw AppError.notFound('Student profile not found');
 		}
-		const eventWhere = buildEventDateRangeWhere(
+		const eventWhere = buildDateRangeWhere(
 			query.dateFrom,
 			query.dateTo,
+			false,
 		);
 		const [rows, eventRows] = await Promise.all([
 			prisma.lesson.findMany({
@@ -364,9 +362,9 @@ export async function getScheduleForTarget(
 		throw AppError.forbidden('Forbidden');
 	}
 
-	const where = buildDateRangeWhere(query.dateFrom, query.dateTo);
+	const where = buildDateRangeWhere(query.dateFrom, query.dateTo, true);
 
-	const eventWhere = buildEventDateRangeWhere(query.dateFrom, query.dateTo);
+	const eventWhere = buildDateRangeWhere(query.dateFrom, query.dateTo, false);
 
 	if (query.instructorId) {
 		const [rows, eventRows] = await Promise.all([

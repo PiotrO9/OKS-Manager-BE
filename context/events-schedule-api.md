@@ -170,8 +170,8 @@ Lista pozycji terminarza zalogowanego użytkownika w zakresie dat: **lekcje** or
 
 | `kind` | Znaczenie |
 |--------|-----------|
-| **`lesson`** | Lekcja (`Lesson`): `type` = `Lesson.lessonType` (**`THEORY`** \| **`PRACTICE`**), `status`, opcjonalnie `vehicle` |
-| **`instructor_event`** | Event (`InstructorEvent`): `eventType` i alias **`eventKind`** (to samo), dodatkowo **`type`** jak u lekcji (**`THEORY`** \| **`PRACTICE`** — DRIVE→PRACTICE), **`status`:** `SCHEDULED`, `capacity`, `participantCount`, opcjonalnie `vehicle` |
+| **`lesson`** | Lekcja (`Lesson`): `type` = `Lesson.lessonType` (**`THEORY`** \| **`PRACTICE`** — w bazie mogą zostać stare wpisy `THEORY`; **nowe** rezerwacje lekcji to wyłącznie **`PRACTICE`** przez `POST /lessons`), `status`, opcjonalnie `vehicle` |
+| **`instructor_event`** | Event (`InstructorEvent`): **`eventType`** (`DRIVE` \| `THEORY`); dodatkowo **`type`** jak u lekcji (**`THEORY`** \| **`PRACTICE`** — DRIVE→PRACTICE), **`status`:** `SCHEDULED`, `capacity`, `participantCount`, opcjonalnie `vehicle` |
 
 ```json
 {
@@ -193,7 +193,6 @@ Lista pozycji terminarza zalogowanego użytkownika w zakresie dat: **lekcje** or
         "kind": "instructor_event",
         "id": "<uuid>",
         "eventType": "THEORY",
-        "eventKind": "THEORY",
         "type": "THEORY",
         "status": "SCHEDULED",
         "startTime": "2026-04-01T10:00:00.000Z",

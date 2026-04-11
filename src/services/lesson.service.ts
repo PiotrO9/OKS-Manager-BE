@@ -83,12 +83,6 @@ export async function bookLesson(
 		throw AppError.badRequest('Lesson time must be in the future');
 	}
 
-	if (body.lessonType === LessonType.THEORY && body.vehicleId) {
-		throw AppError.badRequest(
-			'vehicleId must not be set for THEORY lessons',
-		);
-	}
-
 	const course = await prisma.course.findFirst({
 		where: { id: body.courseId, deletedAt: null },
 		select: { id: true, schoolId: true, instructorId: true },
@@ -210,56 +204,44 @@ export async function bookLesson(
 			);
 		}
 
-		let resolvedVehicleId: string | null = null;
+		const vehicleId = body.vehicleId;
+		const vehicleInSchool = await tx.vehicle.findFirst({
+			where: {
+				id: vehicleId,
+				schoolId: course.schoolId,
+				isActive: true,
+			},
+			select: { id: true },
+		});
+		if (!vehicleInSchool) {
+			throw AppError.badRequest('Vehicle is not for this driving school');
+		}
+		await validateVehicleForInstructor(body.instructorId, vehicleId, tx);
 
-		if (body.lessonType === LessonType.PRACTICE) {
-			const vehicleId = body.vehicleId!;
-			const vehicleInSchool = await tx.vehicle.findFirst({
-				where: {
-					id: vehicleId,
-					schoolId: course.schoolId,
-					isActive: true,
-				},
-				select: { id: true },
-			});
-			if (!vehicleInSchool) {
-				throw AppError.badRequest(
-					'Vehicle is not for this driving school',
-				);
-			}
-			await validateVehicleForInstructor(
-				body.instructorId,
+		const vehicleLessonConflict = await tx.lesson.findFirst({
+			where: {
 				vehicleId,
-				tx,
-			);
+				status: { not: LessonStatus.CANCELLED },
+				startTime: { lt: end },
+				endTime: { gt: start },
+			},
+			select: { id: true },
+		});
+		if (vehicleLessonConflict) {
+			throw AppError.conflict('Vehicle is already in use');
+		}
 
-			const vehicleLessonConflict = await tx.lesson.findFirst({
-				where: {
-					vehicleId,
-					status: { not: LessonStatus.CANCELLED },
-					startTime: { lt: end },
-					endTime: { gt: start },
-				},
-				select: { id: true },
-			});
-			if (vehicleLessonConflict) {
-				throw AppError.conflict('Vehicle is already in use');
-			}
-
-			const vehicleEventConflict = await tx.instructorEvent.findFirst({
-				where: {
-					vehicleId,
-					type: EventType.DRIVE,
-					startTime: { lt: end },
-					endTime: { gt: start },
-				},
-				select: { id: true },
-			});
-			if (vehicleEventConflict) {
-				throw AppError.conflict('Vehicle is already in use');
-			}
-
-			resolvedVehicleId = vehicleId;
+		const vehicleEventConflict = await tx.instructorEvent.findFirst({
+			where: {
+				vehicleId,
+				type: EventType.DRIVE,
+				startTime: { lt: end },
+				endTime: { gt: start },
+			},
+			select: { id: true },
+		});
+		if (vehicleEventConflict) {
+			throw AppError.conflict('Vehicle is already in use');
 		}
 
 		return tx.lesson.create({
@@ -267,8 +249,8 @@ export async function bookLesson(
 				courseId: course.id,
 				studentId: studentProfileId,
 				instructorId: body.instructorId,
-				vehicleId: resolvedVehicleId,
-				lessonType: body.lessonType,
+				vehicleId,
+				lessonType: LessonType.PRACTICE,
 				startTime: start,
 				endTime: end,
 			},

@@ -1,4 +1,3 @@
-import { LessonType } from '@prisma/client';
 import { z } from 'zod';
 import { UUID_PARAM_RE } from '../lib/validation/uuid';
 
@@ -9,11 +8,9 @@ export const bookLessonBodySchema = z
 		instructorId: z.string().regex(UUID_PARAM_RE, 'Invalid instructorId'),
 		startTime: z.string().datetime(),
 		endTime: z.string().datetime(),
-		lessonType: z.nativeEnum(LessonType),
-		vehicleId: z
-			.string()
-			.regex(UUID_PARAM_RE, 'Invalid vehicleId')
-			.optional(),
+		/** Rezerwacje lekcji dotyczą wyłącznie jazdy; teoria jest wyłącznie przez `POST /events`. */
+		lessonType: z.literal('PRACTICE'),
+		vehicleId: z.string().regex(UUID_PARAM_RE, 'Invalid vehicleId'),
 	})
 	.superRefine((data, ctx) => {
 		const start = new Date(data.startTime);
@@ -23,20 +20,6 @@ export const bookLessonBodySchema = z
 				code: z.ZodIssueCode.custom,
 				message: 'startTime must be before endTime',
 				path: ['startTime'],
-			});
-		}
-		if (data.lessonType === LessonType.PRACTICE && !data.vehicleId) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: 'vehicleId is required for PRACTICE lessons',
-				path: ['vehicleId'],
-			});
-		}
-		if (data.lessonType === LessonType.THEORY && data.vehicleId) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: 'vehicleId must not be set for THEORY lessons',
-				path: ['vehicleId'],
 			});
 		}
 	});
