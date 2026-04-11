@@ -1,5 +1,10 @@
 import { randomUUID } from 'crypto';
-import type { DrivingSchool, Vehicle } from '@prisma/client';
+import {
+	EventType,
+	type DrivingSchool,
+	LessonStatus,
+	type Vehicle,
+} from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
 import { getSupabaseAdminClient } from '../lib/supabaseAdmin';
@@ -125,6 +130,7 @@ async function loadVehicleForOwner(
 async function listVehiclesBySchoolForUser(
 	userId: string,
 	schoolId: string,
+	timeRange?: { start: Date; end: Date },
 ): Promise<{
 	vehicles: (Vehicle & { isDefault: boolean })[];
 	defaultVehicleId: string | null;
@@ -140,10 +146,51 @@ async function listVehiclesBySchoolForUser(
 	});
 
 	const defaultVehicleId = school.defaultVehicleId ?? null;
-	const vehiclesWithDefault = vehicles.map((v) => ({
+	let vehiclesWithDefault = vehicles.map((v) => ({
 		...v,
 		isDefault: defaultVehicleId !== null && v.id === defaultVehicleId,
 	}));
+
+	if (timeRange) {
+		const { start, end } = timeRange;
+		const ids = vehiclesWithDefault.map((v) => v.id);
+		if (ids.length > 0) {
+			const [busyLessons, busyEvents] = await Promise.all([
+				prisma.lesson.findMany({
+					where: {
+						vehicleId: { in: ids },
+						status: { not: LessonStatus.CANCELLED },
+						startTime: { lt: end },
+						endTime: { gt: start },
+					},
+					select: { vehicleId: true },
+				}),
+				prisma.instructorEvent.findMany({
+					where: {
+						vehicleId: { in: ids },
+						type: EventType.DRIVE,
+						startTime: { lt: end },
+						endTime: { gt: start },
+					},
+					select: { vehicleId: true },
+				}),
+			]);
+			const busy = new Set<string>();
+			for (const row of busyLessons) {
+				if (row.vehicleId) {
+					busy.add(row.vehicleId);
+				}
+			}
+			for (const row of busyEvents) {
+				if (row.vehicleId) {
+					busy.add(row.vehicleId);
+				}
+			}
+			vehiclesWithDefault = vehiclesWithDefault.filter(
+				(v) => !busy.has(v.id),
+			);
+		}
+	}
 
 	return {
 		vehicles: vehiclesWithDefault,

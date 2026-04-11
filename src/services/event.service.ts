@@ -1,5 +1,6 @@
 import { EventType, LessonStatus, Role } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
+import { validateVehicleForInstructor } from '../lib/vehicle.helpers';
 import { getPrisma } from '../lib/prisma';
 import type { CreateInstructorEventBody } from '../schemas/event.schemas';
 import {
@@ -20,28 +21,6 @@ export type InstructorEventDto = {
 	createdAt: string;
 };
 
-async function validateVehicleForInstructor(
-	instructorId: string,
-	vehicleId: string,
-): Promise<void> {
-	const vehicle = await prisma.vehicle.findFirst({
-		where: { id: vehicleId, isActive: true },
-		select: { id: true, schoolId: true },
-	});
-	if (!vehicle) {
-		throw AppError.notFound('Vehicle not found');
-	}
-	const link = await prisma.instructorSchool.findFirst({
-		where: { instructorId, schoolId: vehicle.schoolId },
-		select: { id: true },
-	});
-	if (!link) {
-		throw AppError.badRequest(
-			'Vehicle is not in a school assigned to this instructor',
-		);
-	}
-}
-
 export async function createInstructorEvent(
 	actor: { id: string; role: Role },
 	body: CreateInstructorEventBody,
@@ -58,7 +37,7 @@ export async function createInstructorEvent(
 		if (!vehicleId) {
 			throw AppError.badRequest('vehicleId is required for DRIVE events');
 		}
-		await validateVehicleForInstructor(instructorId, vehicleId);
+		await validateVehicleForInstructor(instructorId, vehicleId, prisma);
 	}
 
 	const resolvedVehicleId = type === EventType.DRIVE ? vehicleId! : null;

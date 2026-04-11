@@ -19,9 +19,18 @@ async function listVehiclesBySchool(req: Request, res: Response) {
 		throw AppError.badRequest(message);
 	}
 
+	const timeRange =
+		parsed.data.startTime && parsed.data.endTime
+			? {
+					start: new Date(parsed.data.startTime),
+					end: new Date(parsed.data.endTime),
+				}
+			: undefined;
+
 	const data = await vehicleService.listVehiclesBySchoolForUser(
 		user.id,
 		parsed.data.schoolId,
+		timeRange,
 	);
 	return sendJsonSuccess(res, data);
 }

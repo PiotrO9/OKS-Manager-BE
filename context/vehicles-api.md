@@ -20,7 +20,7 @@ Szczegóły sesji: [auth.md](./auth.md).
 
 | Metoda | Ścieżka | Opis |
 |--------|---------|------|
-| GET | `/vehicles?schoolId=<uuid>` | Lista **aktywnych** pojazdów (`isActive: true`) dla szkoły. Wymagany poprawny `schoolId`. W odpowiedzi m.in. `vehicles[]` z polem `isDefault` oraz `defaultVehicleId`. |
+| GET | `/vehicles?schoolId=<uuid>` | Lista **aktywnych** pojazdów (`isActive: true`) dla szkoły. Wymagany poprawny `schoolId`. Opcjonalnie **`startTime`** i **`endTime`** (oba, ISO 8601 datetime) — z listy wykluczane są pojazdy zajęte w tym oknie (kolizja z lekcją lub eventem DRIVE). W odpowiedzi m.in. `vehicles[]` z polem `isDefault` oraz `defaultVehicleId`. |
 | GET | `/vehicles/:id` | Szczegóły pojazdu + `isDefault`. Dostęp tylko, gdy użytkownik jest właścicielem szkoły pojazdu. |
 | POST | `/vehicles` | **Upsert:** bez `id` (lub bez sensownego UUID) w body → **tworzenie**; z poprawnym `id` → **aktualizacja** jak patch (patrz body). |
 | PATCH | `/vehicles/:id` | Aktualizacja pól pojazdu (ten sam kształt body co przy upsert „update”). |

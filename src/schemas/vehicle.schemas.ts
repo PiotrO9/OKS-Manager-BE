@@ -1,9 +1,49 @@
+import { z } from 'zod';
 import {
 	schoolIdQuerySchema,
 	vehicleIdParamsSchema,
 } from '../lib/validation/uuid';
 
-export { schoolIdQuerySchema as vehicleListQuerySchema, vehicleIdParamsSchema };
+export { vehicleIdParamsSchema };
+
+/** Lista pojazdów OSK; opcjonalnie `startTime`+`endTime` (ISO datetime) filtrują pojazdy zajęte w tym oknie. */
+export const vehicleListQuerySchema = schoolIdQuerySchema
+	.merge(
+		z.object({
+			startTime: z.preprocess(
+				(v) => (v === '' || v === undefined ? undefined : v),
+				z.string().datetime().optional(),
+			),
+			endTime: z.preprocess(
+				(v) => (v === '' || v === undefined ? undefined : v),
+				z.string().datetime().optional(),
+			),
+		}),
+	)
+	.superRefine((data, ctx) => {
+		const hasStart = data.startTime !== undefined;
+		const hasEnd = data.endTime !== undefined;
+		if (hasStart !== hasEnd) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message:
+					'startTime and endTime must both be provided or both omitted',
+				path: hasStart ? ['endTime'] : ['startTime'],
+			});
+			return;
+		}
+		if (hasStart && hasEnd) {
+			const start = new Date(data.startTime!);
+			const end = new Date(data.endTime!);
+			if (start.getTime() >= end.getTime()) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: 'startTime must be before endTime',
+					path: ['endTime'],
+				});
+			}
+		}
+	});
 
 export type OptionalVehicleFields = {
 	brand: string | null;

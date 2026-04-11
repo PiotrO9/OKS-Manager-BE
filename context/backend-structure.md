@@ -45,5 +45,6 @@ Polityki i stałe reguły (np. kto może kogo rejestrować): **`lib/`** (np. `re
 - Auth (w tym profil, avatar, `/auth/profile`): [auth.md](./auth.md)
 - OSK (endpointy): [driving-schools-api.md](./driving-schools-api.md)
 - Pojazdy: [vehicles-api.md](./vehicles-api.md)
+- Rezerwacja lekcji: [lessons-api.md](./lessons-api.md)
 - Kursanci: [students-api.md](./students-api.md)
 - Reguły krytyczne (rezerwacje, transakcje): [backend-rules.md](./backend-rules.md)

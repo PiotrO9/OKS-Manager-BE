@@ -8,6 +8,7 @@ alwaysApply: true
 Montowanie w `src/server.ts`:
 
 - **`/events`** — bloki czasu instruktora (`InstructorEvent`), bez studenta ani kursu
+- **`/lessons`** — tworzenie lekcji (`Lesson`) — zob. [lessons-api.md](./lessons-api.md)
 - **`/schedule`** — lista **lekcji** (`Lesson`) w zadanym zakresie dat (terminarz osobisty lub podgląd przez MANAGER/ADMIN)
 
 Implementacja:
@@ -15,6 +16,7 @@ Implementacja:
 | Obszar | Pliki |
 |--------|--------|
 | Eventy | `src/routes/events.routes.ts`, `src/controllers/event.controller.ts`, `src/services/event.service.ts`, `src/schemas/event.schemas.ts` |
+| Lekcje (tworzenie) | `src/routes/lessons.routes.ts`, `src/controllers/lesson.controller.ts`, `src/services/lesson.service.ts`, `src/schemas/lesson.schemas.ts` — szczegóły [lessons-api.md](./lessons-api.md) |
 | Terminarz | `src/routes/schedule.routes.ts`, `src/controllers/schedule.controller.ts`, `src/services/schedule.service.ts`, `src/schemas/schedule.schemas.ts` |
 | Dostępność (sloty, walidacja okna czasu) | `src/services/instructor-availability.service.ts` (`assertInstructorTimeWindowAvailable`, `computeDayWindows` z uwzględnieniem `instructor_events`; przy tworzeniu eventu odczyty availability idą **tym samym** `tx` co konflikty i `create` w `event.service.ts`) |
 

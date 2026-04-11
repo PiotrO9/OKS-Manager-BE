@@ -27,6 +27,7 @@ import {
 	patchCourseBodySchema,
 } from '../schemas/course.schemas';
 import { createInstructorEventBodySchema } from '../schemas/event.schemas';
+import { bookLessonBodySchema } from '../schemas/lesson.schemas';
 import {
 	createDrivingSchoolBodySchema,
 	setDefaultVehicleBodySchema,
@@ -705,7 +706,8 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		method: 'get',
 		path: '/vehicles',
 		tags: ['Vehicles'],
-		summary: 'Lista pojazdów dla OSK (MANAGER)',
+		summary:
+			'Lista pojazdów dla OSK (MANAGER); opcjonalnie startTime+endTime (ISO) — bez pojazdów zajętych w tym oknie',
 		security: [{ bearerAuth: [] }],
 		request: { query: vehicleListQuerySchema },
 		responses: stdBearerResponses({
@@ -856,6 +858,28 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		},
 		responses: stdBearerResponses({
 			200: okDataUnknown('OK'),
+		}),
+	});
+
+	// ── Lessons ───────────────────────────────────────────────────────────────
+	registry.registerPath({
+		method: 'post',
+		path: '/lessons',
+		tags: ['Lessons'],
+		summary: 'Rezerwacja lekcji (MANAGER+)',
+		security: [{ bearerAuth: [] }],
+		request: {
+			body: {
+				content: {
+					'application/json': {
+						schema: bookLessonBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			201: okDataUnknown('Utworzona lekcja (data.lesson)'),
+			409: clientError('Konflikt czasu, grafiku lub pojazdu'),
 		}),
 	});
 
