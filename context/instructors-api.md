@@ -310,3 +310,53 @@ Pusta tablica `slots` jest poprawna (np. brak grafiku lub cały zakres zajęty /
 14. **GET /slots** bez `dateFrom` lub `dateTo` → **400**.
 15. **GET /slots?dateFrom=2026-04-15&dateTo=2026-04-14** → **400** (`dateFrom` po `dateTo`).
 16. **GET /slots** z zakresem **31 dni kalendarzowych** (włącznie) → **400** (limit 30 dni).
+
+---
+
+## Sloty agregowane dla szkoły (OSK)
+
+Pełny opis tras z perspektywy modułu OSK (tabele query, kody HTTP): [driving-schools-api.md](./driving-schools-api.md) — sekcja **GET `/driving-schools/:id/availability/slots`**.
+
+| Metoda | Ścieżka | Opis |
+|--------|---------|------|
+| GET | `/driving-schools/:id/availability/slots` | Sloty **wszystkich** (lub wyfiltrowanych) instruktorów przypisanych do OSK; odpowiedź zawiera `instructorId`, imię, nazwisko oraz `total` (po filtrach, przed stronicowaniem). |
+
+**Uwierzytelnienie:** `authMiddleware` (bez `requireMinRole`) — dostęp: **ADMIN** (dowolna nieusunięta OSK), **MANAGER** (właściciel OSK), **STUDENT** (przypisanie `StudentSchool`), **INSTRUCTOR** (przypisanie `InstructorSchool`).
+
+**Query (obowiązkowe jak przy slotach per instruktor):** `dateFrom`, `dateTo` — ten sam limit **30 dni** i walidacja co `slotsQueryBaseSchema` + `refineSlotsDateRange` (patrz `slotsQuerySchema`). Dodatkowo m.in.: `instructorIds` (lista UUID — każdy musi należeć do szkoły, inaczej **400**), `timeFrom` / `timeTo` (`HH:mm`, slot musi **w całości** mieścić się w oknie), `weekdays` (0–6 UTC), `slotDurationMinutes` (15–240; domyślnie z `SchoolSettings.slotDurationMinutes`), `courseId` (kurs tej szkoły; przy `Course.instructorId` zwęża do jednego instruktora; przy **STUDENT** wymagane uczestnictwo w kursie — **403**), `sort` (`startTime` \| `instructorName`), `limit` (domyślnie 200, max 500) / `offset`, `excludeMyLessons` (dla STUDENT domyślnie `true`). `lessonType` zarezerwowany (MVP bez wpływu na wynik).
+
+**Obcięcie dat:** skuteczny `dateTo` = min(żądany `dateTo`, „dziś” UTC + `bookingMaxDaysAhead` z `SchoolSettings`); dla **STUDENT** `dateFrom` jest podnoszone do bieżącej daty UTC, jeśli wcześniejsze.
+
+**Algorytm generowania jednego slotu** — identyczny jak przy `GET /instructors/.../availability/slots` (ten sam serwis: `generateSlotsInternal` / `computeDayWindows`). Różnica: wywołanie dla wielu `instructorId` z `InstructorSchool`, enrichment danymi użytkownika instruktora, filtry agregacji, sortowanie, `total` + stronicowanie.
+
+### Odpowiedź (200) — przykład
+
+```json
+{
+  "success": true,
+  "data": {
+    "slots": [
+      {
+        "instructorId": "550e8400-e29b-41d4-a716-446655440000",
+        "instructorFirstName": "Jan",
+        "instructorLastName": "Kowalski",
+        "date": "2026-04-15",
+        "startTime": "08:00",
+        "endTime": "09:00"
+      }
+    ],
+    "total": 42
+  }
+}
+```
+
+### Kody błędów (trasa agregowana)
+
+| Kod | Sytuacja |
+|-----|----------|
+| **400** | Niepoprawny UUID `:id` lub query (daty, zakres > 30 dni, `timeFrom` ≥ `timeTo`, `instructorIds` z ID spoza szkoły, itd.) |
+| **401** | Brak / niepoprawny JWT |
+| **403** | Rola bez dostępu do szkoły; STUDENT z `courseId` bez uczestnictwa w kursie |
+| **404** | Szkoła nie istnieje lub soft-delete; przy `courseId` — brak kursu w tej szkole |
+
+Implementacja: `src/services/school-availability.service.ts`, schemat: `src/schemas/school-availability.schemas.ts`, kontroler: `getSchoolAvailabilitySlots` w `src/controllers/driving-schools.controller.ts`, OpenAPI: tag **Driving schools** w `src/swagger/registerOpenApiPaths.ts`.

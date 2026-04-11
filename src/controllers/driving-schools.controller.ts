@@ -10,6 +10,8 @@ import {
 	setDefaultVehicleBodySchema,
 	updateDrivingSchoolBodySchema,
 } from '../schemas/driving-school.schemas';
+import { schoolAvailabilitySlotsQuerySchema } from '../schemas/school-availability.schemas';
+import { listSchoolAvailabilitySlots } from '../services/school-availability.service';
 import {
 	activeSchoolClause,
 	reconcileUserDefaultOskId,
@@ -466,6 +468,27 @@ async function getDefaultDrivingSchool(req: Request, res: Response) {
 	});
 }
 
+async function getSchoolAvailabilitySlots(req: Request, res: Response) {
+	const user = requireUser(req);
+	const params = drivingSchoolIdParamsSchema.safeParse(req.params);
+	if (!params.success) {
+		throw AppError.badRequest('Invalid driving school id');
+	}
+
+	const query = schoolAvailabilitySlotsQuerySchema.safeParse(req.query);
+	if (!query.success) {
+		const message = query.error.issues[0]?.message ?? 'Invalid query';
+		throw AppError.badRequest(message);
+	}
+
+	const data = await listSchoolAvailabilitySlots(
+		{ id: user.id, role: user.role },
+		params.data.id,
+		query.data,
+	);
+	return sendJsonSuccess(res, data);
+}
+
 export {
 	getDrivingSchools,
 	getDefaultDrivingSchool,
@@ -474,4 +497,5 @@ export {
 	setDefaultVehicleForDrivingSchool,
 	updateDrivingSchool,
 	deleteDrivingSchool,
+	getSchoolAvailabilitySlots,
 };

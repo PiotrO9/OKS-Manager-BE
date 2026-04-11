@@ -4,6 +4,7 @@ import {
 	deleteDrivingSchool,
 	getDefaultDrivingSchool,
 	getDrivingSchools,
+	getSchoolAvailabilitySlots,
 	setDefaultDrivingSchool,
 	setDefaultVehicleForDrivingSchool,
 	updateDrivingSchool,
@@ -19,6 +20,12 @@ function createDrivingSchoolsRouter() {
 		'/default',
 		authMiddleware,
 		asyncHandler(getDefaultDrivingSchool),
+	);
+
+	router.get(
+		'/:id/availability/slots',
+		authMiddleware,
+		asyncHandler(getSchoolAvailabilitySlots),
 	);
 	router.post(
 		'/',

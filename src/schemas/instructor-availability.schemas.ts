@@ -152,44 +152,48 @@ export type ComputeQuery = z.infer<typeof computeQuerySchema>;
 
 const MAX_SLOT_RANGE_DAYS = 30;
 
-export const slotsQuerySchema = z
-	.object({
-		dateFrom: z
-			.string({ required_error: 'dateFrom is required' })
-			.regex(DATE_RE, 'dateFrom must be in YYYY-MM-DD format'),
-		dateTo: z
-			.string({ required_error: 'dateTo is required' })
-			.regex(DATE_RE, 'dateTo must be in YYYY-MM-DD format'),
-	})
-	.superRefine((data, ctx) => {
-		if (data.dateFrom > data.dateTo) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: 'dateFrom must be on or before dateTo',
-				path: ['dateFrom'],
-			});
-			return;
-		}
+export const slotsQueryBaseSchema = z.object({
+	dateFrom: z
+		.string({ required_error: 'dateFrom is required' })
+		.regex(DATE_RE, 'dateFrom must be in YYYY-MM-DD format'),
+	dateTo: z
+		.string({ required_error: 'dateTo is required' })
+		.regex(DATE_RE, 'dateTo must be in YYYY-MM-DD format'),
+});
 
-		const parseUtcDateOnly = (s: string): Date => {
-			const [y, mo, d] = s.split('-').map(Number);
-			return new Date(Date.UTC(y ?? 0, (mo ?? 1) - 1, d ?? 1));
-		};
+export function refineSlotsDateRange(
+	data: { dateFrom: string; dateTo: string },
+	ctx: z.RefinementCtx,
+): void {
+	if (data.dateFrom > data.dateTo) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			message: 'dateFrom must be on or before dateTo',
+			path: ['dateFrom'],
+		});
+		return;
+	}
 
-		const from = parseUtcDateOnly(data.dateFrom);
-		const to = parseUtcDateOnly(data.dateTo);
-		const inclusiveDays =
-			Math.floor(
-				(to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24),
-			) + 1;
+	const parseUtcDateOnly = (s: string): Date => {
+		const [y, mo, d] = s.split('-').map(Number);
+		return new Date(Date.UTC(y ?? 0, (mo ?? 1) - 1, d ?? 1));
+	};
 
-		if (inclusiveDays > MAX_SLOT_RANGE_DAYS) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: `Date range cannot exceed ${MAX_SLOT_RANGE_DAYS} days`,
-				path: ['dateTo'],
-			});
-		}
-	});
+	const from = parseUtcDateOnly(data.dateFrom);
+	const to = parseUtcDateOnly(data.dateTo);
+	const inclusiveDays =
+		Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+	if (inclusiveDays > MAX_SLOT_RANGE_DAYS) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			message: `Date range cannot exceed ${MAX_SLOT_RANGE_DAYS} days`,
+			path: ['dateTo'],
+		});
+	}
+}
+
+export const slotsQuerySchema =
+	slotsQueryBaseSchema.superRefine(refineSlotsDateRange);
 
 export type SlotsQuery = z.infer<typeof slotsQuerySchema>;

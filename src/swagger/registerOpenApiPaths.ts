@@ -31,6 +31,7 @@ import {
 	setDefaultVehicleBodySchema,
 	updateDrivingSchoolBodySchema,
 } from '../schemas/driving-school.schemas';
+import { schoolAvailabilitySlotsQuerySchema } from '../schemas/school-availability.schemas';
 import {
 	availabilityInstructorIdParamsSchema,
 	computeQuerySchema,
@@ -349,6 +350,24 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		request: { params: drivingSchoolIdParamsSchema },
 		responses: stdBearerResponses({
 			200: okDataUnknown('OK'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'get',
+		path: '/driving-schools/{id}/availability/slots',
+		tags: ['Driving schools'],
+		summary:
+			'Agregowana lista slotów dostępności instruktorów szkoły (ADMIN, MANAGER, INSTRUCTOR, STUDENT)',
+		description:
+			'Parametr lessonType jest zarezerwowany (MVP bez wpływu na wynik). excludeMyLessons domyślnie true dla STUDENT.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: drivingSchoolIdParamsSchema,
+			query: schoolAvailabilitySlotsQuerySchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('slots + total'),
 		}),
 	});
 

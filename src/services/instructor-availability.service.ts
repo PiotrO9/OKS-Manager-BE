@@ -571,15 +571,16 @@ async function computeDayWindows(
 	return subtractWindows(baseWindow, usedWindows);
 }
 
-export async function generateSlots(
-	actor: Actor,
+/**
+ * Generates slots for an instructor in [dateFrom, dateTo] (inclusive) without auth checks.
+ * Caller must ensure the instructor exists and is eligible (e.g. active profile).
+ */
+export async function generateSlotsInternal(
 	instructorId: string,
 	dateFrom: string,
 	dateTo: string,
+	slotDurationMinutes: number,
 ): Promise<SlotDto[]> {
-	await assertActorCanManageAvailability(actor, instructorId);
-	await resolveActiveInstructorProfile(instructorId);
-
 	const from = yyyymmddToDate(dateFrom);
 	const to = yyyymmddToDate(dateTo);
 	const slots: SlotDto[] = [];
@@ -593,7 +594,7 @@ export async function generateSlots(
 			for (const window of freeWindows) {
 				const daySlots = splitWindowIntoSlots(
 					window,
-					SLOT_DURATION_MINUTES,
+					slotDurationMinutes,
 				);
 				for (const slot of daySlots) {
 					slots.push({
@@ -609,4 +610,20 @@ export async function generateSlots(
 	}
 
 	return slots;
+}
+
+export async function generateSlots(
+	actor: Actor,
+	instructorId: string,
+	dateFrom: string,
+	dateTo: string,
+): Promise<SlotDto[]> {
+	await assertActorCanManageAvailability(actor, instructorId);
+	await resolveActiveInstructorProfile(instructorId);
+	return generateSlotsInternal(
+		instructorId,
+		dateFrom,
+		dateTo,
+		SLOT_DURATION_MINUTES,
+	);
 }
