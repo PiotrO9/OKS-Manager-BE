@@ -178,7 +178,9 @@ function mapLesson(
 		endTime: row.endTime.toISOString(),
 	};
 	const includeInstructorEffective =
-		opts.includeInstructor || row.lessonType === LessonType.THEORY;
+		opts.includeInstructor ||
+		row.lessonType === LessonType.THEORY ||
+		row.lessonType === LessonType.PRACTICE;
 	if (includeInstructorEffective) {
 		item.instructor = {
 			id: row.instructorProfile.id,
