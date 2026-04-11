@@ -12,6 +12,8 @@ import { createStudentsRouter } from './routes/students.routes';
 import { createVehiclesRouter } from './routes/vehicles.routes';
 import { createCoursesRouter } from './routes/courses.routes';
 import { createCourseTypesRouter } from './routes/course-types.routes';
+import { createEventsRouter } from './routes/events.routes';
+import { createScheduleRouter } from './routes/schedule.routes';
 import { setupSwagger } from './swagger/setupSwagger';
 
 function parseAllowedOrigins(): string[] {
@@ -43,6 +45,8 @@ function createApp() {
 	app.use('/vehicles', createVehiclesRouter());
 	app.use('/courses', createCoursesRouter());
 	app.use('/course-types', createCourseTypesRouter());
+	app.use('/events', createEventsRouter());
+	app.use('/schedule', createScheduleRouter());
 
 	app.get('/test', async (req, res) => {
 		return sendJsonSuccess(res, {

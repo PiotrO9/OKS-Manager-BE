@@ -90,6 +90,8 @@ Implementacja:
 - `src/services/instructor-availability.service.ts`
 - `src/schemas/instructor-availability.schemas.ts`
 
+Powiązane (inne prefiksy w `server.ts`): tworzenie **eventów** instruktora — **`POST /events`**; terminarz lekcji — **`GET /schedule/me`**, **`GET /schedule`** — zob. [events-schedule-api.md](./events-schedule-api.md).
+
 ## Uwierzytelnianie i autoryzacja
 
 - Wszystkie trasy: **`authMiddleware`** + **`requireMinRole('MANAGER')`**.

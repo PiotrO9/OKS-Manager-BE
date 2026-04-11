@@ -52,6 +52,11 @@ enum InstructorTimeBlockType {
   OTHER
 }
 
+enum EventType {
+  DRIVE
+  THEORY
+}
+
 // NOTE: DB-level constraints (EXCLUDE, CHECK) must be added as raw SQL migrations.
 // See context/db_constraints.md for recommended SQL snippets.
 
@@ -169,6 +174,7 @@ model InstructorProfile {
   lessons             Lesson[] @relation("InstructorLessons")
   lessonRatings       LessonRating[] @relation("InstructorLessonRatings")
   assignedCourses     Course[] @relation("CourseAssignedInstructor")
+  instructorEvents    InstructorEvent[] @relation("InstructorEvents")
 
   @@map("instructor_profiles")
 }
@@ -235,6 +241,7 @@ model Vehicle {
   school           DrivingSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   defaultForSchools DrivingSchool[] @relation("SchoolDefaultVehicle")
   lessons          Lesson[] @relation("VehicleLessons")
+  instructorEvents InstructorEvent[] @relation("VehicleEvents")
 
   @@unique([schoolId, registrationNumber], name: "uq_vehicles_school_id_registration_number")
   @@map("vehicles")
@@ -369,6 +376,23 @@ model InstructorLeave {
   instructor   InstructorProfile @relation(fields: [instructorId], references: [id], onDelete: Cascade)
 
   @@map("instructor_leaves")
+}
+
+model InstructorEvent {
+  id           String    @id @default(uuid()) @db.Uuid @map("id")
+  instructorId String    @db.Uuid @map("instructor_id")
+  type         EventType @map("type")
+  startTime    DateTime  @map("start_time")
+  endTime      DateTime  @map("end_time")
+  vehicleId    String?   @db.Uuid @map("vehicle_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  instructor   InstructorProfile @relation("InstructorEvents", fields: [instructorId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle?          @relation("VehicleEvents", fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  @@index([instructorId, startTime], name: "idx_instructor_events_instructor_id_start_time")
+  @@index([vehicleId, startTime], name: "idx_instructor_events_vehicle_id_start_time")
+  @@map("instructor_events")
 }
 
 model PaymentPlan {

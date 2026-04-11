@@ -43,7 +43,7 @@ type Actor = { id: string; role: Role };
  * Asserts the actor can read/write availability for the given instructor.
  * ADMIN → always. MANAGER → must own a school linked to the instructor.
  */
-async function assertActorCanManageAvailability(
+export async function assertActorCanManageAvailability(
 	actor: Actor,
 	instructorId: string,
 ): Promise<void> {
@@ -62,7 +62,7 @@ async function assertActorCanManageAvailability(
 }
 
 /** Resolves the instructor profile id and checks it exists and is active. */
-async function resolveActiveInstructorProfile(
+export async function resolveActiveInstructorProfile(
 	instructorId: string,
 ): Promise<string> {
 	const profile = await prisma.instructorProfile.findFirst({
@@ -401,7 +401,7 @@ export async function computeAvailability(
 		),
 	);
 
-	const [timeBlocks, lessons] = await Promise.all([
+	const [timeBlocks, lessons, instructorEvents] = await Promise.all([
 		prisma.instructorTimeBlock.findMany({
 			where: {
 				instructorId,
@@ -417,6 +417,13 @@ export async function computeAvailability(
 			},
 			select: { startTime: true, endTime: true },
 		}),
+		prisma.instructorEvent.findMany({
+			where: {
+				instructorId,
+				startTime: { gte: dayStart, lt: dayEnd },
+			},
+			select: { startTime: true, endTime: true },
+		}),
 	]);
 
 	const usedWindows: TimeWindow[] = [
@@ -427,6 +434,10 @@ export async function computeAvailability(
 		...lessons.map((l) => ({
 			start: l.startTime.getUTCHours() * 60 + l.startTime.getUTCMinutes(),
 			end: l.endTime.getUTCHours() * 60 + l.endTime.getUTCMinutes(),
+		})),
+		...instructorEvents.map((e) => ({
+			start: e.startTime.getUTCHours() * 60 + e.startTime.getUTCMinutes(),
+			end: e.endTime.getUTCHours() * 60 + e.endTime.getUTCMinutes(),
 		})),
 	];
 
@@ -477,7 +488,7 @@ function splitWindowIntoSlots(
 /**
  * Free time windows for one UTC calendar day (leave / day off / no weekly → null).
  */
-async function computeDayWindows(
+export async function computeDayWindows(
 	instructorId: string,
 	date: Date,
 ): Promise<TimeWindow[] | null> {
@@ -539,7 +550,7 @@ async function computeDayWindows(
 		),
 	);
 
-	const [timeBlocks, lessons] = await Promise.all([
+	const [timeBlocks, lessons, instructorEvents] = await Promise.all([
 		prisma.instructorTimeBlock.findMany({
 			where: {
 				instructorId,
@@ -555,6 +566,13 @@ async function computeDayWindows(
 			},
 			select: { startTime: true, endTime: true },
 		}),
+		prisma.instructorEvent.findMany({
+			where: {
+				instructorId,
+				startTime: { gte: dayStart, lt: dayEnd },
+			},
+			select: { startTime: true, endTime: true },
+		}),
 	]);
 
 	const usedWindows: TimeWindow[] = [
@@ -566,9 +584,52 @@ async function computeDayWindows(
 			start: l.startTime.getUTCHours() * 60 + l.startTime.getUTCMinutes(),
 			end: l.endTime.getUTCHours() * 60 + l.endTime.getUTCMinutes(),
 		})),
+		...instructorEvents.map((e) => ({
+			start: e.startTime.getUTCHours() * 60 + e.startTime.getUTCMinutes(),
+			end: e.endTime.getUTCHours() * 60 + e.endTime.getUTCMinutes(),
+		})),
 	];
 
 	return subtractWindows(baseWindow, usedWindows);
+}
+
+/**
+ * Ensures [startTime, endTime] lies fully inside one free window on that UTC day.
+ */
+export async function assertInstructorTimeWindowAvailable(
+	instructorId: string,
+	startTime: Date,
+	endTime: Date,
+): Promise<void> {
+	if (startTime.getTime() >= endTime.getTime()) {
+		throw AppError.badRequest('startTime must be before endTime');
+	}
+	const sameDay =
+		startTime.getUTCFullYear() === endTime.getUTCFullYear() &&
+		startTime.getUTCMonth() === endTime.getUTCMonth() &&
+		startTime.getUTCDate() === endTime.getUTCDate();
+	if (!sameDay) {
+		throw AppError.badRequest(
+			'Event must start and end on the same UTC calendar day',
+		);
+	}
+	const date = new Date(
+		Date.UTC(
+			startTime.getUTCFullYear(),
+			startTime.getUTCMonth(),
+			startTime.getUTCDate(),
+		),
+	);
+	const free = await computeDayWindows(instructorId, date);
+	if (free === null) {
+		throw AppError.badRequest('Instructor is not available at this time');
+	}
+	const reqStart = startTime.getUTCHours() * 60 + startTime.getUTCMinutes();
+	const reqEnd = endTime.getUTCHours() * 60 + endTime.getUTCMinutes();
+	const ok = free.some((w) => reqStart >= w.start && reqEnd <= w.end);
+	if (!ok) {
+		throw AppError.badRequest('Instructor is not available at this time');
+	}
 }
 
 /**

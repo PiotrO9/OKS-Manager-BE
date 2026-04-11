@@ -33,6 +33,8 @@ Kursy (lista, szczegóły, POST, PATCH instruktora): zob. [courses-api.md](./cou
 
 Kursanci (lista z paginacją i filtrem kursu, szczegóły z kursami i statusem uczestnictwa **ACTIVE**/**FINISHED**, wpis na kurs, **PATCH** statusu uczestnictwa, PATCH OSK/PKK): zob. [students-api.md](./students-api.md).
 
+Eventy instruktora (blok czasu DRIVE/THEORY) i terminarz lekcji (`/events`, `/schedule`): zob. [events-schedule-api.md](./events-schedule-api.md).
+
 Response format:
 
 {

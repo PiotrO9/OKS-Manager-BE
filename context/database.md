@@ -39,4 +39,6 @@ Instructor:
 - time_blocks
 - leaves
 
+**InstructorEvent** (`instructor_events`): blok czasu przypisany do instruktora; enum **`EventType`**: **`DRIVE`** (opcjonalnie `vehicle_id`) | **`THEORY`**; używany w kalendarzu do blokowania slotów obok lekcji i time blocków. API: [events-schedule-api.md](./events-schedule-api.md).
+
 Calendar is computed dynamically.
