@@ -1,4 +1,4 @@
-import { LessonStatus, LessonType, Role } from '@prisma/client';
+import { EventType, LessonStatus, LessonType, Role } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
 import type {
@@ -8,7 +8,8 @@ import type {
 
 const prisma = getPrisma();
 
-export type ScheduleItemDto = {
+export type ScheduleLessonItemDto = {
+	kind: 'lesson';
 	id: string;
 	type: LessonType;
 	status: string;
@@ -18,6 +19,33 @@ export type ScheduleItemDto = {
 	student?: { id: string; firstName: string; lastName: string };
 	vehicle?: { id: string; name: string; registrationNumber: string };
 };
+
+export type ScheduleInstructorEventItemDto = {
+	kind: 'instructor_event';
+	id: string;
+	/** Enum Prisma `EventType` — blok instruktora (DRIVE / THEORY). */
+	eventType: EventType;
+	/** To samo co `eventType` (alias pod klientów oczekujące `eventKind`). */
+	eventKind: EventType;
+	/**
+	 * Odpowiednik wizualny jak przy lekcji: THEORY → THEORY, DRIVE → PRACTICE
+	 * (ułatwia jeden kod kalendarza dla lekcji i eventów).
+	 */
+	type: LessonType;
+	/** Brak statusu w DB — stała dla kompatybilności z filtrem jak u lekcji. */
+	status: 'SCHEDULED';
+	startTime: string;
+	endTime: string;
+	capacity: number | null;
+	participantCount: number;
+	instructor?: { id: string; firstName: string; lastName: string };
+	students?: { id: string; firstName: string; lastName: string }[];
+	vehicle?: { id: string; name: string; registrationNumber: string };
+};
+
+export type ScheduleItemDto =
+	| ScheduleLessonItemDto
+	| ScheduleInstructorEventItemDto;
 
 type LessonRow = {
 	id: string;
@@ -40,12 +68,45 @@ type LessonRow = {
 	} | null;
 };
 
+type EventRow = {
+	id: string;
+	type: EventType;
+	startTime: Date;
+	endTime: Date;
+	capacity: number | null;
+	instructor: {
+		id: string;
+		user: { firstName: string; lastName: string };
+	};
+	vehicle: {
+		id: string;
+		name: string;
+		registrationNumber: string;
+	} | null;
+	participants: {
+		student: {
+			id: string;
+			user: { firstName: string; lastName: string };
+		};
+	}[];
+};
+
 /** Lessons overlapping [dateFrom, dateTo] (UTC calendar days), excluding cancelled. */
 function buildDateRangeWhere(dateFrom: string, dateTo: string) {
 	const rangeStart = new Date(`${dateFrom}T00:00:00.000Z`);
 	const rangeEnd = new Date(`${dateTo}T23:59:59.999Z`);
 	return {
 		status: { not: LessonStatus.CANCELLED },
+		startTime: { lt: rangeEnd },
+		endTime: { gt: rangeStart },
+	};
+}
+
+/** Instructor events overlapping [dateFrom, dateTo] (UTC calendar days). */
+function buildEventDateRangeWhere(dateFrom: string, dateTo: string) {
+	const rangeStart = new Date(`${dateFrom}T00:00:00.000Z`);
+	const rangeEnd = new Date(`${dateTo}T23:59:59.999Z`);
+	return {
 		startTime: { lt: rangeEnd },
 		endTime: { gt: rangeStart },
 	};
@@ -69,11 +130,47 @@ const lessonInclude = {
 	},
 };
 
+const eventInclude = {
+	instructor: {
+		select: {
+			id: true,
+			user: { select: { firstName: true, lastName: true } },
+		},
+	},
+	vehicle: {
+		select: { id: true, name: true, registrationNumber: true },
+	},
+	participants: {
+		select: {
+			student: {
+				select: {
+					id: true,
+					user: { select: { firstName: true, lastName: true } },
+				},
+			},
+		},
+	},
+} as const;
+
+function compareScheduleByStart(a: ScheduleItemDto, b: ScheduleItemDto) {
+	const t1 = new Date(a.startTime).getTime();
+	const t2 = new Date(b.startTime).getTime();
+	return t1 - t2;
+}
+
+function mergeScheduleItems(
+	lessonItems: ScheduleLessonItemDto[],
+	eventItems: ScheduleInstructorEventItemDto[],
+): ScheduleItemDto[] {
+	return [...lessonItems, ...eventItems].sort(compareScheduleByStart);
+}
+
 function mapLesson(
 	row: LessonRow,
 	opts: { includeInstructor: boolean; includeStudent: boolean },
-): ScheduleItemDto {
-	const item: ScheduleItemDto = {
+): ScheduleLessonItemDto {
+	const item: ScheduleLessonItemDto = {
+		kind: 'lesson',
 		id: row.id,
 		type: row.lessonType,
 		status: row.status,
@@ -104,6 +201,61 @@ function mapLesson(
 	return item;
 }
 
+function eventTypeToCalendarLessonType(et: EventType): LessonType {
+	return et === EventType.THEORY ? LessonType.THEORY : LessonType.PRACTICE;
+}
+
+function sortParticipantsForSchedule(
+	participants: EventRow['participants'],
+): { id: string; firstName: string; lastName: string }[] {
+	const mapped = participants.map((p) => ({
+		id: p.student.id,
+		firstName: p.student.user.firstName,
+		lastName: p.student.user.lastName,
+	}));
+	return mapped.sort((a, b) => {
+		const ln = a.lastName.localeCompare(b.lastName);
+		if (ln !== 0) return ln;
+		return a.firstName.localeCompare(b.firstName);
+	});
+}
+
+function mapInstructorEvent(
+	row: EventRow,
+	opts: { includeInstructor: boolean; includeStudents: boolean },
+): ScheduleInstructorEventItemDto {
+	const item: ScheduleInstructorEventItemDto = {
+		kind: 'instructor_event',
+		id: row.id,
+		eventType: row.type,
+		eventKind: row.type,
+		type: eventTypeToCalendarLessonType(row.type),
+		status: 'SCHEDULED',
+		startTime: row.startTime.toISOString(),
+		endTime: row.endTime.toISOString(),
+		capacity: row.capacity,
+		participantCount: row.participants.length,
+	};
+	if (opts.includeInstructor) {
+		item.instructor = {
+			id: row.instructor.id,
+			firstName: row.instructor.user.firstName,
+			lastName: row.instructor.user.lastName,
+		};
+	}
+	if (opts.includeStudents) {
+		item.students = sortParticipantsForSchedule(row.participants);
+	}
+	if (row.vehicle) {
+		item.vehicle = {
+			id: row.vehicle.id,
+			name: row.vehicle.name,
+			registrationNumber: row.vehicle.registrationNumber,
+		};
+	}
+	return item;
+}
+
 export async function getMySchedule(
 	actor: { id: string; role: Role },
 	query: ScheduleMeQuery,
@@ -122,19 +274,35 @@ export async function getMySchedule(
 		if (!profile) {
 			throw AppError.notFound('Instructor profile not found');
 		}
-		const rows = await prisma.lesson.findMany({
-			where: { ...where, instructorId: profile.id },
-			include: lessonInclude,
-			orderBy: { startTime: 'asc' },
-		});
-		return {
-			items: rows.map((r) =>
-				mapLesson(r as LessonRow, {
-					includeInstructor: false,
-					includeStudent: true,
-				}),
-			),
-		};
+		const eventWhere = buildEventDateRangeWhere(
+			query.dateFrom,
+			query.dateTo,
+		);
+		const [rows, eventRows] = await Promise.all([
+			prisma.lesson.findMany({
+				where: { ...where, instructorId: profile.id },
+				include: lessonInclude,
+				orderBy: { startTime: 'asc' },
+			}),
+			prisma.instructorEvent.findMany({
+				where: { ...eventWhere, instructorId: profile.id },
+				include: eventInclude,
+				orderBy: { startTime: 'asc' },
+			}),
+		]);
+		const lessonItems = rows.map((r) =>
+			mapLesson(r as LessonRow, {
+				includeInstructor: false,
+				includeStudent: true,
+			}),
+		);
+		const eventItems = eventRows.map((r) =>
+			mapInstructorEvent(r as EventRow, {
+				includeInstructor: false,
+				includeStudents: true,
+			}),
+		);
+		return { items: mergeScheduleItems(lessonItems, eventItems) };
 	}
 
 	if (actor.role === Role.STUDENT) {
@@ -145,19 +313,38 @@ export async function getMySchedule(
 		if (!profile) {
 			throw AppError.notFound('Student profile not found');
 		}
-		const rows = await prisma.lesson.findMany({
-			where: { ...where, studentId: profile.id },
-			include: lessonInclude,
-			orderBy: { startTime: 'asc' },
-		});
-		return {
-			items: rows.map((r) =>
-				mapLesson(r as LessonRow, {
-					includeInstructor: true,
-					includeStudent: false,
-				}),
-			),
-		};
+		const eventWhere = buildEventDateRangeWhere(
+			query.dateFrom,
+			query.dateTo,
+		);
+		const [rows, eventRows] = await Promise.all([
+			prisma.lesson.findMany({
+				where: { ...where, studentId: profile.id },
+				include: lessonInclude,
+				orderBy: { startTime: 'asc' },
+			}),
+			prisma.instructorEvent.findMany({
+				where: {
+					...eventWhere,
+					participants: { some: { studentId: profile.id } },
+				},
+				include: eventInclude,
+				orderBy: { startTime: 'asc' },
+			}),
+		]);
+		const lessonItems = rows.map((r) =>
+			mapLesson(r as LessonRow, {
+				includeInstructor: true,
+				includeStudent: false,
+			}),
+		);
+		const eventItems = eventRows.map((r) =>
+			mapInstructorEvent(r as EventRow, {
+				includeInstructor: true,
+				includeStudents: false,
+			}),
+		);
+		return { items: mergeScheduleItems(lessonItems, eventItems) };
 	}
 
 	throw AppError.forbidden('Forbidden');
@@ -173,33 +360,62 @@ export async function getScheduleForTarget(
 
 	const where = buildDateRangeWhere(query.dateFrom, query.dateTo);
 
+	const eventWhere = buildEventDateRangeWhere(query.dateFrom, query.dateTo);
+
 	if (query.instructorId) {
-		const rows = await prisma.lesson.findMany({
-			where: { ...where, instructorId: query.instructorId },
-			include: lessonInclude,
-			orderBy: { startTime: 'asc' },
-		});
-		return {
-			items: rows.map((r) =>
-				mapLesson(r as LessonRow, {
-					includeInstructor: false,
-					includeStudent: true,
-				}),
-			),
-		};
+		const [rows, eventRows] = await Promise.all([
+			prisma.lesson.findMany({
+				where: { ...where, instructorId: query.instructorId },
+				include: lessonInclude,
+				orderBy: { startTime: 'asc' },
+			}),
+			prisma.instructorEvent.findMany({
+				where: { ...eventWhere, instructorId: query.instructorId },
+				include: eventInclude,
+				orderBy: { startTime: 'asc' },
+			}),
+		]);
+		const lessonItems = rows.map((r) =>
+			mapLesson(r as LessonRow, {
+				includeInstructor: false,
+				includeStudent: true,
+			}),
+		);
+		const eventItems = eventRows.map((r) =>
+			mapInstructorEvent(r as EventRow, {
+				includeInstructor: false,
+				includeStudents: true,
+			}),
+		);
+		return { items: mergeScheduleItems(lessonItems, eventItems) };
 	}
 
-	const rows = await prisma.lesson.findMany({
-		where: { ...where, studentId: query.studentId! },
-		include: lessonInclude,
-		orderBy: { startTime: 'asc' },
-	});
-	return {
-		items: rows.map((r) =>
-			mapLesson(r as LessonRow, {
-				includeInstructor: true,
-				includeStudent: false,
-			}),
-		),
-	};
+	const [rows, eventRows] = await Promise.all([
+		prisma.lesson.findMany({
+			where: { ...where, studentId: query.studentId! },
+			include: lessonInclude,
+			orderBy: { startTime: 'asc' },
+		}),
+		prisma.instructorEvent.findMany({
+			where: {
+				...eventWhere,
+				participants: { some: { studentId: query.studentId! } },
+			},
+			include: eventInclude,
+			orderBy: { startTime: 'asc' },
+		}),
+	]);
+	const lessonItems = rows.map((r) =>
+		mapLesson(r as LessonRow, {
+			includeInstructor: true,
+			includeStudent: false,
+		}),
+	);
+	const eventItems = eventRows.map((r) =>
+		mapInstructorEvent(r as EventRow, {
+			includeInstructor: true,
+			includeStudents: false,
+		}),
+	);
+	return { items: mergeScheduleItems(lessonItems, eventItems) };
 }

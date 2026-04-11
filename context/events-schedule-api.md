@@ -9,7 +9,7 @@ Montowanie w `src/server.ts`:
 
 - **`/events`** — bloki czasu instruktora (`InstructorEvent`); opcjonalnie limit miejsc (`capacity`) i przypisanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`)
 - **`/lessons`** — tworzenie lekcji (`Lesson`) — zob. [lessons-api.md](./lessons-api.md)
-- **`/schedule`** — lista **lekcji** (`Lesson`) w zadanym zakresie dat (terminarz osobisty lub podgląd przez MANAGER/ADMIN)
+- **`/schedule`** — **lekcje** (`Lesson`) oraz **eventy instruktora** (`InstructorEvent`) w zadanym zakresie dat, scalone i posortowane po `startTime` (terminarz osobisty lub podgląd przez MANAGER/ADMIN)
 
 Implementacja:
 
@@ -28,7 +28,7 @@ Model danych: `InstructorEvent`, `EventParticipant` (M:N kursant ↔ event), enu
 
 - **InstructorEvent** — blok czasu przypisany do `InstructorProfile`; typ `DRIVE` (wymaga `vehicleId`) lub `THEORY`; opcjonalne **`capacity`** (max liczba kursantów zapisanych przez `event_participants`; `null` = brak limitu w MVP); nie nachodzi na lekcje ani inne eventy tego instruktora; mieści się w dostępności (weekly + exceptions, urlopy itd. — jak w module availability).
 - **EventParticipant** — przypisanie **`StudentProfile.id`** do **`InstructorEvent.id`**; unikalność pary (event, student); przy dodawaniu listy kursantów sprawdzane są **capacity** (jeśli ustawione) oraz **konflikt czasowy** z innymi eventami, na które kursant jest już zapisany (nachodzące `startTime`/`endTime`).
-- **Schedule** w API zwraca wyłącznie **Lesson** (nie zwraca `InstructorEvent`); eventy wpływają na **obliczane wolne sloty** przez `instructor-availability.service`.
+- **Schedule** w API zwraca **Lesson** oraz **InstructorEvent** (pole `kind` rozróżnia wpisy); eventy wpływają także na **obliczane wolne sloty** przez `instructor-availability.service`.
 
 ---
 
@@ -149,12 +149,12 @@ Przypisanie **jednego lub wielu** kursantów do istniejącego eventu (`Instructo
 
 ## GET `/schedule/me`
 
-Lista lekcji zalogowanego użytkownika w zakresie dat.
+Lista pozycji terminarza zalogowanego użytkownika w zakresie dat: **lekcje** oraz **eventy instruktora**, w których uczestniczy (jako kursant) lub które prowadzi (jako instruktor).
 
 ### Uwierzytelnianie i autoryzacja
 
 - **`authMiddleware`** (każdy zalogowany).
-- **Dozwolone:** **STUDENT**, **INSTRUCTOR** — własne lekcje.
+- **Dozwolone:** **STUDENT**, **INSTRUCTOR** — własne lekcje oraz powiązane eventy (zapis / prowadzenie).
 - **MANAGER**, **ADMIN** — **403 Forbidden** (nie „własny” terminarz w tym endpoincie).
 
 ### Query
@@ -166,7 +166,12 @@ Lista lekcji zalogowanego użytkownika w zakresie dat.
 
 ### Odpowiedź (200)
 
-`data.items` — tablica lekcji, posortowana rosnąco po `startTime`.
+`data.items` — tablica **lekcji i eventów**, posortowana rosnąco po `startTime`. Każdy element ma pole **`kind`**:
+
+| `kind` | Znaczenie |
+|--------|-----------|
+| **`lesson`** | Lekcja (`Lesson`): `type` = `Lesson.lessonType` (**`THEORY`** \| **`PRACTICE`**), `status`, opcjonalnie `vehicle` |
+| **`instructor_event`** | Event (`InstructorEvent`): `eventType` i alias **`eventKind`** (to samo), dodatkowo **`type`** jak u lekcji (**`THEORY`** \| **`PRACTICE`** — DRIVE→PRACTICE), **`status`:** `SCHEDULED`, `capacity`, `participantCount`, opcjonalnie `vehicle` |
 
 ```json
 {
@@ -174,24 +179,39 @@ Lista lekcji zalogowanego użytkownika w zakresie dat.
   "data": {
     "items": [
       {
+        "kind": "lesson",
         "id": "<uuid>",
-        "type": "THEORY",
+        "type": "PRACTICE",
         "status": "SCHEDULED",
-        "startTime": "2026-04-01T10:00:00.000Z",
-        "endTime": "2026-04-01T11:00:00.000Z",
+        "startTime": "2026-04-01T09:00:00.000Z",
+        "endTime": "2026-04-01T10:00:00.000Z",
         "instructor": { "id": "<uuid>", "firstName": "...", "lastName": "..." },
         "student": { "id": "<uuid>", "firstName": "...", "lastName": "..." },
         "vehicle": { "id": "<uuid>", "name": "...", "registrationNumber": "..." }
+      },
+      {
+        "kind": "instructor_event",
+        "id": "<uuid>",
+        "eventType": "THEORY",
+        "eventKind": "THEORY",
+        "type": "THEORY",
+        "status": "SCHEDULED",
+        "startTime": "2026-04-01T10:00:00.000Z",
+        "endTime": "2026-04-01T11:30:00.000Z",
+        "capacity": 20,
+        "participantCount": 12,
+        "students": [
+          { "id": "<uuid>", "firstName": "...", "lastName": "..." }
+        ]
       }
     ]
   }
 }
 ```
 
-- Jako **STUDENT:** widoczny jest **`instructor`** (oraz opcjonalnie `vehicle`).
-- Jako **INSTRUCTOR:** widoczny jest **`student`** (oraz opcjonalnie `vehicle`).
-- `type` — wartość z `Lesson.lessonType` (**`THEORY`** \| **`PRACTICE`**).
-- Lekcje ze statusem **`CANCELLED`** są **wyklucane**.
+- **Lekcja (`kind: lesson`):** jako **STUDENT** — widoczny **`instructor`** (i opcjonalnie `vehicle`); jako **INSTRUCTOR** — widoczny **`student`** (i opcjonalnie `vehicle`).
+- **Event (`kind: instructor_event`):** jako **STUDENT** — widoczny **`instructor`** (i opcjonalnie `vehicle` dla `DRIVE`); **`students` nie jest zwracane**. Jako **INSTRUCTOR** — widoczna tablica **`students`**, bez `instructor`.
+- Lekcje ze statusem **`CANCELLED`** są **wykluczone**.
 
 ### Kody błędów
 
@@ -206,7 +226,7 @@ Lista lekcji zalogowanego użytkownika w zakresie dat.
 
 ## GET `/schedule`
 
-Terminarz lekcji **wybranego** instruktora lub studenta (podgląd dla biura).
+Terminarz **wybranego** instruktora lub studenta (podgląd dla biura): lekcje oraz eventy instruktora / eventy, na które zapisany jest kursant.
 
 ### Uwierzytelnianie i autoryzacja
 
@@ -225,12 +245,12 @@ Terminarz lekcji **wybranego** instruktora lub studenta (podgląd dla biura).
 
 ### Odpowiedź (200)
 
-Ten sam kształt co `GET /schedule/me`: `data.items`.
+Ten sam kształt co `GET /schedule/me`: `data.items` z **`kind`**: **`lesson`** \| **`instructor_event`** (jak wyżej).
 
-- Przy **`instructorId`:** w każdym elemencie widoczny **`student`** (oraz opcjonalnie `vehicle`).
-- Przy **`studentId`:** widoczny **`instructor`** (oraz opcjonalnie `vehicle`).
+- Przy **`instructorId`:** lekcje i eventy tego instruktora; dla **`kind: lesson`** widoczny **`student`**; dla **`kind: instructor_event`** widoczna tablica **`students`** (bez `instructor`).
+- Przy **`studentId`:** lekcje kursanta oraz eventy, na które jest zapisany; dla **`kind: lesson`** widoczny **`instructor`**; dla **`kind: instructor_event`** widoczny **`instructor`**, bez listy **`students`**.
 
-Filtrowanie: lekcje **nakładające się** na zakres `[dateFrom, dateTo]` (UTC), bez `CANCELLED`.
+Filtrowanie: lekcje **nakładające się** na zakres `[dateFrom, dateTo]` (UTC), bez `CANCELLED`; eventy — ten sam zakres czasu (nachodzące na przedział).
 
 ### Kody błędów
 
@@ -247,7 +267,7 @@ Filtrowanie: lekcje **nakładające się** na zakres `[dateFrom, dateTo]` (UTC),
 1. **POST /events:** MANAGER z OSK — DRIVE z `vehicleId` z tej szkoły → **201**; bez `vehicleId` przy DRIVE → **400**.
 2. **POST /events:** slot poza grafikiem / brak wolnego okna → **409** (`Slot outside instructor availability`).
 3. **POST /events:** nakładanie na istniejącą lekcję → **409**.
-4. **GET /schedule/me:** STUDENT z `dateFrom`/`dateTo` → **200**, `items` tylko jego lekcje.
+4. **GET /schedule/me:** STUDENT z `dateFrom`/`dateTo` → **200**, `items` — jego lekcje oraz eventy, na które jest zapisany (`kind` odpowiednio `lesson` / `instructor_event`).
 5. **GET /schedule/me:** ADMIN → **403**.
 6. **GET /schedule:** MANAGER + `instructorId` + zakres → **200**; `studentId` + zakres → **200**; `studentId` i `instructorId` razem → **400**.
 7. **POST /events/:id/students:** MANAGER, `studentIds` = `users.id`, capacity nieprzekroczone → **200** (`assigned` / `skipped`); duplikat w tablicy → **400**; drugi event w tym samym czasie dla kursanta → **409**.
