@@ -9,4 +9,5 @@ export {
 	instructorIdParamsSchema as availabilityInstructorIdParamsSchema,
 	putExceptionBodySchema,
 	putWeeklyBodySchema,
+	slotsQuerySchema,
 } from './instructor-availability.schemas';

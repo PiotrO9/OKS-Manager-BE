@@ -4,6 +4,7 @@ import {
 	deleteExceptionHandler,
 	deleteWeeklyDayHandler,
 	getExceptions,
+	getSlotsHandler,
 	getWeekly,
 	putExceptionHandler,
 	putWeeklyDay,
@@ -61,6 +62,13 @@ function createInstructorAvailabilityRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		asyncHandler(computeAvailabilityHandler),
+	);
+
+	router.get(
+		'/slots',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(getSlotsHandler),
 	);
 
 	return router;

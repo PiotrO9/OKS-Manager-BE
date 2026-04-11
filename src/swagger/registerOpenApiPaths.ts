@@ -39,6 +39,7 @@ import {
 	exceptionsQuerySchema,
 	putExceptionBodySchema,
 	putWeeklyBodySchema,
+	slotsQuerySchema,
 } from '../schemas/instructor-availability.openapi';
 import {
 	vehicleIdParamsSchema,
@@ -532,6 +533,21 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		},
 		responses: stdBearerResponses({
 			200: okDataUnknown('Wynik compute'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'get',
+		path: '/instructors/{instructorId}/availability/slots',
+		tags: ['Instructor availability'],
+		summary: 'Lista dostępnych slotów w zakresie dat (MANAGER)',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: availabilityInstructorIdParamsSchema,
+			query: slotsQuerySchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('Lista slotów'),
 		}),
 	});
 

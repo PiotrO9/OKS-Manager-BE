@@ -441,3 +441,172 @@ export async function computeAvailability(
 		})),
 	};
 }
+
+// ── Slots (range) ─────────────────────────────────────────────────────────────
+
+const SLOT_DURATION_MINUTES = 60;
+
+export type SlotDto = {
+	date: string;
+	startTime: string;
+	endTime: string;
+};
+
+function dateToYYYYMMDD(date: Date): string {
+	const y = date.getUTCFullYear();
+	const mo = String(date.getUTCMonth() + 1).padStart(2, '0');
+	const d = String(date.getUTCDate()).padStart(2, '0');
+	return `${y}-${mo}-${d}`;
+}
+
+function splitWindowIntoSlots(
+	window: TimeWindow,
+	slotDurationMinutes: number,
+): TimeWindow[] {
+	const slots: TimeWindow[] = [];
+	let cursor = window.start;
+
+	while (cursor + slotDurationMinutes <= window.end) {
+		slots.push({ start: cursor, end: cursor + slotDurationMinutes });
+		cursor += slotDurationMinutes;
+	}
+
+	return slots;
+}
+
+/**
+ * Free time windows for one UTC calendar day (leave / day off / no weekly → null).
+ */
+async function computeDayWindows(
+	instructorId: string,
+	date: Date,
+): Promise<TimeWindow[] | null> {
+	const leave = await prisma.instructorLeave.findFirst({
+		where: {
+			instructorId,
+			startDate: { lte: date },
+			endDate: { gte: date },
+		},
+		select: { id: true },
+	});
+
+	if (leave) return null;
+
+	const exception = await prisma.instructorWorkingHours.findUnique({
+		where: {
+			uq_instructor_working_hours_instructor_id_date: {
+				instructorId,
+				date,
+			},
+		},
+		select: { isDayOff: true, startTime: true, endTime: true },
+	});
+
+	let baseWindow: TimeWindow | null = null;
+
+	if (exception) {
+		if (exception.isDayOff) return null;
+		baseWindow = {
+			start: timeToMinutes(dbTimeToHHmm(exception.startTime!)),
+			end: timeToMinutes(dbTimeToHHmm(exception.endTime!)),
+		};
+	} else {
+		const dayOfWeek = date.getUTCDay();
+		const weekly = await prisma.instructorWorkingHoursDefault.findUnique({
+			where: {
+				uq_instructor_working_hours_default_instructor_id_day_of_week: {
+					instructorId,
+					dayOfWeek,
+				},
+			},
+			select: { startTime: true, endTime: true },
+		});
+
+		if (!weekly) return null;
+
+		baseWindow = {
+			start: timeToMinutes(dbTimeToHHmm(weekly.startTime)),
+			end: timeToMinutes(dbTimeToHHmm(weekly.endTime)),
+		};
+	}
+
+	const dayStart = date;
+	const dayEnd = new Date(
+		Date.UTC(
+			date.getUTCFullYear(),
+			date.getUTCMonth(),
+			date.getUTCDate() + 1,
+		),
+	);
+
+	const [timeBlocks, lessons] = await Promise.all([
+		prisma.instructorTimeBlock.findMany({
+			where: {
+				instructorId,
+				startTime: { gte: dayStart, lt: dayEnd },
+			},
+			select: { startTime: true, endTime: true },
+		}),
+		prisma.lesson.findMany({
+			where: {
+				instructorId,
+				startTime: { gte: dayStart, lt: dayEnd },
+				status: { not: LessonStatus.CANCELLED },
+			},
+			select: { startTime: true, endTime: true },
+		}),
+	]);
+
+	const usedWindows: TimeWindow[] = [
+		...timeBlocks.map((b) => ({
+			start: b.startTime.getUTCHours() * 60 + b.startTime.getUTCMinutes(),
+			end: b.endTime.getUTCHours() * 60 + b.endTime.getUTCMinutes(),
+		})),
+		...lessons.map((l) => ({
+			start: l.startTime.getUTCHours() * 60 + l.startTime.getUTCMinutes(),
+			end: l.endTime.getUTCHours() * 60 + l.endTime.getUTCMinutes(),
+		})),
+	];
+
+	return subtractWindows(baseWindow, usedWindows);
+}
+
+export async function generateSlots(
+	actor: Actor,
+	instructorId: string,
+	dateFrom: string,
+	dateTo: string,
+): Promise<SlotDto[]> {
+	await assertActorCanManageAvailability(actor, instructorId);
+	await resolveActiveInstructorProfile(instructorId);
+
+	const from = yyyymmddToDate(dateFrom);
+	const to = yyyymmddToDate(dateTo);
+	const slots: SlotDto[] = [];
+
+	const current = new Date(from);
+	while (current.getTime() <= to.getTime()) {
+		const freeWindows = await computeDayWindows(instructorId, current);
+		const dateStr = dateToYYYYMMDD(current);
+
+		if (freeWindows !== null) {
+			for (const window of freeWindows) {
+				const daySlots = splitWindowIntoSlots(
+					window,
+					SLOT_DURATION_MINUTES,
+				);
+				for (const slot of daySlots) {
+					slots.push({
+						date: dateStr,
+						startTime: minutesToHHmm(slot.start),
+						endTime: minutesToHHmm(slot.end),
+					});
+				}
+			}
+		}
+
+		current.setUTCDate(current.getUTCDate() + 1);
+	}
+
+	return slots;
+}

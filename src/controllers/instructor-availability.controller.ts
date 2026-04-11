@@ -10,11 +10,13 @@ import {
 	instructorIdParamsSchema,
 	parsePutExceptionBody,
 	parsePutWeeklyBody,
+	slotsQuerySchema,
 } from '../schemas/instructor-availability.schemas';
 import {
 	computeAvailability,
 	deleteException,
 	deleteWeeklyDay,
+	generateSlots,
 	getWeeklyAvailability,
 	listExceptions,
 	upsertException,
@@ -168,11 +170,40 @@ async function computeAvailabilityHandler(req: Request, res: Response) {
 	return sendJsonSuccess(res, data);
 }
 
+// ── Slots ─────────────────────────────────────────────────────────────────────
+
+async function getSlotsHandler(req: Request, res: Response) {
+	const actor = requireUser(req);
+
+	const params = instructorIdParamsSchema.safeParse(req.params);
+	if (!params.success) {
+		throw AppError.badRequest(
+			params.error.issues[0]?.message ?? 'Invalid params',
+		);
+	}
+
+	const query = slotsQuerySchema.safeParse(req.query);
+	if (!query.success) {
+		throw AppError.badRequest(
+			query.error.issues[0]?.message ?? 'Invalid query',
+		);
+	}
+
+	const data = await generateSlots(
+		actor,
+		params.data.instructorId,
+		query.data.dateFrom,
+		query.data.dateTo,
+	);
+	return sendJsonSuccess(res, { slots: data });
+}
+
 export {
 	computeAvailabilityHandler,
 	deleteExceptionHandler,
 	deleteWeeklyDayHandler,
 	getExceptions,
+	getSlotsHandler,
 	getWeekly,
 	putExceptionHandler,
 	putWeeklyDay,

@@ -220,13 +220,76 @@ Implementacja:
 
 Możliwe wartości `reason`: `"leave"` | `"day_off"` | `"no_schedule"`
 
+## Trasa — wygenerowane sloty (zakres dat)
+
+| Metoda | Ścieżka | Opis |
+|--------|---------|------|
+| GET | `/instructors/:instructorId/availability/slots?dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD` | Lista **dostępnych** slotów czasowych dla instruktora w podanym zakresie kalendarzowym. |
+
+### Czym jest „slot”
+
+- Slot to przedział czasu o **stałej długości** (MVP: **60 minut**), wyliczany **wyłącznie w pamięci** — **nie** jest zapisywany w bazie.
+- Wynik to siatka slotów w obrębie wolnych okien po zastosowaniu tej samej logiki co przy `GET /compute` (patrz niżej), z tą różnicą że wolne okna są **dzielone** na kolejne sloty o długości 60 min (np. okno 08:00–12:00 → sloty 08:00–09:00, 09:00–10:00, 10:00–11:00, 11:00–12:00).
+- Slot jest **odrzucany w całości**, jeśli choć częściowo nachodzi na zajęty czas (`Lesson` lub `InstructorTimeBlock`) — bo wolne fragmenty powstają po **odjęciu** bloków od bazy dnia (tak jak w `/compute`).
+
+### Query — walidacja
+
+| Parametr | Wymagane | Opis |
+|----------|----------|------|
+| `dateFrom` | tak | Początek zakresu, `YYYY-MM-DD` (UTC / data kalendarzowa). |
+| `dateTo` | tak | Koniec zakresu, `YYYY-MM-DD` (włącznie). |
+
+**Reguły:**
+
+- `dateFrom` musi być **≤** `dateTo` (lexykograficznie / kalendarzowo).
+- Liczba dni **włącznie** (`dateFrom` … `dateTo`) nie może przekraczać **30** — inaczej **400** (komunikat w polu `dateTo`).
+- Nieprawidłowy format daty → **400**.
+
+### Algorytm (wysoki poziom)
+
+Dla **każdego dnia** w zakresie (iteracja po UTC):
+
+1. Ta sama kolejność co przy `/compute`: urlop (`InstructorLeave`) → wyjątek dnia (`InstructorWorkingHours`) → szablon tygodniowy (`InstructorWorkingHoursDefault`).
+2. Dzień bez dostępności (urlop, dzień wolny, brak wpisu tygodniowego) → **brak slotów** na ten dzień.
+3. Z ustalonego „dnia pracy” odejmij nakładające się `InstructorTimeBlock` oraz `Lesson` ze statusem innym niż `CANCELLED` → powstają **wolne okna** (ciągłe przedziały).
+4. Każde wolne okno **tnij** na sloty **60 min**; reszta krótsza niż 60 min na końcu okna jest **pomijana** (MVP).
+
+**Strefa czasu:** godziny w DB (`@db.Time`) i porównania są spójne z resztą modułu (UTC w warstwie aplikacji — patrz implementacja serwisu).
+
+### GET `/slots` — odpowiedź (200)
+
+```json
+{
+  "success": true,
+  "data": {
+    "slots": [
+      { "date": "2026-04-14", "startTime": "08:00", "endTime": "09:00" },
+      { "date": "2026-04-14", "startTime": "11:00", "endTime": "12:00" },
+      { "date": "2026-04-15", "startTime": "08:00", "endTime": "09:00" }
+    ]
+  }
+}
+```
+
+| Pole w elemencie `slots` | Typ | Znaczenie |
+|----------------------------|-----|-----------|
+| `date` | string | Dzień kalendarzowy `YYYY-MM-DD`. |
+| `startTime` | string | Początek slotu `HH:mm`. |
+| `endTime` | string | Koniec slotu `HH:mm` (start + 60 min w MVP). |
+
+Pusta tablica `slots` jest poprawna (np. brak grafiku lub cały zakres zajęty / poza dostępnością).
+
+### OpenAPI
+
+Ścieżka zarejestrowana w `src/swagger/registerOpenApiPaths.ts` (tag **Instructor availability**); schemat query: `slotsQuerySchema` w `src/schemas/instructor-availability.schemas.ts`.
+
 ## Kody błędów (wszystkie trasy availability)
 
 | Kod | Sytuacja |
 |-----|----------|
 | **401** | Brak / niepoprawny JWT |
 | **403** | Rola poniżej MANAGER; MANAGER bez powiązania instruktora z własną OSK |
-| **400** | Niepoprawny UUID `instructorId`; niepoprawny `dayOfWeek` (poza 0–6); niepoprawny format daty; brak wymaganych pól body; `startTime >= endTime`; `isDayOff = false` bez godzin; `from > to` w query |
+| **400** | Niepoprawny UUID `instructorId`; niepoprawny `dayOfWeek` (poza 0–6); niepoprawny format daty; brak wymaganych pól body; `startTime >= endTime`; `isDayOff = false` bez godzin; `from > to` w query wyjątków; przy **slots**: brak `dateFrom` / `dateTo`; `dateFrom > dateTo`; zakres **> 30 dni** (włącznie) |
 | **404** | Instruktor nie istnieje lub nie jest aktywny; brak wpisu przy DELETE |
 
 ## Checklist smoke — availability (ręczna)
@@ -243,3 +306,7 @@ Możliwe wartości `reason`: `"leave"` | `"day_off"` | `"no_schedule"`
 10. **GET /compute?date=2026-05-01** (dzień z `isDayOff: true`) → `{ available: false, reason: "day_off" }`.
 11. **GET /compute?date=2026-05-10** (exception z godzinami, bez bloków) → `{ available: true, windows: [{ start: "09:00", end: "13:00" }] }`.
 12. **GET /weekly** MANAGER instruktora z innej OSK → **403**.
+13. **GET /slots?dateFrom=2026-04-14&dateTo=2026-04-15** — **200**, `data.slots` to tablica slotów 60 min (lub pusta), każdy element ma `date`, `startTime`, `endTime`.
+14. **GET /slots** bez `dateFrom` lub `dateTo` → **400**.
+15. **GET /slots?dateFrom=2026-04-15&dateTo=2026-04-14** → **400** (`dateFrom` po `dateTo`).
+16. **GET /slots** z zakresem **31 dni kalendarzowych** (włącznie) → **400** (limit 30 dni).
