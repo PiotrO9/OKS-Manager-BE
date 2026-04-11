@@ -40,6 +40,10 @@ export function getOpenApiSpec(): Record<string, unknown> {
 			{ name: 'Vehicles', description: 'Pojazdy' },
 			{ name: 'Courses', description: 'Kursy' },
 			{ name: 'Course types', description: 'Typy kursów' },
+			{
+				name: 'Events',
+				description: 'Wydarzenia instruktora (bloki czasu, MANAGER)',
+			},
 		],
 	}) as unknown as Record<string, unknown>;
 }

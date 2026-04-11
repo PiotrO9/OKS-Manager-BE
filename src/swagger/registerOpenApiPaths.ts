@@ -26,6 +26,7 @@ import {
 	createCourseBodySchema,
 	patchCourseBodySchema,
 } from '../schemas/course.schemas';
+import { createInstructorEventBodySchema } from '../schemas/event.schemas';
 import {
 	createDrivingSchoolBodySchema,
 	setDefaultVehicleBodySchema,
@@ -855,6 +856,28 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		},
 		responses: stdBearerResponses({
 			200: okDataUnknown('OK'),
+		}),
+	});
+
+	// ── Events ────────────────────────────────────────────────────────────────
+	registry.registerPath({
+		method: 'post',
+		path: '/events',
+		tags: ['Events'],
+		summary: 'Tworzenie wydarzenia instruktora (MANAGER)',
+		security: [{ bearerAuth: [] }],
+		request: {
+			body: {
+				content: {
+					'application/json': {
+						schema: createInstructorEventBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			201: okDataUnknown('Utworzone wydarzenie (data.event)'),
+			409: clientError('Konflikt czasu, grafiku lub pojazdu'),
 		}),
 	});
 

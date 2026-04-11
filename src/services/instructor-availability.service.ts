@@ -1,4 +1,4 @@
-import { LessonStatus, Prisma, Role } from '@prisma/client';
+import { LessonStatus, Prisma, PrismaClient, Role } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
 import type {
@@ -7,6 +7,9 @@ import type {
 } from '../schemas/instructor-availability.schemas';
 
 const prisma = getPrisma();
+
+/** Prisma client or interactive transaction client for availability reads. */
+export type AvailabilityDbClient = PrismaClient | Prisma.TransactionClient;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -491,8 +494,9 @@ function splitWindowIntoSlots(
 export async function computeDayWindows(
 	instructorId: string,
 	date: Date,
+	db: AvailabilityDbClient = prisma,
 ): Promise<TimeWindow[] | null> {
-	const leave = await prisma.instructorLeave.findFirst({
+	const leave = await db.instructorLeave.findFirst({
 		where: {
 			instructorId,
 			startDate: { lte: date },
@@ -503,7 +507,7 @@ export async function computeDayWindows(
 
 	if (leave) return null;
 
-	const exception = await prisma.instructorWorkingHours.findUnique({
+	const exception = await db.instructorWorkingHours.findUnique({
 		where: {
 			uq_instructor_working_hours_instructor_id_date: {
 				instructorId,
@@ -523,7 +527,7 @@ export async function computeDayWindows(
 		};
 	} else {
 		const dayOfWeek = date.getUTCDay();
-		const weekly = await prisma.instructorWorkingHoursDefault.findUnique({
+		const weekly = await db.instructorWorkingHoursDefault.findUnique({
 			where: {
 				uq_instructor_working_hours_default_instructor_id_day_of_week: {
 					instructorId,
@@ -551,14 +555,14 @@ export async function computeDayWindows(
 	);
 
 	const [timeBlocks, lessons, instructorEvents] = await Promise.all([
-		prisma.instructorTimeBlock.findMany({
+		db.instructorTimeBlock.findMany({
 			where: {
 				instructorId,
 				startTime: { gte: dayStart, lt: dayEnd },
 			},
 			select: { startTime: true, endTime: true },
 		}),
-		prisma.lesson.findMany({
+		db.lesson.findMany({
 			where: {
 				instructorId,
 				startTime: { gte: dayStart, lt: dayEnd },
@@ -566,7 +570,7 @@ export async function computeDayWindows(
 			},
 			select: { startTime: true, endTime: true },
 		}),
-		prisma.instructorEvent.findMany({
+		db.instructorEvent.findMany({
 			where: {
 				instructorId,
 				startTime: { gte: dayStart, lt: dayEnd },
@@ -600,6 +604,7 @@ export async function assertInstructorTimeWindowAvailable(
 	instructorId: string,
 	startTime: Date,
 	endTime: Date,
+	db: AvailabilityDbClient = prisma,
 ): Promise<void> {
 	if (startTime.getTime() >= endTime.getTime()) {
 		throw AppError.badRequest('startTime must be before endTime');
@@ -620,15 +625,15 @@ export async function assertInstructorTimeWindowAvailable(
 			startTime.getUTCDate(),
 		),
 	);
-	const free = await computeDayWindows(instructorId, date);
+	const free = await computeDayWindows(instructorId, date, db);
 	if (free === null) {
-		throw AppError.badRequest('Instructor is not available at this time');
+		throw AppError.conflict('Slot outside instructor availability');
 	}
 	const reqStart = startTime.getUTCHours() * 60 + startTime.getUTCMinutes();
 	const reqEnd = endTime.getUTCHours() * 60 + endTime.getUTCMinutes();
 	const ok = free.some((w) => reqStart >= w.start && reqEnd <= w.end);
 	if (!ok) {
-		throw AppError.badRequest('Instructor is not available at this time');
+		throw AppError.conflict('Slot outside instructor availability');
 	}
 }
 

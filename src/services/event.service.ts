@@ -61,11 +61,11 @@ export async function createInstructorEvent(
 		await validateVehicleForInstructor(instructorId, vehicleId);
 	}
 
-	await assertInstructorTimeWindowAvailable(instructorId, start, end);
-
 	const resolvedVehicleId = type === EventType.DRIVE ? vehicleId! : null;
 
 	const row = await prisma.$transaction(async (tx) => {
+		await assertInstructorTimeWindowAvailable(instructorId, start, end, tx);
+
 		const lessonConflict = await tx.lesson.findFirst({
 			where: {
 				instructorId,

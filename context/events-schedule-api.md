@@ -16,7 +16,7 @@ Implementacja:
 |--------|--------|
 | Eventy | `src/routes/events.routes.ts`, `src/controllers/event.controller.ts`, `src/services/event.service.ts`, `src/schemas/event.schemas.ts` |
 | Terminarz | `src/routes/schedule.routes.ts`, `src/controllers/schedule.controller.ts`, `src/services/schedule.service.ts`, `src/schemas/schedule.schemas.ts` |
-| Dostępność (sloty, walidacja okna czasu) | `src/services/instructor-availability.service.ts` (`assertInstructorTimeWindowAvailable`, `computeDayWindows` z uwzględnieniem `instructor_events`) |
+| Dostępność (sloty, walidacja okna czasu) | `src/services/instructor-availability.service.ts` (`assertInstructorTimeWindowAvailable`, `computeDayWindows` z uwzględnieniem `instructor_events`; przy tworzeniu eventu odczyty availability idą **tym samym** `tx` co konflikty i `create` w `event.service.ts`) |
 
 Model danych: `InstructorEvent`, enum `EventType` — zob. [database.md](./database.md).
 
@@ -76,9 +76,11 @@ Tworzenie eventu instruktora.
 |-----|----------|
 | **401** | Brak / niepoprawny JWT |
 | **403** | Rola poniżej MANAGER; MANAGER bez powiązania instruktora z własną OSK |
-| **400** | Niepoprawne body (UUID, daty, brak `vehicleId` dla DRIVE, `startTime` ≥ `endTime`, okno poza dostępnością / inne walidacje serwisu) |
+| **400** | Niepoprawne body (UUID, daty, brak `vehicleId` dla DRIVE, `startTime` ≥ `endTime`, start i koniec **nie** w jednej dobie UTC, inne walidacje wejścia / serwisu poza konfliktem grafiku) |
 | **404** | Instruktor nie znaleziony lub nieaktywny; pojazd nie znaleziony (DRIVE) |
-| **409** | Nakładanie z lekcją lub innym eventem; dla DRIVE — pojazd zajęty (lekcja lub inny event DRIVE na tym pojeździe) |
+| **409** | Okno **nie mieści się** w wolnym fragmencie grafiku (weekly, wyjątki, urlop, zajęte sloty — komunikat m.in. `Slot outside instructor availability`); nakładanie z lekcją lub innym eventem; dla DRIVE — pojazd zajęty (lekcja lub inny event DRIVE na tym pojeździe) |
+
+**Breaking (klienci):** wcześniej część przypadków „poza dostępnością” mogła być zwracana jako **400**; obecnie konflikt ze **stanem grafiku** dla tej reguły to **409** (jak pozostałe konflikty czasu).
 
 ---
 
@@ -180,7 +182,8 @@ Filtrowanie: lekcje **nakładające się** na zakres `[dateFrom, dateTo]` (UTC),
 ## Checklist smoke (ręczna)
 
 1. **POST /events:** MANAGER z OSK — DRIVE z `vehicleId` z tej szkoły → **201**; bez `vehicleId` przy DRIVE → **400**.
-2. **POST /events:** nakładanie na istniejącą lekcję → **409**.
-3. **GET /schedule/me:** STUDENT z `dateFrom`/`dateTo` → **200**, `items` tylko jego lekcje.
-4. **GET /schedule/me:** ADMIN → **403**.
-5. **GET /schedule:** MANAGER + `instructorId` + zakres → **200**; `studentId` + zakres → **200**; `studentId` i `instructorId` razem → **400**.
+2. **POST /events:** slot poza grafikiem / brak wolnego okna → **409** (`Slot outside instructor availability`).
+3. **POST /events:** nakładanie na istniejącą lekcję → **409**.
+4. **GET /schedule/me:** STUDENT z `dateFrom`/`dateTo` → **200**, `items` tylko jego lekcje.
+5. **GET /schedule/me:** ADMIN → **403**.
+6. **GET /schedule:** MANAGER + `instructorId` + zakres → **200**; `studentId` + zakres → **200**; `studentId` i `instructorId` razem → **400**.

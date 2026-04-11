@@ -41,7 +41,7 @@ src/swagger/
    - `method`, `path` (notacja OpenAPI: `{id}`, nie `:id`),
    - `request`: `params` / `query` / `body` — **importuj te same** `z.object(...)` / eksporty z `schemas/*.ts` lub `lib/validation/uuid.ts`, które passesz w `safeParse` w kontrolerze.
    - `responses`: dla większości tras używane są uogólnione koperty sukcesu/błędu; szczegóły pól w `data` są w `context/*-api.md` i w kodzie serwisu.
-3. `tags` i `summary` utrzymuj spójnie z domeną (Auth, Courses, …).
+3. `tags` i `summary` utrzymuj spójnie z domeną (Auth, Courses, **Events** dla `POST /events`, …); pełny kontrakt `POST /events`: [events-schedule-api.md](./events-schedule-api.md).
 
 ## Uwierzytelnianie w specyfikacji
 

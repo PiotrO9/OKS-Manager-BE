@@ -42,3 +42,7 @@ Instructor:
 **InstructorEvent** (`instructor_events`): blok czasu przypisany do instruktora; enum **`EventType`**: **`DRIVE`** (opcjonalnie `vehicle_id`) | **`THEORY`**; używany w kalendarzu do blokowania slotów obok lekcji i time blocków. API: [events-schedule-api.md](./events-schedule-api.md).
 
 Calendar is computed dynamically.
+
+## Prisma Client po `npm install`
+
+Skrypt **`postinstall`** w `package.json` uruchamia `prisma generate` — klient jest generowany po instalacji zależności (bez ręcznego kroku).
