@@ -192,6 +192,7 @@ model StudentProfile {
   courseParticipants CourseParticipant[]
   lessons       Lesson[]            @relation("StudentLessons")
   lessonRatings LessonRating[]      @relation("StudentLessonRatings")
+  eventParticipants EventParticipant[]
 
   @@map("student_profiles")
 }
@@ -385,14 +386,30 @@ model InstructorEvent {
   startTime    DateTime  @map("start_time")
   endTime      DateTime  @map("end_time")
   vehicleId    String?   @db.Uuid @map("vehicle_id")
+  capacity     Int?      @map("capacity")
   createdAt    DateTime  @default(now()) @map("created_at")
 
   instructor   InstructorProfile @relation("InstructorEvents", fields: [instructorId], references: [id], onDelete: Cascade)
   vehicle      Vehicle?          @relation("VehicleEvents", fields: [vehicleId], references: [id], onDelete: SetNull)
+  participants EventParticipant[]
 
   @@index([instructorId, startTime], name: "idx_instructor_events_instructor_id_start_time")
   @@index([vehicleId, startTime], name: "idx_instructor_events_vehicle_id_start_time")
   @@map("instructor_events")
+}
+
+model EventParticipant {
+  id        String   @id @default(uuid()) @db.Uuid @map("id")
+  eventId   String   @db.Uuid @map("event_id")
+  studentId String   @db.Uuid @map("student_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  event   InstructorEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  student StudentProfile  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, studentId], name: "uq_event_participants_event_student")
+  @@index([studentId], name: "idx_event_participants_student_id")
+  @@map("event_participants")
 }
 
 model PaymentPlan {

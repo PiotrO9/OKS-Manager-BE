@@ -2,7 +2,10 @@ import { EventType, LessonStatus, Role } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { validateVehicleForInstructor } from '../lib/vehicle.helpers';
 import { getPrisma } from '../lib/prisma';
-import type { CreateInstructorEventBody } from '../schemas/event.schemas';
+import type {
+	AssignStudentsBody,
+	CreateInstructorEventBody,
+} from '../schemas/event.schemas';
 import {
 	assertActorCanManageAvailability,
 	assertInstructorTimeWindowAvailable,
@@ -18,14 +21,21 @@ export type InstructorEventDto = {
 	startTime: string;
 	endTime: string;
 	vehicleId: string | null;
+	capacity: number | null;
 	createdAt: string;
+};
+
+export type AssignStudentsToEventResult = {
+	assigned: number;
+	skipped: number;
 };
 
 export async function createInstructorEvent(
 	actor: { id: string; role: Role },
 	body: CreateInstructorEventBody,
 ): Promise<{ event: InstructorEventDto }> {
-	const { instructorId, type, startTime, endTime, vehicleId } = body;
+	const { instructorId, type, startTime, endTime, vehicleId, capacity } =
+		body;
 
 	await assertActorCanManageAvailability(actor, instructorId);
 	await resolveActiveInstructorProfile(instructorId);
@@ -107,6 +117,7 @@ export async function createInstructorEvent(
 				startTime: start,
 				endTime: end,
 				vehicleId: resolvedVehicleId,
+				capacity: capacity ?? null,
 			},
 			select: {
 				id: true,
@@ -115,6 +126,7 @@ export async function createInstructorEvent(
 				startTime: true,
 				endTime: true,
 				vehicleId: true,
+				capacity: true,
 				createdAt: true,
 			},
 		});
@@ -128,7 +140,129 @@ export async function createInstructorEvent(
 			startTime: row.startTime.toISOString(),
 			endTime: row.endTime.toISOString(),
 			vehicleId: row.vehicleId,
+			capacity: row.capacity,
 			createdAt: row.createdAt.toISOString(),
 		},
 	};
+}
+
+export async function assignStudentsToEvent(
+	actor: { id: string; role: Role },
+	eventId: string,
+	body: AssignStudentsBody,
+): Promise<AssignStudentsToEventResult> {
+	const uniqueIds = [...new Set(body.studentIds)];
+	if (uniqueIds.length !== body.studentIds.length) {
+		throw AppError.badRequest('Duplicate studentIds in request');
+	}
+
+	const event = await prisma.instructorEvent.findUnique({
+		where: { id: eventId },
+		select: {
+			id: true,
+			instructorId: true,
+			startTime: true,
+			endTime: true,
+			capacity: true,
+		},
+	});
+
+	if (!event) {
+		throw AppError.notFound('Event not found');
+	}
+
+	await assertActorCanManageAvailability(actor, event.instructorId);
+
+	const users = await prisma.user.findMany({
+		where: { id: { in: uniqueIds } },
+		select: {
+			id: true,
+			role: true,
+			deletedAt: true,
+			studentProfile: { select: { id: true } },
+		},
+	});
+
+	if (users.length !== uniqueIds.length) {
+		throw AppError.notFound('One or more students not found');
+	}
+
+	const userIdToProfileId = new Map<string, string>();
+	for (const u of users) {
+		if (
+			u.deletedAt !== null ||
+			u.role !== Role.STUDENT ||
+			!u.studentProfile
+		) {
+			throw AppError.notFound('One or more students not found');
+		}
+		userIdToProfileId.set(u.id, u.studentProfile.id);
+	}
+
+	const profileIdsOrdered = uniqueIds.map((uid) => {
+		const pid = userIdToProfileId.get(uid);
+		if (!pid) {
+			throw AppError.notFound('One or more students not found');
+		}
+		return pid;
+	});
+
+	const start = event.startTime;
+	const end = event.endTime;
+
+	return prisma.$transaction(async (tx) => {
+		const existing = await tx.eventParticipant.findMany({
+			where: { eventId },
+			select: { studentId: true },
+		});
+		const existingSet = new Set(existing.map((e) => e.studentId));
+
+		let skipped = 0;
+		const newProfileIds: string[] = [];
+		for (const pid of profileIdsOrdered) {
+			if (existingSet.has(pid)) {
+				skipped += 1;
+			} else {
+				newProfileIds.push(pid);
+			}
+		}
+
+		const currentCount = existing.length;
+		if (
+			event.capacity != null &&
+			currentCount + newProfileIds.length > event.capacity
+		) {
+			throw AppError.conflict('Event capacity would be exceeded');
+		}
+
+		for (const studentId of newProfileIds) {
+			const conflict = await tx.eventParticipant.findFirst({
+				where: {
+					studentId,
+					eventId: { not: eventId },
+					event: {
+						startTime: { lt: end },
+						endTime: { gt: start },
+					},
+				},
+				select: { id: true },
+			});
+			if (conflict) {
+				throw AppError.conflict(
+					'Student has a conflicting scheduled event',
+				);
+			}
+		}
+
+		if (newProfileIds.length > 0) {
+			await tx.eventParticipant.createMany({
+				data: newProfileIds.map((studentId) => ({
+					eventId,
+					studentId,
+				})),
+			});
+		}
+
+		return { assigned: newProfileIds.length, skipped };
+	});
 }

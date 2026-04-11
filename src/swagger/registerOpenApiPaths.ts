@@ -9,6 +9,7 @@ import {
 	assignStudentDrivingSchoolBodySchema,
 	assignStudentToCourseBodySchema,
 	courseIdParamsSchema,
+	eventIdParamsSchema,
 	drivingSchoolIdParamsSchema,
 	instructorIdParamsSchema,
 	listStudentsQuerySchema,
@@ -26,7 +27,10 @@ import {
 	createCourseBodySchema,
 	patchCourseBodySchema,
 } from '../schemas/course.schemas';
-import { createInstructorEventBodySchema } from '../schemas/event.schemas';
+import {
+	assignStudentsBodySchema,
+	createInstructorEventBodySchema,
+} from '../schemas/event.schemas';
 import { bookLessonBodySchema } from '../schemas/lesson.schemas';
 import {
 	createDrivingSchoolBodySchema,
@@ -900,8 +904,36 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 			},
 		},
 		responses: stdBearerResponses({
-			201: okDataUnknown('Utworzone wydarzenie (data.event)'),
+			201: okDataUnknown(
+				'Utworzone wydarzenie (data.event, pola m.in. capacity)',
+			),
 			409: clientError('Konflikt czasu, grafiku lub pojazdu'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'post',
+		path: '/events/{id}/students',
+		tags: ['Events'],
+		summary: 'Przypisanie kursantów do wydarzenia (MANAGER)',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: eventIdParamsSchema,
+			body: {
+				content: {
+					'application/json': {
+						schema: assignStudentsBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown(
+				'Liczba przypisanych i pominiętych (data.assigned, data.skipped)',
+			),
+			409: clientError(
+				'Przekroczono capacity lub konflikt czasowy kursanta',
+			),
 		}),
 	});
 

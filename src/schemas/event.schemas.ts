@@ -12,6 +12,11 @@ export const createInstructorEventBodySchema = z
 			.string()
 			.regex(UUID_PARAM_RE, 'Invalid vehicleId')
 			.optional(),
+		capacity: z
+			.number()
+			.int('capacity must be an integer')
+			.min(0, 'capacity must be >= 0')
+			.optional(),
 	})
 	.superRefine((data, ctx) => {
 		const start = new Date(data.startTime);
@@ -42,6 +47,28 @@ export function parseCreateInstructorEventBody(
 	| { ok: true; data: CreateInstructorEventBody }
 	| { ok: false; error: string } {
 	const parsed = createInstructorEventBodySchema.safeParse(body);
+	if (!parsed.success) {
+		return {
+			ok: false,
+			error: parsed.error.issues[0]?.message ?? 'Invalid body',
+		};
+	}
+	return { ok: true, data: parsed.data };
+}
+
+export const assignStudentsBodySchema = z.object({
+	studentIds: z
+		.array(z.string().regex(UUID_PARAM_RE, 'Invalid studentId'))
+		.min(1, 'studentIds must not be empty')
+		.max(50, 'studentIds must not exceed 50 entries'),
+});
+
+export type AssignStudentsBody = z.infer<typeof assignStudentsBodySchema>;
+
+export function parseAssignStudentsBody(
+	body: unknown,
+): { ok: true; data: AssignStudentsBody } | { ok: false; error: string } {
+	const parsed = assignStudentsBodySchema.safeParse(body);
 	if (!parsed.success) {
 		return {
 			ok: false,
