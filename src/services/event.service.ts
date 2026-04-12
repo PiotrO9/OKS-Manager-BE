@@ -147,6 +147,44 @@ export async function createInstructorEvent(
 	};
 }
 
+export async function getInstructorEventById(
+	actor: { id: string; role: Role },
+	eventId: string,
+): Promise<{ event: InstructorEventDto }> {
+	const row = await prisma.instructorEvent.findUnique({
+		where: { id: eventId },
+		select: {
+			id: true,
+			instructorId: true,
+			type: true,
+			startTime: true,
+			endTime: true,
+			vehicleId: true,
+			capacity: true,
+			createdAt: true,
+		},
+	});
+
+	if (!row) {
+		throw AppError.notFound('Event not found');
+	}
+
+	await assertActorCanManageAvailability(actor, row.instructorId);
+
+	return {
+		event: {
+			id: row.id,
+			instructorId: row.instructorId,
+			type: row.type,
+			startTime: row.startTime.toISOString(),
+			endTime: row.endTime.toISOString(),
+			vehicleId: row.vehicleId,
+			capacity: row.capacity,
+			createdAt: row.createdAt.toISOString(),
+		},
+	};
+}
+
 export async function updateInstructorEvent(
 	actor: { id: string; role: Role },
 	eventId: string,

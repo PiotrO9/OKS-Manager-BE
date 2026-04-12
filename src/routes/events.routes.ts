@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+	getEventHandler,
 	patchEventHandler,
 	postEventHandler,
 	postEventStudentsHandler,
@@ -15,6 +16,13 @@ function createEventsRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		asyncHandler(postEventHandler),
+	);
+
+	router.get(
+		'/:id',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(getEventHandler),
 	);
 
 	router.patch(

@@ -11,6 +11,7 @@ import {
 import {
 	assignStudentsToEvent,
 	createInstructorEvent,
+	getInstructorEventById,
 	updateInstructorEvent,
 } from '../services/event.service';
 
@@ -46,6 +47,19 @@ async function postEventStudentsHandler(req: Request, res: Response) {
 	return sendJsonSuccess(res, data, 200);
 }
 
+async function getEventHandler(req: Request, res: Response) {
+	const user = requireUser(req);
+	const paramsParsed = eventIdParamsSchema.safeParse(req.params);
+	if (!paramsParsed.success) {
+		throw AppError.badRequest(
+			paramsParsed.error.issues[0]?.message ?? 'Invalid params',
+		);
+	}
+
+	const data = await getInstructorEventById(user, paramsParsed.data.id);
+	return sendJsonSuccess(res, data, 200);
+}
+
 async function patchEventHandler(req: Request, res: Response) {
 	const user = requireUser(req);
 	const paramsParsed = eventIdParamsSchema.safeParse(req.params);
@@ -67,4 +81,9 @@ async function patchEventHandler(req: Request, res: Response) {
 	return sendJsonSuccess(res, data, 200);
 }
 
-export { patchEventHandler, postEventHandler, postEventStudentsHandler };
+export {
+	getEventHandler,
+	patchEventHandler,
+	postEventHandler,
+	postEventStudentsHandler,
+};
