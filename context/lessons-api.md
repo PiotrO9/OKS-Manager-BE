@@ -1,5 +1,5 @@
 ---
-description: "API — odczyt (GET /lessons/:id), rezerwacja (POST /lessons), anulowanie (PATCH /lessons/:id), GET /vehicles z filtrem czasu"
+description: "API — odczyt (GET /lessons/:id), rezerwacja (POST /lessons), edycja/anulowanie (PATCH /lessons/:id), GET /vehicles z filtrem czasu"
 alwaysApply: true
 ---
 
@@ -11,14 +11,14 @@ Montowanie w `src/server.ts`:
 
 - **`GET /lessons/:id`** — odczyt pojedynczej lekcji (`Lesson`); MANAGER lub ADMIN z dostępem do OSK kursu (jak przy POST/PATCH)
 - **`POST /lessons`** — tworzenie lekcji (`Lesson`) dla kursanta na kursie; MANAGER lub ADMIN właściciela OSK
-- **`PATCH /lessons/:id`** — anulowanie jazdy (`status: CANCELLED`); tylko ze **`SCHEDULED`**
+- **`PATCH /lessons/:id`** — **anulowanie** (`{ "status": "CANCELLED" }`) lub **edycja** (`startTime`/`endTime`/`instructorId`/`vehicleId`); oba warianty tylko dla lekcji ze **`SCHEDULED`**
 - **`GET /vehicles`** — opcjonalne query **`startTime`** + **`endTime`** (ISO 8601) — lista pojazdów wolnych w danym oknie (bez kolizji z lekcjami i eventami DRIVE na `vehicleId`)
 
 Implementacja:
 
 | Obszar | Pliki |
 |--------|--------|
-| Rezerwacja i anulowanie lekcji | `src/routes/lessons.routes.ts`, `src/controllers/lesson.controller.ts`, `src/services/lesson.service.ts`, `src/schemas/lesson.schemas.ts` |
+| Rezerwacja, edycja i anulowanie lekcji | `src/routes/lessons.routes.ts`, `src/controllers/lesson.controller.ts`, `src/services/lesson.service.ts`, `src/schemas/lesson.schemas.ts` |
 | Kolizje kursanta, limit godzin pakietu | `src/lib/lesson-scheduling.ts` (`assertStudentNoScheduleOverlap`, `assertCourseDrivingPackageHoursAllowNewLesson`, `sumCompletedDrivingLessonMinutes`) |
 | Walidacja pojazdu (instruktor ↔ szkoła) | `src/lib/vehicle.helpers.ts` (`validateVehicleForInstructor` — używane też w `event.service.ts`) |
 | Lista pojazdów z filtrem czasu | `src/services/vehicle.service.ts`, `src/schemas/vehicle.schemas.ts` (`vehicleListQuerySchema`) |
@@ -181,7 +181,10 @@ Jak przy **POST `/lessons`** (`MANAGER` lub `ADMIN` z dostępem do OSK kursu lek
 
 ## PATCH `/lessons/:id`
 
-Anulowanie zaplanowanej jazdy (ustawienie **`status: CANCELLED`**).
+Dwa warianty body (rozłączne — nie łączyć pól z obu w jednym żądaniu):
+
+1. **Anulowanie** — ustawienie **`status: CANCELLED`**.
+2. **Edycja** — zmiana **`startTime`**, **`endTime`**, **`instructorId`** i/lub **`vehicleId`** (co najmniej jedno pole; `startTime` i `endTime` zawsze razem).
 
 ### Uwierzytelnianie i autoryzacja
 
@@ -193,7 +196,7 @@ Jak przy **POST `/lessons`** (`MANAGER` lub `ADMIN` z dostępem do OSK kursu).
 |----------|------|
 | `:id` | UUID lekcji (`lessons.id`) |
 
-### Body (JSON)
+### Body (JSON) — anulowanie
 
 | Pole | Typ | Walidacja |
 |------|-----|-----------|
@@ -201,17 +204,29 @@ Jak przy **POST `/lessons`** (`MANAGER` lub `ADMIN` z dostępem do OSK kursu).
 
 **Reguły:** dozwolone tylko gdy bieżący status to **`SCHEDULED`**. **`COMPLETED`** → **400**; już **`CANCELLED`** → **400**. Po anulowaniu rekord pozostaje w bazie z `status: CANCELLED` (historia).
 
+### Body (JSON) — edycja
+
+| Pole | Typ | Walidacja |
+|------|-----|-----------|
+| `startTime` | string | opcjonalne; ISO 8601 datetime; jeśli podane, wymagane jest też **`endTime`** |
+| `endTime` | string | opcjonalne; ISO 8601 datetime; jeśli podane, wymagane jest też **`startTime`** |
+| `instructorId` | string | opcjonalne; UUID (`InstructorProfile.id`) |
+| `vehicleId` | string | opcjonalne; UUID pojazdu |
+
+**Reguły:** tylko gdy status to **`SCHEDULED`**. Nie można zmieniać kursu ani kursanta — tylko czas, instruktor i pojazd. Reguły biznesowe jak przy **POST `/lessons`** (okno rezerwacji przy zmianie **daty/czasu**; przyszły czas; grafik instruktora z wykluczeniem tej lekcji; brak kolizji kursanta/instruktora/pojazdu; limit godzin pakietu przy zmianie czasu lub instruktora). Idempotentne body bez realnej zmiany zwraca **200** z aktualnym rekordem.
+
 ### Odpowiedź (200)
 
-Ten sam kształt co **`data.lesson`** w POST (201), ze **`status`: `"CANCELLED"`**.
+Ten sam kształt co **`data.lesson`** w POST (201). Po anulowaniu **`status`: `"CANCELLED"`**.
 
 ### Kody błędów
 
 | Kod | Sytuacja |
 |-----|----------|
-| **400** | Body inne niż `{ "status": "CANCELLED" }`; próba anulowania zakończonej lub już anulowanej jazdy |
+| **400** | Niepoprawne body (np. mieszanie anulowania z edycją, brak wymaganego pola, pusta edycja); próba anulowania lub edycji nie **`SCHEDULED`** |
 | **404** | Lekcja nie istnieje lub `deletedAt` ustawione |
 | **403** | Brak uprawnień do OSK kursu |
+| **409** | Kolizja terminu / pojazdu / limitu pakietu (jak przy POST) |
 
 ---
 

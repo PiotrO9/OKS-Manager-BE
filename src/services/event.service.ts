@@ -8,6 +8,10 @@ import type {
 	PatchInstructorEventBody,
 } from '../schemas/event.schemas';
 import {
+	mapPersonToLessonDetailDto,
+	type LessonPersonDetailDto,
+} from './lesson.service';
+import {
 	assertActorCanManageAvailability,
 	assertInstructorTimeWindowAvailable,
 	resolveActiveInstructorProfile,
@@ -26,11 +30,12 @@ export type InstructorEventDto = {
 	createdAt: string;
 };
 
-/** `InstructorProfile.id` + imię i nazwisko — jak pole `instructor` w pozycjach schedule. */
-export type InstructorEventInstructorDto = {
-	id: string;
-	firstName: string;
-	lastName: string;
+/** GET `/events/:id` — bez płaskich `instructorId` / `vehicleId`; pełny **`instructor`** jak przy GET `/lessons/:id` (teoria — bez pojazdu w odpowiedzi). */
+export type InstructorEventWithDetailsDto = Omit<
+	InstructorEventDto,
+	'instructorId' | 'vehicleId'
+> & {
+	instructor: LessonPersonDetailDto;
 };
 
 export type AssignStudentsToEventResult = {
@@ -157,10 +162,7 @@ export async function createInstructorEvent(
 export async function getInstructorEventById(
 	actor: { id: string; role: Role },
 	eventId: string,
-): Promise<{
-	event: InstructorEventDto;
-	instructor: InstructorEventInstructorDto;
-}> {
+): Promise<{ event: InstructorEventWithDetailsDto }> {
 	const row = await prisma.instructorEvent.findUnique({
 		where: { id: eventId },
 		select: {
@@ -169,13 +171,20 @@ export async function getInstructorEventById(
 			type: true,
 			startTime: true,
 			endTime: true,
-			vehicleId: true,
 			capacity: true,
 			createdAt: true,
 			instructor: {
 				select: {
 					id: true,
-					user: { select: { firstName: true, lastName: true } },
+					userId: true,
+					user: {
+						select: {
+							firstName: true,
+							lastName: true,
+							email: true,
+							phone: true,
+						},
+					},
 				},
 			},
 		},
@@ -190,18 +199,12 @@ export async function getInstructorEventById(
 	return {
 		event: {
 			id: row.id,
-			instructorId: row.instructorId,
 			type: row.type,
 			startTime: row.startTime.toISOString(),
 			endTime: row.endTime.toISOString(),
-			vehicleId: row.vehicleId,
 			capacity: row.capacity,
 			createdAt: row.createdAt.toISOString(),
-		},
-		instructor: {
-			id: row.instructor.id,
-			firstName: row.instructor.user.firstName,
-			lastName: row.instructor.user.lastName,
+			instructor: mapPersonToLessonDetailDto(row.instructor),
 		},
 	};
 }

@@ -5,12 +5,14 @@ import { requireUser } from '../lib/http/requireUser';
 import { lessonIdParamsSchema } from '../lib/validation/uuid';
 import {
 	parseBookLessonBody,
-	parseCancelLessonBody,
+	parsePatchLessonBody,
+	type UpdateLessonBody,
 } from '../schemas/lesson.schemas';
 import {
 	bookLesson,
 	cancelLesson,
 	getLessonById,
+	updateLesson,
 } from '../services/lesson.service';
 
 async function getLessonHandler(req: Request, res: Response) {
@@ -45,12 +47,22 @@ async function patchLessonHandler(req: Request, res: Response) {
 			paramsParsed.error.issues[0]?.message ?? 'Invalid params',
 		);
 	}
-	const parsed = parseCancelLessonBody(req.body);
+	const parsed = parsePatchLessonBody(req.body);
 	if (!parsed.ok) {
 		throw AppError.badRequest(parsed.error);
 	}
 
-	const data = await cancelLesson(user, paramsParsed.data.id);
+	const patchBody = parsed.data;
+	if ('status' in patchBody && patchBody.status === 'CANCELLED') {
+		const data = await cancelLesson(user, paramsParsed.data.id);
+		return sendJsonSuccess(res, data, 200);
+	}
+
+	const data = await updateLesson(
+		user,
+		paramsParsed.data.id,
+		patchBody as UpdateLessonBody,
+	);
 	return sendJsonSuccess(res, data, 200);
 }
 

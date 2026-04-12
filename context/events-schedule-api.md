@@ -91,7 +91,7 @@ Tworzenie eventu instruktora.
 
 ## GET `/events/:id`
 
-Odczyt pojedynczego eventu (`InstructorEvent`). Pole **`data.event`** — jak w **POST `/events`** (201) / **PATCH `/events/:id`** (200); dodatkowo **`data.instructor`** — skrót instruktora (`InstructorProfile.id`, imię, nazwisko), spójnie z polem `instructor` przy **`kind: instructor_event`** w **GET `/schedule`**. Odpowiedź zawsze **JSON** (w tym **404** — envelope błędu, nie HTML).
+Odczyt pojedynczego eventu (`InstructorEvent`). **`data.event`** ma ten sam zestaw pól co **POST/PATCH**, ale **bez** płaskich **`instructorId`** i **`vehicleId`** — zamiast tego zagnieżdżony **`instructor`** w tym samym kształcie co przy **GET `/lessons/:id`** (`id`, `userId`, `firstName`, `lastName`, `email`, `phone`). **Pojazd nie jest zwracany** (zakres: bloki teorii). Odpowiedź zawsze **JSON** (w tym **404** — envelope błędu, nie HTML).
 
 ### Uwierzytelnianie i autoryzacja
 
@@ -113,18 +113,19 @@ Odczyt pojedynczego eventu (`InstructorEvent`). Pole **`data.event`** — jak w 
   "data": {
     "event": {
       "id": "<uuid>",
-      "instructorId": "<uuid>",
-      "type": "DRIVE",
+      "type": "THEORY",
       "startTime": "2026-04-01T08:00:00.000Z",
       "endTime": "2026-04-01T09:00:00.000Z",
-      "vehicleId": "<uuid> | null",
       "capacity": 20,
-      "createdAt": "..."
-    },
-    "instructor": {
-      "id": "<uuid>",
-      "firstName": "Jan",
-      "lastName": "Kowalski"
+      "createdAt": "...",
+      "instructor": {
+        "id": "<InstructorProfile.id>",
+        "userId": "<User.id>",
+        "firstName": "Jan",
+        "lastName": "Kowalski",
+        "email": "jan@example.com",
+        "phone": "+48..."
+      }
     }
   }
 }

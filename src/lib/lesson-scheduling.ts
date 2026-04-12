@@ -84,6 +84,7 @@ export async function assertCourseDrivingPackageHoursAllowNewLesson(
 	totalHours: number,
 	start: Date,
 	end: Date,
+	excludeLessonId?: string,
 ): Promise<void> {
 	if (
 		courseKind !== CourseKind.PRACTICAL &&
@@ -101,6 +102,7 @@ export async function assertCourseDrivingPackageHoursAllowNewLesson(
 			courseId,
 			studentId: studentProfileId,
 			status: { not: LessonStatus.CANCELLED },
+			...(excludeLessonId ? { id: { not: excludeLessonId } } : {}),
 		},
 		select: { startTime: true, endTime: true },
 	});
