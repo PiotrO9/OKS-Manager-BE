@@ -10,6 +10,7 @@ import {
 	assignStudentToCourseBodySchema,
 	courseIdParamsSchema,
 	eventIdParamsSchema,
+	lessonIdParamsSchema,
 	drivingSchoolIdParamsSchema,
 	instructorIdParamsSchema,
 	listStudentsQuerySchema,
@@ -32,7 +33,10 @@ import {
 	createInstructorEventBodySchema,
 	patchInstructorEventBodySchema,
 } from '../schemas/event.schemas';
-import { bookLessonBodySchema } from '../schemas/lesson.schemas';
+import {
+	bookLessonBodySchema,
+	cancelLessonBodySchema,
+} from '../schemas/lesson.schemas';
 import {
 	createDrivingSchoolBodySchema,
 	setDefaultVehicleBodySchema,
@@ -885,6 +889,35 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		responses: stdBearerResponses({
 			201: okDataUnknown('Utworzona lekcja (data.lesson)'),
 			409: clientError('Konflikt czasu, grafiku lub pojazdu'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'patch',
+		path: '/lessons/{id}',
+		tags: ['Lessons'],
+		summary: 'Anulowanie jazdy (MANAGER+)',
+		description:
+			'Ustawia status CANCELLED. Tylko ze SCHEDULED. Anulowana jazda nie zużywa godzin pakietu; slot instruktora i pojazdu zwalniają się dla innych rezerwacji.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: lessonIdParamsSchema,
+			body: {
+				content: {
+					'application/json': {
+						schema: cancelLessonBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown(
+				'Zaktualizowana lekcja (data.lesson, status CANCELLED)',
+			),
+			400: clientError(
+				'Nie można anulować (np. już COMPLETED/CANCELLED)',
+			),
+			404: clientError('Lekcja nie znaleziona'),
 		}),
 	});
 

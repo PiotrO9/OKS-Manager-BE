@@ -214,7 +214,7 @@ Przypisanie **jednego lub wielu** kursantów do istniejącego eventu (`Instructo
 - Event nie istnieje → **404**.
 - Którykolwiek `studentIds` nie jest aktywnym użytkownikiem z rolą **STUDENT** i profilem kursanta → **404** (`One or more students not found`).
 - Po odfiltrowaniu już zapisanych: suma **obecnych uczestników + nowych** nie może przekroczyć **`capacity`**, jeśli `capacity` jest ustawione → **409**.
-- Dla każdego nowego kursanta: brak nakładającego się w czasie innego eventu, na który jest zapisany (`start < existingEnd && end > existingStart`) → w przeciwnym razie **409** (`Student has a conflicting scheduled event`). Zakres MVP: **tylko kolizje między eventami** (nie krzyżuje z tabelą `lessons`).
+- Dla każdego nowego kursanta: brak nakładającego się w czasie **nieanulowanej lekcji** (`lessons`) → w przeciwnym razie **409** (`Student has a conflicting driving lesson`); brak nakładającego się w czasie innego eventu, na który jest zapisany → w przeciwnym razie **409** (`Student has a conflicting scheduled event`).
 - Cała operacja jest **atomowa** (transakcja): część poprawna / część błędna → **odrzucenie całości**.
 
 ### Odpowiedź (200)

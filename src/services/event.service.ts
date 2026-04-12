@@ -469,6 +469,21 @@ export async function assignStudentsToEvent(
 		}
 
 		for (const studentId of newProfileIds) {
+			const lessonConflict = await tx.lesson.findFirst({
+				where: {
+					studentId,
+					status: { not: LessonStatus.CANCELLED },
+					startTime: { lt: end },
+					endTime: { gt: start },
+				},
+				select: { id: true },
+			});
+			if (lessonConflict) {
+				throw AppError.conflict(
+					'Student has a conflicting driving lesson',
+				);
+			}
+
 			const conflict = await tx.eventParticipant.findFirst({
 				where: {
 					studentId,

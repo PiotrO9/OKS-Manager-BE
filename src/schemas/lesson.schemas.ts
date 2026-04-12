@@ -36,3 +36,20 @@ export function parseBookLessonBody(
 	}
 	return { ok: true, data: parsed.data };
 }
+
+export const cancelLessonBodySchema = z.object({
+	status: z.literal('CANCELLED'),
+});
+
+export type CancelLessonBody = z.infer<typeof cancelLessonBodySchema>;
+
+export function parseCancelLessonBody(
+	body: unknown,
+): { ok: true; data: CancelLessonBody } | { ok: false; error: string } {
+	const parsed = cancelLessonBodySchema.safeParse(body);
+	if (!parsed.success) {
+		const message = parsed.error.issues[0]?.message ?? 'Invalid body';
+		return { ok: false, error: message };
+	}
+	return { ok: true, data: parsed.data };
+}

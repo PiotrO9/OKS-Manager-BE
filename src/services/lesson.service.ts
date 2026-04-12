@@ -3,6 +3,10 @@ import { AppError } from '../lib/http/AppError';
 import { validateVehicleForInstructor } from '../lib/vehicle.helpers';
 import { getPrisma } from '../lib/prisma';
 import type { BookLessonBody } from '../schemas/lesson.schemas';
+import {
+	assertCourseDrivingPackageHoursAllowNewLesson,
+	assertStudentNoScheduleOverlap,
+} from '../lib/lesson-scheduling';
 import { assertInstructorTimeWindowAvailable } from './instructor-availability.service';
 
 const prisma = getPrisma();
@@ -85,7 +89,13 @@ export async function bookLesson(
 
 	const course = await prisma.course.findFirst({
 		where: { id: body.courseId, deletedAt: null },
-		select: { id: true, schoolId: true, instructorId: true },
+		select: {
+			id: true,
+			schoolId: true,
+			instructorId: true,
+			kind: true,
+			totalHours: true,
+		},
 	});
 
 	if (!course) {
@@ -175,6 +185,17 @@ export async function bookLesson(
 			start,
 			end,
 			tx,
+		);
+
+		await assertStudentNoScheduleOverlap(tx, studentProfileId, start, end);
+		await assertCourseDrivingPackageHoursAllowNewLesson(
+			tx,
+			course.id,
+			studentProfileId,
+			course.kind,
+			course.totalHours,
+			start,
+			end,
 		);
 
 		const lessonConflict = await tx.lesson.findFirst({
@@ -283,4 +304,84 @@ export async function bookLesson(
 			createdAt: row.createdAt.toISOString(),
 		},
 	};
+}
+
+function mapLessonRowToDto(row: {
+	id: string;
+	courseId: string;
+	studentId: string;
+	instructorId: string;
+	vehicleId: string | null;
+	lessonType: LessonType;
+	startTime: Date;
+	endTime: Date;
+	status: LessonStatus;
+	createdAt: Date;
+}): LessonDto {
+	return {
+		id: row.id,
+		courseId: row.courseId,
+		studentId: row.studentId,
+		instructorId: row.instructorId,
+		vehicleId: row.vehicleId,
+		lessonType: row.lessonType,
+		startTime: row.startTime.toISOString(),
+		endTime: row.endTime.toISOString(),
+		status: row.status,
+		createdAt: row.createdAt.toISOString(),
+	};
+}
+
+export async function cancelLesson(
+	actor: { id: string; role: Role },
+	lessonId: string,
+): Promise<{ lesson: LessonDto }> {
+	const existing = await prisma.lesson.findFirst({
+		where: { id: lessonId, deletedAt: null },
+		select: {
+			id: true,
+			status: true,
+			courseId: true,
+			studentId: true,
+			instructorId: true,
+			vehicleId: true,
+			lessonType: true,
+			startTime: true,
+			endTime: true,
+			createdAt: true,
+			course: { select: { schoolId: true } },
+		},
+	});
+
+	if (!existing) {
+		throw AppError.notFound('Lesson not found');
+	}
+
+	await assertActorCanBookLessonForCourse(actor, existing.course.schoolId);
+
+	if (existing.status === LessonStatus.COMPLETED) {
+		throw AppError.badRequest('Cannot cancel a completed lesson');
+	}
+	if (existing.status === LessonStatus.CANCELLED) {
+		throw AppError.badRequest('Lesson is already cancelled');
+	}
+
+	const row = await prisma.lesson.update({
+		where: { id: lessonId },
+		data: { status: LessonStatus.CANCELLED },
+		select: {
+			id: true,
+			courseId: true,
+			studentId: true,
+			instructorId: true,
+			vehicleId: true,
+			lessonType: true,
+			startTime: true,
+			endTime: true,
+			status: true,
+			createdAt: true,
+		},
+	});
+
+	return { lesson: mapLessonRowToDto(row) };
 }

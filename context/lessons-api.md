@@ -1,5 +1,5 @@
 ---
-description: "API — rezerwacja lekcji (POST /lessons) i rozszerzenie GET /vehicles o filtr czasu"
+description: "API — rezerwacja (POST /lessons), anulowanie (PATCH /lessons/:id), GET /vehicles z filtrem czasu"
 alwaysApply: true
 ---
 
@@ -8,13 +8,15 @@ alwaysApply: true
 Montowanie w `src/server.ts`:
 
 - **`POST /lessons`** — tworzenie lekcji (`Lesson`) dla kursanta na kursie; MANAGER lub ADMIN właściciela OSK
+- **`PATCH /lessons/:id`** — anulowanie jazdy (`status: CANCELLED`); tylko ze **`SCHEDULED`**
 - **`GET /vehicles`** — opcjonalne query **`startTime`** + **`endTime`** (ISO 8601) — lista pojazdów wolnych w danym oknie (bez kolizji z lekcjami i eventami DRIVE na `vehicleId`)
 
 Implementacja:
 
 | Obszar | Pliki |
 |--------|--------|
-| Rezerwacja lekcji | `src/routes/lessons.routes.ts`, `src/controllers/lesson.controller.ts`, `src/services/lesson.service.ts`, `src/schemas/lesson.schemas.ts` |
+| Rezerwacja i anulowanie lekcji | `src/routes/lessons.routes.ts`, `src/controllers/lesson.controller.ts`, `src/services/lesson.service.ts`, `src/schemas/lesson.schemas.ts` |
+| Kolizje kursanta, limit godzin pakietu | `src/lib/lesson-scheduling.ts` (`assertStudentNoScheduleOverlap`, `assertCourseDrivingPackageHoursAllowNewLesson`, `sumCompletedDrivingLessonMinutes`) |
 | Walidacja pojazdu (instruktor ↔ szkoła) | `src/lib/vehicle.helpers.ts` (`validateVehicleForInstructor` — używane też w `event.service.ts`) |
 | Lista pojazdów z filtrem czasu | `src/services/vehicle.service.ts`, `src/schemas/vehicle.schemas.ts` (`vehicleListQuerySchema`) |
 
@@ -44,7 +46,7 @@ Tworzenie zaplanowanej lekcji.
 | `lessonType` | string | stała **`PRACTICE`** — rezerwacja przez to API dotyczy wyłącznie jazdy; **teoria grupowa** wyłącznie przez **`POST /events`** (`type: THEORY`) |
 | `vehicleId` | string | UUID — **wymagane** (jazda zawsze z pojazdem) |
 
-**Reguły biznesowe:** start i koniec w **jednej dobie UTC** (`assertInstructorTimeWindowAvailable`); okno w `bookingMaxDaysAhead` ze `SchoolSettings` (względem dnia UTC lekcji); `startTime` w przyszłości; kursant musi być uczestnikiem kursu (`CourseParticipant`); instruktor przypisany do szkoły kursu (`InstructorSchool`); jeśli kurs ma `instructorId`, musi zgadzać się z `body.instructorId`; brak nakładania na inne lekcje / `InstructorEvent` instruktora; pojazd aktywny w szkole kursu, przypisany do instruktora, wolny w czasie (lekcja lub event DRIVE).
+**Reguły biznesowe:** start i koniec w **jednej dobie UTC** (`assertInstructorTimeWindowAvailable`); okno w `bookingMaxDaysAhead` ze `SchoolSettings` (względem dnia UTC lekcji); `startTime` w przyszłości; kursant musi być uczestnikiem kursu (`CourseParticipant`); instruktor przypisany do szkoły kursu (`InstructorSchool`); jeśli kurs ma `instructorId`, musi zgadzać się z `body.instructorId`; **kursant nie może mieć w tym samym czasie** innej nieanulowanej lekcji ani zapisu na blok instruktora (`event_participants`); **dla kursów `PRACTICAL` i `EXTRA`**: suma czasu trwania wszystkich nieanulowanych lekcji (`SCHEDULED` + `COMPLETED`) + nowa jazda nie może przekroczyć `courses.total_hours` (pakiet godzin); brak nakładania na inne lekcje / `InstructorEvent` instruktora; pojazd aktywny w szkole kursu, przypisany do instruktora, wolny w czasie (lekcja lub event DRIVE). **Rozliczenie „wykorzystanych” godzin** (np. raporty): suma czasu lekcji ze **`COMPLETED`** — funkcja `sumCompletedDrivingLessonMinutes`; **anulowane (`CANCELLED`)** nie zużywają limitu pakietu i zwalniają slot instruktora oraz pojazd.
 
 ### Odpowiedź (201)
 
@@ -76,7 +78,43 @@ Tworzenie zaplanowanej lekcji.
 | **403** | Rola poniżej MANAGER; MANAGER bez powiązania z kursem szkoły; konto kursanta wyłączone |
 | **400** | Niepoprawne body (m.in. `lessonType` ≠ `PRACTICE`, brak `vehicleId`); `startTime` ≥ `endTime`; czas w przeszłości; poza `bookingMaxDaysAhead`; instruktor nie w szkole kursu; niezgodność z instruktorem przypisanym do kursu |
 | **404** | Kurs nie istnieje; użytkownik nie jest studentem; brak uczestnictwa w kursie |
-| **409** | Slot poza dostępnością instruktora; kolizja z lekcją / eventem instruktora; pojazd zajęty |
+| **409** | Slot poza dostępnością instruktora; kolizja z lekcją / eventem instruktora lub **kalendarzem kursanta**; przekroczenie **pakietu godzin** kursu (`PRACTICAL`/`EXTRA`); pojazd zajęty |
+
+---
+
+## PATCH `/lessons/:id`
+
+Anulowanie zaplanowanej jazdy (ustawienie **`status: CANCELLED`**).
+
+### Uwierzytelnianie i autoryzacja
+
+Jak przy **POST `/lessons`** (`MANAGER` lub `ADMIN` z dostępem do OSK kursu).
+
+### Parametry ścieżki
+
+| Parametr | Opis |
+|----------|------|
+| `:id` | UUID lekcji (`lessons.id`) |
+
+### Body (JSON)
+
+| Pole | Typ | Walidacja |
+|------|-----|-----------|
+| `status` | string | wyłącznie **`CANCELLED`** |
+
+**Reguły:** dozwolone tylko gdy bieżący status to **`SCHEDULED`**. **`COMPLETED`** → **400**; już **`CANCELLED`** → **400**. Po anulowaniu rekord pozostaje w bazie z `status: CANCELLED` (historia).
+
+### Odpowiedź (200)
+
+Ten sam kształt co **`data.lesson`** w POST (201), ze **`status`: `"CANCELLED"`**.
+
+### Kody błędów
+
+| Kod | Sytuacja |
+|-----|----------|
+| **400** | Body inne niż `{ "status": "CANCELLED" }`; próba anulowania zakończonej lub już anulowanej jazdy |
+| **404** | Lekcja nie istnieje lub `deletedAt` ustawione |
+| **403** | Brak uprawnień do OSK kursu |
 
 ---
 

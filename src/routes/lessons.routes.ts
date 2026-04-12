@@ -1,5 +1,8 @@
 import { Router } from 'express';
-import { postLessonHandler } from '../controllers/lesson.controller';
+import {
+	patchLessonHandler,
+	postLessonHandler,
+} from '../controllers/lesson.controller';
 import { asyncHandler } from '../lib/http/asyncHandler';
 import { authMiddleware, requireMinRole } from '../middleware/auth.middleware';
 
@@ -11,6 +14,13 @@ function createLessonsRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		asyncHandler(postLessonHandler),
+	);
+
+	router.patch(
+		'/:id',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(patchLessonHandler),
 	);
 
 	return router;
