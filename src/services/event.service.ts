@@ -26,6 +26,13 @@ export type InstructorEventDto = {
 	createdAt: string;
 };
 
+/** `InstructorProfile.id` + imię i nazwisko — jak pole `instructor` w pozycjach schedule. */
+export type InstructorEventInstructorDto = {
+	id: string;
+	firstName: string;
+	lastName: string;
+};
+
 export type AssignStudentsToEventResult = {
 	assigned: number;
 	skipped: number;
@@ -150,7 +157,10 @@ export async function createInstructorEvent(
 export async function getInstructorEventById(
 	actor: { id: string; role: Role },
 	eventId: string,
-): Promise<{ event: InstructorEventDto }> {
+): Promise<{
+	event: InstructorEventDto;
+	instructor: InstructorEventInstructorDto;
+}> {
 	const row = await prisma.instructorEvent.findUnique({
 		where: { id: eventId },
 		select: {
@@ -162,6 +172,12 @@ export async function getInstructorEventById(
 			vehicleId: true,
 			capacity: true,
 			createdAt: true,
+			instructor: {
+				select: {
+					id: true,
+					user: { select: { firstName: true, lastName: true } },
+				},
+			},
 		},
 	});
 
@@ -181,6 +197,11 @@ export async function getInstructorEventById(
 			vehicleId: row.vehicleId,
 			capacity: row.capacity,
 			createdAt: row.createdAt.toISOString(),
+		},
+		instructor: {
+			id: row.instructor.id,
+			firstName: row.instructor.user.firstName,
+			lastName: row.instructor.user.lastName,
 		},
 	};
 }

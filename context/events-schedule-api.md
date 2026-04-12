@@ -91,7 +91,7 @@ Tworzenie eventu instruktora.
 
 ## GET `/events/:id`
 
-Odczyt pojedynczego eventu (`InstructorEvent`) — ten sam kształt `data.event` co w **POST `/events`** (201) / **PATCH `/events/:id`** (200). Odpowiedź zawsze **JSON** (w tym **404** — envelope błędu, nie HTML).
+Odczyt pojedynczego eventu (`InstructorEvent`). Pole **`data.event`** — jak w **POST `/events`** (201) / **PATCH `/events/:id`** (200); dodatkowo **`data.instructor`** — skrót instruktora (`InstructorProfile.id`, imię, nazwisko), spójnie z polem `instructor` przy **`kind: instructor_event`** w **GET `/schedule`**. Odpowiedź zawsze **JSON** (w tym **404** — envelope błędu, nie HTML).
 
 ### Uwierzytelnianie i autoryzacja
 
@@ -120,6 +120,11 @@ Odczyt pojedynczego eventu (`InstructorEvent`) — ten sam kształt `data.event`
       "vehicleId": "<uuid> | null",
       "capacity": 20,
       "createdAt": "..."
+    },
+    "instructor": {
+      "id": "<uuid>",
+      "firstName": "Jan",
+      "lastName": "Kowalski"
     }
   }
 }

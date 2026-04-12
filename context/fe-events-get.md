@@ -21,13 +21,15 @@ Bez tego endpointu upstream często zwraca **HTML** (np. strona 404), a klient d
 | **Route** | `GET /events/:id` — `:id` = UUID `InstructorEvent` |
 | **Auth** | `Authorization: Bearer <JWT>` (jak przy `PATCH /events/:id`) |
 | **Rola** | min. **MANAGER** (ADMIN); MANAGER tylko w granicach swojej OSK względem **instruktora przypisanego do eventu** (ta sama logika co przy PATCH — np. `assertActorCanManageAvailability`) |
-| **Odpowiedź sukcesu** | **200**, body **JSON** (`Content-Type: application/json`), **ten sam kształt co `data.event` po `PATCH /events/:id`** (lub jak w `POST /events` 201): `success: true`, `data: { event: InstructorEventDto }` |
+| **Odpowiedź sukcesu** | **200**, body **JSON** (`Content-Type: application/json`): `success: true`, `data: { event: InstructorEventDto, instructor: { id, firstName, lastName } }` — `event` jak po `POST`/`PATCH` (`instructorId` = `instructor.id`); `instructor` jak w schedule (`InstructorProfile.id` + imię/nazwisko) |
 | **404** | Event nie istnieje — **JSON** z envelope błędu (nie strona HTML), spójnie z resztą API |
 | **403** | Brak uprawnień do podglądu / zarządzania tym instruktorem |
 
 ## Kształt `event` (spójny z POST/PATCH)
 
 Pola jak w istniejącym DTO: `id`, `instructorId`, `type` (`DRIVE` \| `THEORY`), `startTime`, `endTime`, `vehicleId`, `capacity`, `createdAt` — zgodnie z [events-schedule-api.md](./events-schedule-api.md) i [fe-events-patch.md](./fe-events-patch.md).
+
+Dodatkowo **`instructor`** — wyświetlanie nazwiska w edycji bez drugiego zapytania; zgodne z polem `instructor` przy **`kind: instructor_event`** w `GET /schedule`.
 
 ## Uwagi implementacyjne
 
