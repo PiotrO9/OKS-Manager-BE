@@ -893,6 +893,23 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 	});
 
 	registry.registerPath({
+		method: 'get',
+		path: '/lessons/{id}',
+		tags: ['Lessons'],
+		summary: 'Szczegóły lekcji (MANAGER+)',
+		description:
+			'Odczyt pojedynczej lekcji praktycznej (`Lesson`): jazda 1:1. `data.lesson` bez osobnych `studentId`/`instructorId`/`vehicleId` — identyfikatory w `lesson.student.id`, `lesson.instructor.id`, `lesson.vehicle` (albo `vehicle: null`). Pozostałe pola jak przy tworzeniu lekcji (`id`, `courseId`, czasy, status itd.).',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: lessonIdParamsSchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('Lekcja (data.lesson)'),
+			404: clientError('Lekcja nie znaleziona'),
+		}),
+	});
+
+	registry.registerPath({
 		method: 'patch',
 		path: '/lessons/{id}',
 		tags: ['Lessons'],

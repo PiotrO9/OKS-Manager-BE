@@ -56,6 +56,46 @@ export type LessonDto = {
 	createdAt: string;
 };
 
+/** Profil + dane konta użytkownika — odpowiedź GET /lessons/:id (instruktor / kursant). */
+export type LessonPersonDetailDto = {
+	/** `InstructorProfile.id` lub `StudentProfile.id`. */
+	id: string;
+	/** `User.id` — nawigacja do `/students/:userId` itd. */
+	userId: string;
+	firstName: string;
+	lastName: string;
+	email: string;
+	phone: string | null;
+};
+
+/** Pełny rekord pojazdu — zagnieżdżony w `lesson` przy GET /lessons/:id. */
+export type LessonVehicleDetailDto = {
+	id: string;
+	schoolId: string;
+	name: string;
+	registrationNumber: string;
+	inspectionDate: string | null;
+	insuranceDate: string | null;
+	brand: string | null;
+	model: string | null;
+	photoUrl: string | null;
+	modelYear: number | null;
+	mileageKm: number | null;
+	note: string | null;
+	isActive: boolean;
+	createdAt: string;
+};
+
+/** GET /lessons/:id — bez `studentId` / `instructorId` / `vehicleId` (są w `student.id`, `instructor.id`, `vehicle`). */
+export type LessonWithDetailsDto = Omit<
+	LessonDto,
+	'studentId' | 'instructorId' | 'vehicleId'
+> & {
+	instructor: LessonPersonDetailDto;
+	student: LessonPersonDetailDto;
+	vehicle: LessonVehicleDetailDto | null;
+};
+
 async function assertActorCanBookLessonForCourse(
 	actor: { id: string; role: Role },
 	schoolId: string,
@@ -384,4 +424,150 @@ export async function cancelLesson(
 	});
 
 	return { lesson: mapLessonRowToDto(row) };
+}
+
+function mapPersonToLessonDetailDto(profile: {
+	id: string;
+	userId: string;
+	user: {
+		firstName: string;
+		lastName: string;
+		email: string;
+		phone: string | null;
+	};
+}): LessonPersonDetailDto {
+	return {
+		id: profile.id,
+		userId: profile.userId,
+		firstName: profile.user.firstName,
+		lastName: profile.user.lastName,
+		email: profile.user.email,
+		phone: profile.user.phone,
+	};
+}
+
+function mapVehicleToLessonDetailDto(vehicle: {
+	id: string;
+	schoolId: string;
+	name: string;
+	registrationNumber: string;
+	inspectionDate: Date | null;
+	insuranceDate: Date | null;
+	brand: string | null;
+	model: string | null;
+	photoUrl: string | null;
+	modelYear: number | null;
+	mileageKm: number | null;
+	note: string | null;
+	isActive: boolean;
+	createdAt: Date;
+}): LessonVehicleDetailDto {
+	return {
+		id: vehicle.id,
+		schoolId: vehicle.schoolId,
+		name: vehicle.name,
+		registrationNumber: vehicle.registrationNumber,
+		inspectionDate: vehicle.inspectionDate?.toISOString() ?? null,
+		insuranceDate: vehicle.insuranceDate?.toISOString() ?? null,
+		brand: vehicle.brand,
+		model: vehicle.model,
+		photoUrl: vehicle.photoUrl,
+		modelYear: vehicle.modelYear,
+		mileageKm: vehicle.mileageKm,
+		note: vehicle.note,
+		isActive: vehicle.isActive,
+		createdAt: vehicle.createdAt.toISOString(),
+	};
+}
+
+export async function getLessonById(
+	actor: { id: string; role: Role },
+	lessonId: string,
+): Promise<{ lesson: LessonWithDetailsDto }> {
+	const existing = await prisma.lesson.findFirst({
+		where: { id: lessonId, deletedAt: null },
+		select: {
+			id: true,
+			courseId: true,
+			studentId: true,
+			instructorId: true,
+			vehicleId: true,
+			lessonType: true,
+			startTime: true,
+			endTime: true,
+			status: true,
+			createdAt: true,
+			course: { select: { schoolId: true } },
+			vehicle: {
+				select: {
+					id: true,
+					schoolId: true,
+					name: true,
+					registrationNumber: true,
+					inspectionDate: true,
+					insuranceDate: true,
+					brand: true,
+					model: true,
+					photoUrl: true,
+					modelYear: true,
+					mileageKm: true,
+					note: true,
+					isActive: true,
+					createdAt: true,
+				},
+			},
+			instructorProfile: {
+				select: {
+					id: true,
+					userId: true,
+					user: {
+						select: {
+							firstName: true,
+							lastName: true,
+							email: true,
+							phone: true,
+						},
+					},
+				},
+			},
+			studentProfile: {
+				select: {
+					id: true,
+					userId: true,
+					user: {
+						select: {
+							firstName: true,
+							lastName: true,
+							email: true,
+							phone: true,
+						},
+					},
+				},
+			},
+		},
+	});
+
+	if (!existing) {
+		throw AppError.notFound('Lesson not found');
+	}
+
+	await assertActorCanBookLessonForCourse(actor, existing.course.schoolId);
+
+	const base = mapLessonRowToDto(existing);
+	return {
+		lesson: {
+			id: base.id,
+			courseId: base.courseId,
+			lessonType: base.lessonType,
+			startTime: base.startTime,
+			endTime: base.endTime,
+			status: base.status,
+			createdAt: base.createdAt,
+			instructor: mapPersonToLessonDetailDto(existing.instructorProfile),
+			student: mapPersonToLessonDetailDto(existing.studentProfile),
+			vehicle: existing.vehicle
+				? mapVehicleToLessonDetailDto(existing.vehicle)
+				: null,
+		},
+	};
 }

@@ -7,7 +7,24 @@ import {
 	parseBookLessonBody,
 	parseCancelLessonBody,
 } from '../schemas/lesson.schemas';
-import { bookLesson, cancelLesson } from '../services/lesson.service';
+import {
+	bookLesson,
+	cancelLesson,
+	getLessonById,
+} from '../services/lesson.service';
+
+async function getLessonHandler(req: Request, res: Response) {
+	const user = requireUser(req);
+	const paramsParsed = lessonIdParamsSchema.safeParse(req.params);
+	if (!paramsParsed.success) {
+		throw AppError.badRequest(
+			paramsParsed.error.issues[0]?.message ?? 'Invalid params',
+		);
+	}
+
+	const data = await getLessonById(user, paramsParsed.data.id);
+	return sendJsonSuccess(res, data, 200);
+}
 
 async function postLessonHandler(req: Request, res: Response) {
 	const user = requireUser(req);
@@ -37,4 +54,4 @@ async function patchLessonHandler(req: Request, res: Response) {
 	return sendJsonSuccess(res, data, 200);
 }
 
-export { patchLessonHandler, postLessonHandler };
+export { getLessonHandler, patchLessonHandler, postLessonHandler };

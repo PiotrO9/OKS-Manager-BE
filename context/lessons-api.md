@@ -1,12 +1,15 @@
 ---
-description: "API — rezerwacja (POST /lessons), anulowanie (PATCH /lessons/:id), GET /vehicles z filtrem czasu"
+description: "API — odczyt (GET /lessons/:id), rezerwacja (POST /lessons), anulowanie (PATCH /lessons/:id), GET /vehicles z filtrem czasu"
 alwaysApply: true
 ---
 
 # Lekcje — API
 
+**`Lesson`** (zasób `/lessons`) to **pojedyncza lekcja praktyczna** (jazda): w jednym rekordzie jest **jeden kursant** i **jeden instruktor** — układ **1:1** w danym przedziale czasu (z przypisanym pojazdem). To nie jest zajęcie grupowe; teoria / bloki grupowe są modelem **`InstructorEvent`** (`POST /events`, `type: THEORY` itd.).
+
 Montowanie w `src/server.ts`:
 
+- **`GET /lessons/:id`** — odczyt pojedynczej lekcji (`Lesson`); MANAGER lub ADMIN z dostępem do OSK kursu (jak przy POST/PATCH)
 - **`POST /lessons`** — tworzenie lekcji (`Lesson`) dla kursanta na kursie; MANAGER lub ADMIN właściciela OSK
 - **`PATCH /lessons/:id`** — anulowanie jazdy (`status: CANCELLED`); tylko ze **`SCHEDULED`**
 - **`GET /vehicles`** — opcjonalne query **`startTime`** + **`endTime`** (ISO 8601) — lista pojazdów wolnych w danym oknie (bez kolizji z lekcjami i eventami DRIVE na `vehicleId`)
@@ -79,6 +82,100 @@ Tworzenie zaplanowanej lekcji.
 | **400** | Niepoprawne body (m.in. `lessonType` ≠ `PRACTICE`, brak `vehicleId`); `startTime` ≥ `endTime`; czas w przeszłości; poza `bookingMaxDaysAhead`; instruktor nie w szkole kursu; niezgodność z instruktorem przypisanym do kursu |
 | **404** | Kurs nie istnieje; użytkownik nie jest studentem; brak uczestnictwa w kursie |
 | **409** | Slot poza dostępnością instruktora; kolizja z lekcją / eventem instruktora lub **kalendarzem kursanta**; przekroczenie **pakietu godzin** kursu (`PRACTICAL`/`EXTRA`); pojazd zajęty |
+
+---
+
+## GET `/lessons/:id`
+
+Odczyt **jednej lekcji praktycznej 1:1** (kursant ↔ instruktor) po UUID (`lessons.id`). Odpowiedź zawsze **JSON** (w tym **404** — envelope błędu).
+
+### Uwierzytelnianie i autoryzacja
+
+Jak przy **POST `/lessons`** (`MANAGER` lub `ADMIN` z dostępem do OSK kursu lekcji).
+
+### Parametry ścieżki
+
+| Parametr | Opis |
+|----------|------|
+| `:id` | UUID lekcji (`lessons.id`) |
+
+### Odpowiedź (200)
+
+**`data.lesson`** — wspólne pola z **POST `/lessons`**: `id`, `courseId`, `lessonType`, `startTime`, `endTime`, `status`, `createdAt`. **Bez** osobnych `studentId`, `instructorId`, `vehicleId` — identyfikatory są w `lesson.student.id`, `lesson.instructor.id` oraz w `lesson.vehicle` (albo `vehicle: null`).
+
+| Pole | Opis |
+|------|------|
+| `instructor` | Profil + konto użytkownika instruktora |
+| `student` | Profil + konto kursanta |
+| `vehicle` | Pełny rekord pojazdu (`Vehicle`) lub **`null`**, gdy lekcja nie ma przypisanego pojazdu |
+
+**`lesson.instructor` / `lesson.student`:**
+
+| Pole | Opis |
+|------|------|
+| `id` | `InstructorProfile.id` lub `StudentProfile.id` |
+| `userId` | `User.id` — np. link do `/students/:userId` |
+| `firstName`, `lastName` | Z rekordu użytkownika |
+| `email` | E-mail konta |
+| `phone` | Telefon lub `null` |
+
+```json
+{
+  "success": true,
+  "data": {
+    "lesson": {
+      "id": "<uuid>",
+      "courseId": "<uuid>",
+      "lessonType": "PRACTICE",
+      "startTime": "2026-04-20T09:00:00.000Z",
+      "endTime": "2026-04-20T10:00:00.000Z",
+      "status": "SCHEDULED",
+      "createdAt": "...",
+      "instructor": {
+        "id": "<instructorProfileUuid>",
+        "userId": "<userUuid>",
+        "firstName": "Jan",
+        "lastName": "Kowalski",
+        "email": "jan@example.com",
+        "phone": "+48123456789"
+      },
+      "student": {
+        "id": "<studentProfileUuid>",
+        "userId": "<userUuid>",
+        "firstName": "Anna",
+        "lastName": "Nowak",
+        "email": "anna@example.com",
+        "phone": null
+      },
+      "vehicle": {
+        "id": "<uuid>",
+        "schoolId": "<uuid>",
+        "name": "Toyota 01",
+        "registrationNumber": "WW12345",
+        "inspectionDate": "2026-06-01T00:00:00.000Z",
+        "insuranceDate": "2026-12-01T00:00:00.000Z",
+        "brand": "Toyota",
+        "model": "Yaris",
+        "photoUrl": "https://...",
+        "modelYear": 2020,
+        "mileageKm": 45000,
+        "note": null,
+        "isActive": true,
+        "createdAt": "..."
+      }
+    }
+  }
+}
+```
+
+### Kody błędów
+
+| Kod | Sytuacja |
+|-----|----------|
+| **401** | Brak / niepoprawny JWT |
+| **403** | Rola poniżej MANAGER; MANAGER bez powiązania z OSK kursu |
+| **400** | Niepoprawny UUID w `:id` |
+| **404** | Lekcja nie istnieje lub `deletedAt` ustawione |
 
 ---
 
