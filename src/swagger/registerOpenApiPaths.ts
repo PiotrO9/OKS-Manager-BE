@@ -30,6 +30,7 @@ import {
 import {
 	assignStudentsBodySchema,
 	createInstructorEventBodySchema,
+	patchInstructorEventBodySchema,
 } from '../schemas/event.schemas';
 import { bookLessonBodySchema } from '../schemas/lesson.schemas';
 import {
@@ -906,6 +907,32 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		responses: stdBearerResponses({
 			201: okDataUnknown(
 				'Utworzone wydarzenie (data.event, pola m.in. capacity)',
+			),
+			409: clientError('Konflikt czasu, grafiku lub pojazdu'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'patch',
+		path: '/events/{id}',
+		tags: ['Events'],
+		summary: 'Edycja wydarzenia instruktora (MANAGER)',
+		description:
+			'Częściowy update (PATCH). Przy zmianie czasu lub instruktora: walidacja dostępności i kolizji; edytowany event jest wykluczany z nakładania na siebie. Szczegóły: context/events-schedule-api.md',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: eventIdParamsSchema,
+			body: {
+				content: {
+					'application/json': {
+						schema: patchInstructorEventBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown(
+				'Zaktualizowane wydarzenie (data.event, pola m.in. capacity)',
 			),
 			409: clientError('Konflikt czasu, grafiku lub pojazdu'),
 		}),

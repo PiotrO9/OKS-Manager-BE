@@ -1,5 +1,5 @@
 ---
-description: "API — eventy instruktora (POST /events) i terminarz lekcji (GET /schedule/me, GET /schedule)"
+description: "API — eventy instruktora (POST/PATCH /events) i terminarz lekcji (GET /schedule/me, GET /schedule)"
 alwaysApply: true
 ---
 
@@ -7,7 +7,7 @@ alwaysApply: true
 
 Montowanie w `src/server.ts`:
 
-- **`/events`** — bloki czasu instruktora (`InstructorEvent`); opcjonalnie limit miejsc (`capacity`) i przypisanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`)
+- **`/events`** — bloki czasu instruktora (`InstructorEvent`); **`PATCH /events/:id`** — częściowa edycja; opcjonalnie limit miejsc (`capacity`) i przypisanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`)
 - **`/lessons`** — tworzenie lekcji (`Lesson`) — zob. [lessons-api.md](./lessons-api.md)
 - **`/schedule`** — **lekcje** (`Lesson`) oraz **eventy instruktora** (`InstructorEvent`) w zadanym zakresie dat, scalone i posortowane po `startTime` (terminarz osobisty lub podgląd przez MANAGER/ADMIN)
 
@@ -18,7 +18,7 @@ Implementacja:
 | Eventy | `src/routes/events.routes.ts`, `src/controllers/event.controller.ts`, `src/services/event.service.ts`, `src/schemas/event.schemas.ts` |
 | Lekcje (tworzenie) | `src/routes/lessons.routes.ts`, `src/controllers/lesson.controller.ts`, `src/services/lesson.service.ts`, `src/schemas/lesson.schemas.ts` — szczegóły [lessons-api.md](./lessons-api.md) |
 | Terminarz | `src/routes/schedule.routes.ts`, `src/controllers/schedule.controller.ts`, `src/services/schedule.service.ts`, `src/schemas/schedule.schemas.ts` |
-| Dostępność (sloty, walidacja okna czasu) | `src/services/instructor-availability.service.ts` (`assertInstructorTimeWindowAvailable`, `computeDayWindows` z uwzględnieniem `instructor_events`; przy tworzeniu eventu odczyty availability idą **tym samym** `tx` co konflikty i `create` w `event.service.ts`) |
+| Dostępność (sloty, walidacja okna czasu) | `src/services/instructor-availability.service.ts` (`assertInstructorTimeWindowAvailable`, `computeDayWindows` z uwzględnieniem `instructor_events`; przy **edycji** eventu bieżący event jest **wykluczany** z listy zajętych slotów — `excludeEventId`; przy tworzeniu / aktualizacji odczyty availability idą **tym samym** `tx` co konflikty i zapis w `event.service.ts`) |
 
 Model danych: `InstructorEvent`, `EventParticipant` (M:N kursant ↔ event), enum `EventType` — zob. [database.md](./database.md).
 
@@ -86,6 +86,51 @@ Tworzenie eventu instruktora.
 | **409** | Okno **nie mieści się** w wolnym fragmencie grafiku (weekly, wyjątki, urlop, zajęte sloty — komunikat m.in. `Slot outside instructor availability`); nakładanie z lekcją lub innym eventem; dla DRIVE — pojazd zajęty (lekcja lub inny event DRIVE na tym pojeździe) |
 
 **Breaking (klienci):** wcześniej część przypadków „poza dostępnością” mogła być zwracana jako **400**; obecnie konflikt ze **stanem grafiku** dla tej reguły to **409** (jak pozostałe konflikty czasu).
+
+---
+
+## PATCH `/events/:id`
+
+Częściowa aktualizacja istniejącego eventu (`InstructorEvent`). Brak pola w body = brak zmiany tego pola; **`vehicleId: null`** — jawne usunięcie pojazdu (np. przy przejściu na `THEORY`).
+
+### Uwierzytelnianie i autoryzacja
+
+- **`authMiddleware`** + **`requireMinRole('MANAGER')`** (MANAGER lub ADMIN).
+- **MANAGER** — musi móc zarządzać dostępnością **obecnego** instruktora eventu; jeśli w body podano **`instructorId`** inny niż dotychczasowy — dodatkowo musi móc zarządzać dostępnością **nowego** instruktora (ta sama reguła co przy `POST /events`).
+- **ADMIN** — dowolny event; przy zmianie instruktora — nowy musi być aktywnym profilem (`resolveActiveInstructorProfile`).
+
+### Parametry ścieżki
+
+| Parametr | Opis |
+|----------|------|
+| `:id` | UUID `InstructorEvent.id` |
+
+### Body (JSON) — wszystkie pola opcjonalne
+
+| Pole | Typ | Walidacja |
+|------|-----|-----------|
+| `instructorId` | string | UUID — `InstructorProfile.id` |
+| `type` | string | **`DRIVE`** \| **`THEORY`** |
+| `startTime` | string | ISO 8601 datetime |
+| `endTime` | string | ISO 8601; jeśli podane **oba** z `startTime` w body — musi być **po** `startTime` (Zod) |
+| `vehicleId` | string \| null | UUID lub **`null`** (wyczyszczenie); po merge: dla **`DRIVE`** pojazd jest **wymagany** |
+| `capacity` | number \| null | liczba całkowita **≥ 0** lub **`null`** (bez limitu) |
+
+**Reguły biznesowe (po scaleniu z rekordem w bazie):** `startTime` musi być przed `endTime`; dla **`DRIVE`** — `vehicleId` ustawiony i walidacja pojazdu jak przy `POST /events`. Przy zmianie **czasu** lub **instruktora**: ten sam zestaw reguł co przy tworzeniu — jedna doba UTC, miejsce w grafiku (`assertInstructorTimeWindowAvailable`), brak nakładania na lekcje i inne eventy; **edytowany event jest wykluczany** z sprawdzania kolizji i z obliczania „zajętych” fragmentów dnia (brak false positive). Przy zmianie tylko **`type`** / **`capacity`** / **`vehicleId`** (bez zmiany czasu i instruktora) — pomijane są walidacje czasowe względem grafiku i kolizji instruktora; dla **`DRIVE`** nadal sprawdzane jest **zajęcie pojazdu** (z wykluczeniem tego eventu). MVP: race condition przy równoległych edycjach — akceptowalne.
+
+### Odpowiedź (200)
+
+Ten sam kształt co `data.event` w **POST `/events`** (201), ale kod **200**.
+
+### Kody błędów
+
+| Kod | Sytuacja |
+|-----|----------|
+| **401** | Brak / niepoprawny JWT |
+| **403** | Rola poniżej MANAGER; MANAGER bez uprawnień do instruktora (obecnego lub nowego) |
+| **400** | Niepoprawne body; po merge: brak `vehicleId` dla DRIVE; `startTime` ≥ `endTime`; start i koniec nie w jednej dobie UTC; pojazd nie w szkole instruktora |
+| **404** | Event nie istnieje; przy zmianie instruktora — nowy instruktor nie znaleziony / nieaktywny; pojazd nie znaleziony (DRIVE) |
+| **409** | Okno poza dostępnością; kolizja z lekcją lub innym eventem; pojazd zajęty (DRIVE) |
 
 ---
 
@@ -270,3 +315,4 @@ Filtrowanie: lekcje **nakładające się** na zakres `[dateFrom, dateTo]` (UTC),
 5. **GET /schedule/me:** ADMIN → **403**.
 6. **GET /schedule:** MANAGER + `instructorId` + zakres → **200**; `studentId` + zakres → **200**; `studentId` i `instructorId` razem → **400**.
 7. **POST /events/:id/students:** MANAGER, `studentIds` = `users.id`, capacity nieprzekroczone → **200** (`assigned` / `skipped`); duplikat w tablicy → **400**; drugi event w tym samym czasie dla kursanta → **409**.
+8. **PATCH /events/:id:** MANAGER — zmiana tylko `capacity` → **200**; zmiana czasu na ten sam slot co dotychczas → **200** (bez kolizji z samym sobą); przesunięcie na zajęty slot innego eventu → **409**.

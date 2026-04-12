@@ -56,6 +56,58 @@ export function parseCreateInstructorEventBody(
 	return { ok: true, data: parsed.data };
 }
 
+export const patchInstructorEventBodySchema = z
+	.object({
+		instructorId: z
+			.string()
+			.regex(UUID_PARAM_RE, 'Invalid instructorId')
+			.optional(),
+		type: z.nativeEnum(EventType).optional(),
+		startTime: z.string().datetime().optional(),
+		endTime: z.string().datetime().optional(),
+		vehicleId: z
+			.string()
+			.regex(UUID_PARAM_RE, 'Invalid vehicleId')
+			.nullable()
+			.optional(),
+		capacity: z
+			.number()
+			.int('capacity must be an integer')
+			.min(0, 'capacity must be >= 0')
+			.nullable()
+			.optional(),
+	})
+	.superRefine((data, ctx) => {
+		if (data.startTime && data.endTime) {
+			const start = new Date(data.startTime);
+			const end = new Date(data.endTime);
+			if (start.getTime() >= end.getTime()) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: 'startTime must be before endTime',
+					path: ['startTime'],
+				});
+			}
+		}
+	});
+
+export type PatchInstructorEventBody = z.infer<
+	typeof patchInstructorEventBodySchema
+>;
+
+export function parsePatchInstructorEventBody(
+	body: unknown,
+): { ok: true; data: PatchInstructorEventBody } | { ok: false; error: string } {
+	const parsed = patchInstructorEventBodySchema.safeParse(body);
+	if (!parsed.success) {
+		return {
+			ok: false,
+			error: parsed.error.issues[0]?.message ?? 'Invalid body',
+		};
+	}
+	return { ok: true, data: parsed.data };
+}
+
 export const assignStudentsBodySchema = z.object({
 	studentIds: z
 		.array(z.string().regex(UUID_PARAM_RE, 'Invalid studentId'))

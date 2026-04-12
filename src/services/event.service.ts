@@ -5,6 +5,7 @@ import { getPrisma } from '../lib/prisma';
 import type {
 	AssignStudentsBody,
 	CreateInstructorEventBody,
+	PatchInstructorEventBody,
 } from '../schemas/event.schemas';
 import {
 	assertActorCanManageAvailability,
@@ -118,6 +119,179 @@ export async function createInstructorEvent(
 				endTime: end,
 				vehicleId: resolvedVehicleId,
 				capacity: capacity ?? null,
+			},
+			select: {
+				id: true,
+				instructorId: true,
+				type: true,
+				startTime: true,
+				endTime: true,
+				vehicleId: true,
+				capacity: true,
+				createdAt: true,
+			},
+		});
+	});
+
+	return {
+		event: {
+			id: row.id,
+			instructorId: row.instructorId,
+			type: row.type,
+			startTime: row.startTime.toISOString(),
+			endTime: row.endTime.toISOString(),
+			vehicleId: row.vehicleId,
+			capacity: row.capacity,
+			createdAt: row.createdAt.toISOString(),
+		},
+	};
+}
+
+export async function updateInstructorEvent(
+	actor: { id: string; role: Role },
+	eventId: string,
+	body: PatchInstructorEventBody,
+): Promise<{ event: InstructorEventDto }> {
+	const current = await prisma.instructorEvent.findUnique({
+		where: { id: eventId },
+		select: {
+			id: true,
+			instructorId: true,
+			type: true,
+			startTime: true,
+			endTime: true,
+			vehicleId: true,
+			capacity: true,
+		},
+	});
+
+	if (!current) {
+		throw AppError.notFound('Event not found');
+	}
+
+	await assertActorCanManageAvailability(actor, current.instructorId);
+
+	if (
+		body.instructorId !== undefined &&
+		body.instructorId !== current.instructorId
+	) {
+		await assertActorCanManageAvailability(actor, body.instructorId);
+		await resolveActiveInstructorProfile(body.instructorId);
+	}
+
+	const mergedInstructorId = body.instructorId ?? current.instructorId;
+	const mergedType = body.type ?? current.type;
+	const mergedStart = body.startTime
+		? new Date(body.startTime)
+		: current.startTime;
+	const mergedEnd = body.endTime ? new Date(body.endTime) : current.endTime;
+	const mergedVehicleId =
+		body.vehicleId !== undefined ? body.vehicleId : current.vehicleId;
+	const mergedCapacity =
+		body.capacity !== undefined ? body.capacity : current.capacity;
+
+	if (mergedStart.getTime() >= mergedEnd.getTime()) {
+		throw AppError.badRequest('startTime must be before endTime');
+	}
+
+	if (mergedType === EventType.DRIVE) {
+		if (!mergedVehicleId) {
+			throw AppError.badRequest('vehicleId is required for DRIVE events');
+		}
+		await validateVehicleForInstructor(
+			mergedInstructorId,
+			mergedVehicleId,
+			prisma,
+		);
+	}
+
+	const resolvedVehicleId =
+		mergedType === EventType.DRIVE ? mergedVehicleId : null;
+
+	const timeChanged =
+		body.startTime !== undefined || body.endTime !== undefined;
+	const instructorChanged =
+		body.instructorId !== undefined &&
+		body.instructorId !== current.instructorId;
+	const needsTimeValidation = timeChanged || instructorChanged;
+
+	const row = await prisma.$transaction(async (tx) => {
+		if (needsTimeValidation) {
+			await assertInstructorTimeWindowAvailable(
+				mergedInstructorId,
+				mergedStart,
+				mergedEnd,
+				tx,
+				eventId,
+			);
+
+			const lessonConflict = await tx.lesson.findFirst({
+				where: {
+					instructorId: mergedInstructorId,
+					status: { not: LessonStatus.CANCELLED },
+					startTime: { lt: mergedEnd },
+					endTime: { gt: mergedStart },
+				},
+				select: { id: true },
+			});
+			if (lessonConflict) {
+				throw AppError.conflict('Time slot conflicts with a lesson');
+			}
+
+			const eventConflict = await tx.instructorEvent.findFirst({
+				where: {
+					instructorId: mergedInstructorId,
+					id: { not: eventId },
+					startTime: { lt: mergedEnd },
+					endTime: { gt: mergedStart },
+				},
+				select: { id: true },
+			});
+			if (eventConflict) {
+				throw AppError.conflict(
+					'Time slot conflicts with a scheduled block',
+				);
+			}
+		}
+
+		if (mergedType === EventType.DRIVE && resolvedVehicleId) {
+			const vehicleLessonConflict = await tx.lesson.findFirst({
+				where: {
+					vehicleId: resolvedVehicleId,
+					status: { not: LessonStatus.CANCELLED },
+					startTime: { lt: mergedEnd },
+					endTime: { gt: mergedStart },
+				},
+				select: { id: true },
+			});
+			if (vehicleLessonConflict) {
+				throw AppError.conflict('Vehicle is already in use');
+			}
+
+			const vehicleEventConflict = await tx.instructorEvent.findFirst({
+				where: {
+					vehicleId: resolvedVehicleId,
+					type: EventType.DRIVE,
+					id: { not: eventId },
+					startTime: { lt: mergedEnd },
+					endTime: { gt: mergedStart },
+				},
+				select: { id: true },
+			});
+			if (vehicleEventConflict) {
+				throw AppError.conflict('Vehicle is already in use');
+			}
+		}
+
+		return tx.instructorEvent.update({
+			where: { id: eventId },
+			data: {
+				instructorId: mergedInstructorId,
+				type: mergedType,
+				startTime: mergedStart,
+				endTime: mergedEnd,
+				vehicleId: resolvedVehicleId,
+				capacity: mergedCapacity ?? null,
 			},
 			select: {
 				id: true,

@@ -495,6 +495,7 @@ export async function computeDayWindows(
 	instructorId: string,
 	date: Date,
 	db: AvailabilityDbClient = prisma,
+	excludeEventId?: string,
 ): Promise<TimeWindow[] | null> {
 	const leave = await db.instructorLeave.findFirst({
 		where: {
@@ -574,6 +575,7 @@ export async function computeDayWindows(
 			where: {
 				instructorId,
 				startTime: { gte: dayStart, lt: dayEnd },
+				...(excludeEventId ? { id: { not: excludeEventId } } : {}),
 			},
 			select: { startTime: true, endTime: true },
 		}),
@@ -605,6 +607,7 @@ export async function assertInstructorTimeWindowAvailable(
 	startTime: Date,
 	endTime: Date,
 	db: AvailabilityDbClient = prisma,
+	excludeEventId?: string,
 ): Promise<void> {
 	if (startTime.getTime() >= endTime.getTime()) {
 		throw AppError.badRequest('startTime must be before endTime');
@@ -625,7 +628,12 @@ export async function assertInstructorTimeWindowAvailable(
 			startTime.getUTCDate(),
 		),
 	);
-	const free = await computeDayWindows(instructorId, date, db);
+	const free = await computeDayWindows(
+		instructorId,
+		date,
+		db,
+		excludeEventId,
+	);
 	if (free === null) {
 		throw AppError.conflict('Slot outside instructor availability');
 	}
