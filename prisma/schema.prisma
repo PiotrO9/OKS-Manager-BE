@@ -279,6 +279,7 @@ model Course {
   participants CourseParticipant[]
   paymentPlans PaymentPlan[]
   lessons      Lesson[]
+  instructorEvents InstructorEvent[]
 
   @@map("courses")
 }
@@ -382,6 +383,7 @@ model InstructorLeave {
 model InstructorEvent {
   id           String    @id @default(uuid()) @db.Uuid @map("id")
   instructorId String    @db.Uuid @map("instructor_id")
+  courseId     String?   @db.Uuid @map("course_id")
   type         EventType @map("type")
   startTime    DateTime  @map("start_time")
   endTime      DateTime  @map("end_time")
@@ -391,11 +393,13 @@ model InstructorEvent {
   createdAt    DateTime  @default(now()) @map("created_at")
 
   instructor   InstructorProfile @relation("InstructorEvents", fields: [instructorId], references: [id], onDelete: Cascade)
+  course       Course?           @relation(fields: [courseId], references: [id], onDelete: SetNull)
   vehicle      Vehicle?          @relation("VehicleEvents", fields: [vehicleId], references: [id], onDelete: SetNull)
   participants EventParticipant[]
 
   @@index([instructorId, startTime], name: "idx_instructor_events_instructor_id_start_time")
   @@index([vehicleId, startTime], name: "idx_instructor_events_vehicle_id_start_time")
+  @@index([courseId], name: "idx_instructor_events_course_id")
   @@map("instructor_events")
 }
 

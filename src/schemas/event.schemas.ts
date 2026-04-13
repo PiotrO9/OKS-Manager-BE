@@ -17,6 +17,11 @@ export const createInstructorEventBodySchema = z
 			.int('capacity must be an integer')
 			.min(0, 'capacity must be >= 0')
 			.optional(),
+		/** Opcjonalnie: wydarzenie teorii powiązane z kursem; przy THEORY inicjuje uczestników z kursu. */
+		courseId: z
+			.string()
+			.regex(UUID_PARAM_RE, 'Invalid courseId')
+			.optional(),
 	})
 	.superRefine((data, ctx) => {
 		const start = new Date(data.startTime);
@@ -33,6 +38,13 @@ export const createInstructorEventBodySchema = z
 				code: z.ZodIssueCode.custom,
 				message: 'vehicleId is required for DRIVE events',
 				path: ['vehicleId'],
+			});
+		}
+		if (data.courseId !== undefined && data.type !== EventType.THEORY) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: 'courseId is only allowed for THEORY events',
+				path: ['courseId'],
 			});
 		}
 	});

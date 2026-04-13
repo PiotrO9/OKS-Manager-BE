@@ -1,4 +1,10 @@
-import { EventType, LessonStatus, Prisma, Role } from '@prisma/client';
+import {
+	CourseParticipantStatus,
+	EventType,
+	LessonStatus,
+	Prisma,
+	Role,
+} from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { validateVehicleForInstructor } from '../lib/vehicle.helpers';
 import { getPrisma } from '../lib/prisma';
@@ -150,10 +156,108 @@ async function assertNewParticipantNoScheduleConflicts(
 	}
 }
 
+async function assertCourseEligibleForInstructorEvent(
+	instructorId: string,
+	courseId: string,
+): Promise<void> {
+	const course = await prisma.course.findFirst({
+		where: { id: courseId, deletedAt: null },
+		select: { id: true, schoolId: true },
+	});
+	if (!course) {
+		throw AppError.notFound('Course not found');
+	}
+	const link = await prisma.instructorSchool.findFirst({
+		where: { instructorId, schoolId: course.schoolId },
+		select: { id: true },
+	});
+	if (!link) {
+		throw AppError.unprocessableEntity(
+			'Instructor is not linked to the driving school of this course',
+		);
+	}
+}
+
+async function seedEventParticipantsFromCourseInTx(
+	tx: Prisma.TransactionClient,
+	actor: { id: string; role: Role },
+	eventId: string,
+	courseId: string,
+	instructorId: string,
+	start: Date,
+	end: Date,
+	capacity: number | null,
+): Promise<void> {
+	const participants = await tx.courseParticipant.findMany({
+		where: {
+			courseId,
+			status: CourseParticipantStatus.ACTIVE,
+		},
+		select: {
+			studentId: true,
+			student: {
+				select: {
+					user: {
+						select: { lastName: true, firstName: true },
+					},
+				},
+			},
+		},
+	});
+
+	participants.sort((a, b) => {
+		const ln = a.student.user.lastName.localeCompare(b.student.user.lastName);
+		if (ln !== 0) return ln;
+		return a.student.user.firstName.localeCompare(b.student.user.firstName);
+	});
+
+	let profileIds = participants.map((p) => p.studentId);
+	if (capacity != null && profileIds.length > capacity) {
+		profileIds = profileIds.slice(0, capacity);
+	}
+
+	if (profileIds.length === 0) {
+		return;
+	}
+
+	const allowedSchoolIds = await getSchoolIdsForEventParticipantValidation(
+		actor,
+		instructorId,
+	);
+	if (allowedSchoolIds.length === 0) {
+		throw AppError.unprocessableEntity(
+			'Instructor is not linked to a driving school for this operation',
+		);
+	}
+	await assertStudentProfilesInAllowedSchools(
+		tx,
+		profileIds,
+		allowedSchoolIds,
+	);
+
+	for (const studentId of profileIds) {
+		await assertNewParticipantNoScheduleConflicts(
+			tx,
+			eventId,
+			studentId,
+			start,
+			end,
+		);
+	}
+
+	await tx.eventParticipant.createMany({
+		data: profileIds.map((studentId) => ({
+			eventId,
+			studentId,
+		})),
+	});
+}
+
 export type InstructorEventDto = {
 	id: string;
 	instructorId: string;
 	type: EventType;
+	courseId: string | null;
 	startTime: string;
 	endTime: string;
 	vehicleId: string | null;
@@ -180,11 +284,15 @@ export async function createInstructorEvent(
 	actor: { id: string; role: Role },
 	body: CreateInstructorEventBody,
 ): Promise<{ event: InstructorEventDto }> {
-	const { instructorId, type, startTime, endTime, vehicleId, capacity } =
+	const { instructorId, type, startTime, endTime, vehicleId, capacity, courseId } =
 		body;
 
 	await assertActorCanManageAvailability(actor, instructorId);
 	await resolveActiveInstructorProfile(instructorId);
+
+	if (courseId) {
+		await assertCourseEligibleForInstructorEvent(instructorId, courseId);
+	}
 
 	const start = new Date(startTime);
 	const end = new Date(endTime);
@@ -258,9 +366,10 @@ export async function createInstructorEvent(
 			}
 		}
 
-		return tx.instructorEvent.create({
+		const created = await tx.instructorEvent.create({
 			data: {
 				instructorId,
+				courseId: courseId ?? null,
 				type,
 				startTime: start,
 				endTime: end,
@@ -270,6 +379,7 @@ export async function createInstructorEvent(
 			select: {
 				id: true,
 				instructorId: true,
+				courseId: true,
 				type: true,
 				startTime: true,
 				endTime: true,
@@ -278,6 +388,21 @@ export async function createInstructorEvent(
 				createdAt: true,
 			},
 		});
+
+		if (type === EventType.THEORY && courseId) {
+			await seedEventParticipantsFromCourseInTx(
+				tx,
+				actor,
+				created.id,
+				courseId,
+				instructorId,
+				start,
+				end,
+				capacity ?? null,
+			);
+		}
+
+		return created;
 	});
 
 	return {
@@ -285,6 +410,7 @@ export async function createInstructorEvent(
 			id: row.id,
 			instructorId: row.instructorId,
 			type: row.type,
+			courseId: row.courseId,
 			startTime: row.startTime.toISOString(),
 			endTime: row.endTime.toISOString(),
 			vehicleId: row.vehicleId,
@@ -304,6 +430,7 @@ export async function getInstructorEventById(
 			id: true,
 			instructorId: true,
 			isActive: true,
+			courseId: true,
 			type: true,
 			startTime: true,
 			endTime: true,
@@ -339,6 +466,7 @@ export async function getInstructorEventById(
 		event: {
 			id: row.id,
 			type: row.type,
+			courseId: row.courseId,
 			startTime: row.startTime.toISOString(),
 			endTime: row.endTime.toISOString(),
 			capacity: row.capacity,
@@ -537,6 +665,7 @@ export async function updateInstructorEvent(
 			select: {
 				id: true,
 				instructorId: true,
+				courseId: true,
 				type: true,
 				startTime: true,
 				endTime: true,
@@ -552,6 +681,7 @@ export async function updateInstructorEvent(
 			id: row.id,
 			instructorId: row.instructorId,
 			type: row.type,
+			courseId: row.courseId,
 			startTime: row.startTime.toISOString(),
 			endTime: row.endTime.toISOString(),
 			vehicleId: row.vehicleId,
