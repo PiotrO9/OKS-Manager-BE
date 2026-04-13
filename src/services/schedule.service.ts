@@ -288,7 +288,11 @@ export async function getMySchedule(
 				orderBy: { startTime: 'asc' },
 			}),
 			prisma.instructorEvent.findMany({
-				where: { ...eventWhere, instructorId: profile.id },
+				where: {
+					...eventWhere,
+					instructorId: profile.id,
+					isActive: true,
+				},
 				include: eventInclude,
 				orderBy: { startTime: 'asc' },
 			}),
@@ -330,6 +334,7 @@ export async function getMySchedule(
 			prisma.instructorEvent.findMany({
 				where: {
 					...eventWhere,
+					isActive: true,
 					participants: { some: { studentId: profile.id } },
 				},
 				include: eventInclude,
@@ -374,7 +379,11 @@ export async function getScheduleForTarget(
 				orderBy: { startTime: 'asc' },
 			}),
 			prisma.instructorEvent.findMany({
-				where: { ...eventWhere, instructorId: query.instructorId },
+				where: {
+					...eventWhere,
+					instructorId: query.instructorId,
+					isActive: true,
+				},
 				include: eventInclude,
 				orderBy: { startTime: 'asc' },
 			}),
@@ -403,6 +412,7 @@ export async function getScheduleForTarget(
 		prisma.instructorEvent.findMany({
 			where: {
 				...eventWhere,
+				isActive: true,
 				participants: { some: { studentId: query.studentId! } },
 			},
 			include: eventInclude,

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+	deleteEventHandler,
 	deleteEventStudentsHandler,
 	getEventHandler,
 	getEventStudentsHandler,
@@ -33,6 +34,13 @@ function createEventsRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		asyncHandler(patchEventHandler),
+	);
+
+	router.delete(
+		'/:id',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(deleteEventHandler),
 	);
 
 	router.get(

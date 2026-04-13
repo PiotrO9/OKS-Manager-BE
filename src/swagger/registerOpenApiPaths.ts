@@ -991,6 +991,30 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 	});
 
 	registry.registerPath({
+		method: 'delete',
+		path: '/events/{id}',
+		tags: ['Events'],
+		summary: 'Soft delete wydarzenia instruktora (MANAGER)',
+		description:
+			'Oznacza rekord jako nieaktywny (isActive = false). Nie usuwa uczestników ani powiązań. Nieaktywne eventy nie są zwracane w harmonogramie i nie blokują slotów.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: eventIdParamsSchema,
+		},
+		responses: stdBearerResponses({
+			204: {
+				description:
+					'Sukces — `{ success: true }` (bez pola data); wydarzenie oznaczone jako nieaktywne',
+				content: {
+					'application/json': {
+						schema: z.object({ success: z.literal(true) }),
+					},
+				},
+			},
+		}),
+	});
+
+	registry.registerPath({
 		method: 'get',
 		path: '/events/{id}/students',
 		tags: ['Events'],

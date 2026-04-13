@@ -423,6 +423,7 @@ export async function computeAvailability(
 		prisma.instructorEvent.findMany({
 			where: {
 				instructorId,
+				isActive: true,
 				startTime: { gte: dayStart, lt: dayEnd },
 			},
 			select: { startTime: true, endTime: true },
@@ -576,6 +577,7 @@ export async function computeDayWindows(
 		db.instructorEvent.findMany({
 			where: {
 				instructorId,
+				isActive: true,
 				startTime: { gte: dayStart, lt: dayEnd },
 				...(excludeEventId ? { id: { not: excludeEventId } } : {}),
 			},

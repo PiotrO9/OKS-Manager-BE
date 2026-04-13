@@ -169,6 +169,7 @@ async function listVehiclesBySchoolForUser(
 					where: {
 						vehicleId: { in: ids },
 						type: EventType.DRIVE,
+						isActive: true,
 						startTime: { lt: end },
 						endTime: { gt: start },
 					},

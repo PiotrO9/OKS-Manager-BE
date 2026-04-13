@@ -138,6 +138,7 @@ async function assertNewParticipantNoScheduleConflicts(
 			studentId: studentProfileId,
 			eventId: { not: eventId },
 			event: {
+				isActive: true,
 				startTime: { lt: end },
 				endTime: { gt: start },
 			},
@@ -216,6 +217,7 @@ export async function createInstructorEvent(
 		const eventConflict = await tx.instructorEvent.findFirst({
 			where: {
 				instructorId,
+				isActive: true,
 				startTime: { lt: end },
 				endTime: { gt: start },
 			},
@@ -245,6 +247,7 @@ export async function createInstructorEvent(
 				where: {
 					vehicleId: resolvedVehicleId,
 					type: EventType.DRIVE,
+					isActive: true,
 					startTime: { lt: end },
 					endTime: { gt: start },
 				},
@@ -300,6 +303,7 @@ export async function getInstructorEventById(
 		select: {
 			id: true,
 			instructorId: true,
+			isActive: true,
 			type: true,
 			startTime: true,
 			endTime: true,
@@ -325,6 +329,9 @@ export async function getInstructorEventById(
 	if (!row) {
 		throw AppError.notFound('Event not found');
 	}
+	if (!row.isActive) {
+		throw AppError.notFound('Event not found');
+	}
 
 	await assertActorCanManageAvailability(actor, row.instructorId);
 
@@ -348,10 +355,13 @@ export async function getEventStudentUserIds(
 ): Promise<{ studentUserIds: string[] }> {
 	const event = await prisma.instructorEvent.findUnique({
 		where: { id: eventId },
-		select: { instructorId: true },
+		select: { instructorId: true, isActive: true },
 	});
 
 	if (!event) {
+		throw AppError.notFound('Event not found');
+	}
+	if (!event.isActive) {
 		throw AppError.notFound('Event not found');
 	}
 
@@ -382,6 +392,7 @@ export async function updateInstructorEvent(
 		select: {
 			id: true,
 			instructorId: true,
+			isActive: true,
 			type: true,
 			startTime: true,
 			endTime: true,
@@ -391,6 +402,9 @@ export async function updateInstructorEvent(
 	});
 
 	if (!current) {
+		throw AppError.notFound('Event not found');
+	}
+	if (!current.isActive) {
 		throw AppError.notFound('Event not found');
 	}
 
@@ -467,6 +481,7 @@ export async function updateInstructorEvent(
 				where: {
 					instructorId: mergedInstructorId,
 					id: { not: eventId },
+					isActive: true,
 					startTime: { lt: mergedEnd },
 					endTime: { gt: mergedStart },
 				},
@@ -498,6 +513,7 @@ export async function updateInstructorEvent(
 					vehicleId: resolvedVehicleId,
 					type: EventType.DRIVE,
 					id: { not: eventId },
+					isActive: true,
 					startTime: { lt: mergedEnd },
 					endTime: { gt: mergedStart },
 				},
@@ -545,6 +561,30 @@ export async function updateInstructorEvent(
 	};
 }
 
+export async function deleteInstructorEvent(
+	actor: { id: string; role: Role },
+	eventId: string,
+): Promise<void> {
+	const event = await prisma.instructorEvent.findUnique({
+		where: { id: eventId },
+		select: { instructorId: true, isActive: true },
+	});
+
+	if (!event) {
+		throw AppError.notFound('Event not found');
+	}
+	if (!event.isActive) {
+		throw AppError.badRequest('Event is already inactive');
+	}
+
+	await assertActorCanManageAvailability(actor, event.instructorId);
+
+	await prisma.instructorEvent.update({
+		where: { id: eventId },
+		data: { isActive: false },
+	});
+}
+
 /**
  * POST `/events/:id/students` — dopisuje kursantów do eventu **THEORY** (semantyka
  * „dokładka”): istniejący uczestnicy zostają; kursanci już z listy → `skipped`.
@@ -565,6 +605,7 @@ export async function assignStudentsToEvent(
 		select: {
 			id: true,
 			instructorId: true,
+			isActive: true,
 			type: true,
 			startTime: true,
 			endTime: true,
@@ -573,6 +614,9 @@ export async function assignStudentsToEvent(
 	});
 
 	if (!event) {
+		throw AppError.notFound('Event not found');
+	}
+	if (!event.isActive) {
 		throw AppError.notFound('Event not found');
 	}
 
@@ -678,6 +722,7 @@ export async function replaceEventStudents(
 		select: {
 			id: true,
 			instructorId: true,
+			isActive: true,
 			type: true,
 			startTime: true,
 			endTime: true,
@@ -686,6 +731,9 @@ export async function replaceEventStudents(
 	});
 
 	if (!event) {
+		throw AppError.notFound('Event not found');
+	}
+	if (!event.isActive) {
 		throw AppError.notFound('Event not found');
 	}
 
@@ -788,11 +836,15 @@ export async function removeStudentFromEvent(
 		select: {
 			id: true,
 			instructorId: true,
+			isActive: true,
 			type: true,
 		},
 	});
 
 	if (!event) {
+		throw AppError.notFound('Event not found');
+	}
+	if (!event.isActive) {
 		throw AppError.notFound('Event not found');
 	}
 

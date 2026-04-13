@@ -257,6 +257,7 @@ export async function bookLesson(
 		const eventConflict = await tx.instructorEvent.findFirst({
 			where: {
 				instructorId: body.instructorId,
+				isActive: true,
 				startTime: { lt: end },
 				endTime: { gt: start },
 			},
@@ -299,6 +300,7 @@ export async function bookLesson(
 			where: {
 				vehicleId,
 				type: EventType.DRIVE,
+				isActive: true,
 				startTime: { lt: end },
 				endTime: { gt: start },
 			},
@@ -604,6 +606,7 @@ export async function updateLesson(
 			const eventConflict = await tx.instructorEvent.findFirst({
 				where: {
 					instructorId,
+					isActive: true,
 					startTime: { lt: end },
 					endTime: { gt: start },
 				},
@@ -647,6 +650,7 @@ export async function updateLesson(
 			where: {
 				vehicleId,
 				type: EventType.DRIVE,
+				isActive: true,
 				startTime: { lt: end },
 				endTime: { gt: start },
 			},

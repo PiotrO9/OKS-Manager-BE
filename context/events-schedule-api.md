@@ -7,7 +7,7 @@ alwaysApply: true
 
 Montowanie w `src/server.ts`:
 
-- **`/events`** — bloki czasu instruktora (`InstructorEvent`); **`GET /events/:id`** — odczyt pojedynczego eventu (prefill edycji); **`GET /events/:id/students`** — lista **`users.id`** kursantów przypisanych do eventu; **`PUT /events/:id/students`** — pełna zamiana listy uczestników; **`DELETE /events/:id/students/:studentUserId`** — usunięcie jednego uczestnika (`studentUserId` = `users.id`); **`PATCH /events/:id`** — częściowa edycja; opcjonalnie limit miejsc (`capacity`) i dopisywanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`; semantyka „dokładka”, nie pełna zamiana — do synchronizacji zbioru użyj **PUT**)
+- **`/events`** — bloki czasu instruktora (`InstructorEvent`); **`GET /events/:id`** — odczyt pojedynczego eventu (prefill edycji); **`DELETE /events/:id`** — soft delete (`isActive = false`; rekord pozostaje, nie widać go w harmonogramie ani w slotach); **`GET /events/:id/students`** — lista **`users.id`** kursantów przypisanych do eventu; **`PUT /events/:id/students`** — pełna zamiana listy uczestników; **`DELETE /events/:id/students/:studentUserId`** — usunięcie jednego uczestnika (`studentUserId` = `users.id`); **`PATCH /events/:id`** — częściowa edycja; opcjonalnie limit miejsc (`capacity`) i dopisywanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`; semantyka „dokładka”, nie pełna zamiana — do synchronizacji zbioru użyj **PUT**)
 - **`/lessons`** — tworzenie lekcji (`Lesson`) — zob. [lessons-api.md](./lessons-api.md)
 - **`/schedule`** — **lekcje** (`Lesson`) oraz **eventy instruktora** (`InstructorEvent`) w zadanym zakresie dat, scalone i posortowane po `startTime` (terminarz osobisty lub podgląd przez MANAGER/ADMIN)
 
@@ -18,7 +18,7 @@ Implementacja:
 | Eventy | `src/routes/events.routes.ts`, `src/controllers/event.controller.ts`, `src/services/event.service.ts`, `src/schemas/event.schemas.ts` |
 | Lekcje (tworzenie) | `src/routes/lessons.routes.ts`, `src/controllers/lesson.controller.ts`, `src/services/lesson.service.ts`, `src/schemas/lesson.schemas.ts` — szczegóły [lessons-api.md](./lessons-api.md) |
 | Terminarz | `src/routes/schedule.routes.ts`, `src/controllers/schedule.controller.ts`, `src/services/schedule.service.ts`, `src/schemas/schedule.schemas.ts` |
-| Dostępność (sloty, walidacja okna czasu) | `src/services/instructor-availability.service.ts` (`assertInstructorTimeWindowAvailable`, `computeDayWindows` z uwzględnieniem `instructor_events`; przy **edycji** eventu bieżący event jest **wykluczany** z listy zajętych slotów — `excludeEventId`; przy tworzeniu / aktualizacji odczyty availability idą **tym samym** `tx` co konflikty i zapis w `event.service.ts`) |
+| Dostępność (sloty, walidacja okna czasu) | `src/services/instructor-availability.service.ts` (`assertInstructorTimeWindowAvailable`, `computeDayWindows` z uwzględnieniem **wyłącznie aktywnych** `instructor_events` — `isActive: true`; przy **edycji** eventu bieżący event jest **wykluczany** z listy zajętych slotów — `excludeEventId`; przy tworzeniu / aktualizacji odczyty availability idą **tym samym** `tx` co konflikty i zapis w `event.service.ts`) |
 
 Model danych: `InstructorEvent`, `EventParticipant` (M:N kursant ↔ event), enum `EventType` — zob. [database.md](./database.md).
 
@@ -26,9 +26,21 @@ Model danych: `InstructorEvent`, `EventParticipant` (M:N kursant ↔ event), enu
 
 ## Model domenowy (skrót)
 
-- **InstructorEvent** — blok czasu przypisany do `InstructorProfile`; typ `DRIVE` (wymaga `vehicleId`) lub `THEORY`; opcjonalne **`capacity`** (max liczba kursantów zapisanych przez `event_participants`; `null` = brak limitu w MVP); nie nachodzi na lekcje ani inne eventy tego instruktora; mieści się w dostępności (weekly + exceptions, urlopy itd. — jak w module availability).
-- **EventParticipant** — przypisanie **`StudentProfile.id`** do **`InstructorEvent.id`**; unikalność pary (event, student); przy dodawaniu listy kursantów sprawdzane są **capacity** (jeśli ustawione) oraz **konflikt czasowy** z innymi eventami, na które kursant jest już zapisany (nachodzące `startTime`/`endTime`).
-- **Schedule** w API zwraca **Lesson** oraz **InstructorEvent** (pole `kind` rozróżnia wpisy); eventy wpływają także na **obliczane wolne sloty** przez `instructor-availability.service`.
+- **InstructorEvent** — blok czasu przypisany do `InstructorProfile`; typ `DRIVE` (wymaga `vehicleId`) lub `THEORY`; opcjonalne **`capacity`** (max liczba kursantów zapisanych przez `event_participants`; `null` = brak limitu w MVP); pole **`isActive`** (domyślnie `true`) — przy `false` wydarzenie jest „usunięte” (nie pokazywane w API harmonogramu / slotów, nie bierze udziału w kolizjach); nie nachodzi na lekcje ani inne **aktywne** eventy tego instruktora; mieści się w dostępności (weekly + exceptions, urlopy itd. — jak w module availability).
+- **EventParticipant** — przypisanie **`StudentProfile.id`** do **`InstructorEvent.id`**; unikalność pary (event, student); przy dodawaniu listy kursantów sprawdzane są **capacity** (jeśli ustawione) oraz **konflikt czasowy** z innymi **aktywnymi** eventami, na które kursant jest już zapisany (nachodzące `startTime`/`endTime`).
+- **Schedule** w API zwraca **Lesson** oraz **InstructorEvent** (pole `kind` rozróżnia wpisy); w zapytaniach do bazy brane są **tylko** eventy z **`isActive: true`**. Eventy wpływają także na **obliczane wolne sloty** przez `instructor-availability.service` (również tylko aktywne).
+
+### Soft delete — zachowanie (`isActive`)
+
+| Aspekt | Zachowanie |
+|--------|------------|
+| **Rekord w bazie** | Nie jest usuwany; ustawiane jest **`is_active = false`** (UPDATE). Relacje (`event_participants` itd.) **pozostają** — MVP bez czyszczenia uczestników przy usuwaniu. |
+| **GET / PATCH / operacje na uczestnikach** | Dla nieaktywnego eventu odpowiedź jak przy braku zasobu: **`404`** (`Event not found`) — klient nie odróżnia „nie ma UUID” od „był, ale usunięty soft”. |
+| **DELETE /events/:id** (ponownie) | **`400`** — komunikat wskazujący, że event jest już nieaktywny (brak idempotencji „cichego sukcesu” w tej wersji). |
+| **Harmonogram** (`GET /schedule`, `GET /schedule/me`) | Nieaktywne eventy **nie** są zwracane w `items`. |
+| **Sloty / dostępność** | Nieaktywne eventy **nie** odejmują okien czasu ani **nie blokują** rezerwacji lekcji / nowych eventów w tym samym przedziale. |
+| **Lekcje** | Kolizje z instruktorem i pojazdem sprawdzane są względem **aktywnych** eventów (`lesson.service`). |
+| **Przywracanie** | Brak endpointu restore (MVP). |
 
 ---
 
@@ -138,7 +150,7 @@ Odczyt pojedynczego eventu (`InstructorEvent`). **`data.event`** ma ten sam zest
 | **401** | Brak / niepoprawny JWT |
 | **403** | Rola poniżej MANAGER; MANAGER bez uprawnień do instruktora eventu |
 | **400** | Niepoprawny UUID w `:id` |
-| **404** | Event nie istnieje |
+| **404** | Event nie istnieje lub jest **nieaktywny** (soft delete — `isActive = false`) |
 
 ---
 
@@ -182,8 +194,48 @@ Ten sam kształt co `data.event` w **POST `/events`** (201), ale kod **200**.
 | **401** | Brak / niepoprawny JWT |
 | **403** | Rola poniżej MANAGER; MANAGER bez uprawnień do instruktora (obecnego lub nowego) |
 | **400** | Niepoprawne body; po merge: brak `vehicleId` dla DRIVE; `startTime` ≥ `endTime`; start i koniec nie w jednej dobie UTC; pojazd nie w szkole instruktora |
-| **404** | Event nie istnieje; przy zmianie instruktora — nowy instruktor nie znaleziony / nieaktywny; pojazd nie znaleziony (DRIVE) |
-| **409** | Okno poza dostępnością; kolizja z lekcją lub innym eventem; pojazd zajęty (DRIVE) |
+| **404** | Event nie istnieje, jest **nieaktywny** (soft delete), przy zmianie instruktora — nowy instruktor nie znaleziony / nieaktywny, lub pojazd nie znaleziony (DRIVE) |
+| **409** | Okno poza dostępnością; kolizja z lekcją lub innym **aktywnym** eventem; pojazd zajęty (DRIVE) |
+
+---
+
+## DELETE `/events/:id`
+
+Soft delete: rekord **`InstructorEvent`** pozostaje w bazie; ustawiane jest **`isActive = false`** (kolumna `is_active`). Nie usuwa wierszy **`event_participants`**. Po usunięciu event **nie** pojawia się w **`GET /schedule`**, **`GET /schedule/me`** ani w logice **slotów / kolizji** — w tym sensie „zwalnia” przedział czasu tak, jakby zniknął z kalendarza.
+
+### Uwierzytelnianie i autoryzacja
+
+- **`authMiddleware`** + **`requireMinRole('MANAGER')`** (MANAGER lub ADMIN).
+- **MANAGER** — tylko gdy może zarządzać dostępnością instruktora przypisanego do eventu (**`assertActorCanManageAvailability`** — ta sama reguła co przy **`PATCH /events/:id`**).
+- **ADMIN** — dowolny **aktywny** (w sensie `isActive` w bazie) event; nieaktywnego nie „usuwa” ponownie bez błędu (patrz **400** poniżej).
+
+### Parametry ścieżki
+
+| Parametr | Opis |
+|----------|------|
+| `:id` | UUID `InstructorEvent.id` |
+
+### Zachowanie serwera
+
+1. Wyszukanie eventu po `:id`; brak rekordu → **404**.
+2. Jeśli **`isActive === false`** → **400** (próba ponownego usunięcia — komunikat semantycznie: event już nieaktywny).
+3. Sprawdzenie uprawnień managera do instruktora eventu.
+4. **`UPDATE`** ustawiający **`is_active = false`**.
+
+### Odpowiedź (204)
+
+Ciało JSON zgodne z kopertą API: **`{ "success": true }`** (bez pola **`data`** — jak inne odpowiedzi 204 w projekcie, jeśli używane).
+
+### Kody błędów
+
+| Kod | Sytuacja |
+|-----|----------|
+| **401** | Brak / niepoprawny JWT |
+| **403** | Rola poniżej MANAGER; MANAGER bez uprawnień do instruktora eventu |
+| **400** | Niepoprawny UUID w `:id`; event **już** oznaczony jako nieaktywny |
+| **404** | Brak eventu o podanym `:id` |
+
+Implementacja: `deleteInstructorEvent` w `src/services/event.service.ts`, handler `deleteEventHandler` w `src/controllers/event.controller.ts`, trasa w `src/routes/events.routes.ts`. OpenAPI: tag **Events**, ścieżka **`DELETE /events/{id}`**.
 
 ---
 
@@ -205,7 +257,7 @@ Odczyt listy **identyfikatorów użytkowników** (`User.id` / JWT subject) kursa
 
 ### Zachowanie serwera
 
-1. Wyszukanie **`InstructorEvent`** po `:id`; brak rekordu → **404** (`Event not found`).
+1. Wyszukanie **`InstructorEvent`** po `:id`; brak rekordu **lub** `isActive === false` → **404** (`Event not found`).
 2. Sprawdzenie uprawnień do **instruktora** tego eventu (`assertActorCanManageAvailability`).
 3. Odczyt **`event_participants`** dla tego `event_id`, join do **`student_profiles`** → pole **`user_id`** (UUID konta użytkownika).
 4. Kolejność w **`studentUserIds`**: rosnąco po **`event_participants.created_at`** (kto pierwszy zapisany, ten wcześniej na liście).
@@ -229,7 +281,7 @@ Odczyt listy **identyfikatorów użytkowników** (`User.id` / JWT subject) kursa
 | **401** | Brak / niepoprawny JWT |
 | **403** | Rola poniżej MANAGER; MANAGER bez uprawnień do instruktora eventu |
 | **400** | Niepoprawny UUID w ścieżce (`:id`) |
-| **404** | Event nie istnieje |
+| **404** | Event nie istnieje lub jest **nieaktywny** (soft delete) |
 
 Implementacja: `getEventStudentUserIds` w `src/services/event.service.ts`, handler `getEventStudentsHandler` w `src/controllers/event.controller.ts`.
 
@@ -279,10 +331,10 @@ Przypisanie **jednego lub wielu** kursantów do istniejącego eventu (`Instructo
 - Event musi mieć typ **`THEORY`** — przypisywanie kursantów do **`DRIVE`** → **422**.
 - Każdy kursant musi być zapisany w **`student_schools`** do co najmniej jednej szkoły, z którą powiązany jest instruktor eventu (dla **MANAGER** — tylko OSK właściciela) → w przeciwnym razie **422**.
 - Brak duplikatów w `studentIds` → **400**.
-- Event nie istnieje → **404**.
+- Event nie istnieje lub jest **nieaktywny** (soft delete) → **404**.
 - Którykolwiek `studentIds` nie jest aktywnym użytkownikiem z rolą **STUDENT** i profilem kursanta → **404** (`One or more students not found`).
 - Po odfiltrowaniu już zapisanych: suma **obecnych uczestników + nowych** nie może przekroczyć **`capacity`**, jeśli `capacity` jest ustawione → **409**.
-- Dla każdego nowego kursanta: brak nakładającego się w czasie **nieanulowanej lekcji** (`lessons`) → w przeciwnym razie **409** (`Student has a conflicting driving lesson`); brak nakładającego się w czasie innego eventu, na który jest zapisany → w przeciwnym razie **409** (`Student has a conflicting scheduled event`).
+- Dla każdego nowego kursanta: brak nakładającego się w czasie **nieanulowanej lekcji** (`lessons`) → w przeciwnym razie **409** (`Student has a conflicting driving lesson`); brak nakładającego się w czasie innego **aktywnego** eventu, na który jest zapisany → w przeciwnym razie **409** (`Student has a conflicting scheduled event`).
 - Cała operacja jest **atomowa** (transakcja): część poprawna / część błędna → **odrzucenie całości**.
 
 ### Odpowiedź (200)
@@ -307,7 +359,7 @@ Przypisanie **jednego lub wielu** kursantów do istniejącego eventu (`Instructo
 | **401** | Brak / niepoprawny JWT |
 | **403** | Rola poniżej MANAGER; MANAGER bez uprawnień do instruktora eventu |
 | **400** | Niepoprawne body (UUID, pusta tablica, duplikaty w `studentIds`) |
-| **404** | Event lub kursant nie znaleziony |
+| **404** | Event nie istnieje / nieaktywny lub kursant nie znaleziony |
 | **409** | Przekroczenie `capacity` lub konflikt czasowy kursanta z innym eventem |
 | **422** | Event nie **`THEORY`** albo brak przypisania kursanta do uprawionej OSK |
 
@@ -421,7 +473,7 @@ Implementacja: `removeStudentFromEvent` w `src/services/event.service.ts`, handl
 
 ## GET `/schedule/me`
 
-Lista pozycji terminarza zalogowanego użytkownika w zakresie dat: **lekcje** oraz **eventy instruktora**, w których uczestniczy (jako kursant) lub które prowadzi (jako instruktor).
+Lista pozycji terminarza zalogowanego użytkownika w zakresie dat: **lekcje** oraz **aktywne** (`isActive: true`) **eventy instruktora**, w których uczestniczy (jako kursant) lub które prowadzi (jako instruktor). Soft-deleted eventy **nie** trafiają do odpowiedzi.
 
 ### Uwierzytelnianie i autoryzacja
 
@@ -497,7 +549,7 @@ Lista pozycji terminarza zalogowanego użytkownika w zakresie dat: **lekcje** or
 
 ## GET `/schedule`
 
-Terminarz **wybranego** instruktora lub studenta (podgląd dla biura): lekcje oraz eventy instruktora / eventy, na które zapisany jest kursant.
+Terminarz **wybranego** instruktora lub studenta (podgląd dla biura): lekcje oraz **wyłącznie aktywne** eventy instruktora / eventy, na które zapisany jest kursant (nieaktywne — **wykluczone**).
 
 ### Uwierzytelnianie i autoryzacja
 
@@ -521,7 +573,7 @@ Ten sam kształt co `GET /schedule/me`: `data.items` z **`kind`**: **`lesson`** 
 - Przy **`instructorId`:** lekcje i eventy tego instruktora; dla **`kind: lesson`** widoczny **`student`**; dla **`kind: instructor_event`** widoczna tablica **`students`** (bez `instructor`).
 - Przy **`studentId`:** lekcje kursanta oraz eventy, na które jest zapisany; dla **`kind: lesson`** widoczny **`instructor`**; dla **`kind: instructor_event`** widoczny **`instructor`**, bez listy **`students`**.
 
-Filtrowanie: lekcje **nakładające się** na zakres `[dateFrom, dateTo]` (UTC), bez `CANCELLED`; eventy — ten sam zakres czasu (nachodzące na przedział).
+Filtrowanie: lekcje **nakładające się** na zakres `[dateFrom, dateTo]` (UTC), bez `CANCELLED`; eventy — ten sam zakres czasu (nachodzące na przedział), **z warunkiem** `isActive: true` na **`InstructorEvent`**.
 
 ### Kody błędów
 
@@ -541,7 +593,10 @@ Filtrowanie: lekcje **nakładające się** na zakres `[dateFrom, dateTo]` (UTC),
 4. **GET /schedule/me:** STUDENT z `dateFrom`/`dateTo` → **200**, `items` — jego lekcje oraz eventy, na które jest zapisany (`kind` odpowiednio `lesson` / `instructor_event`).
 5. **GET /schedule/me:** ADMIN → **403**.
 6. **GET /schedule:** MANAGER + `instructorId` + zakres → **200**; `studentId` + zakres → **200**; `studentId` i `instructorId` razem → **400**.
-7. **GET /events/:id:** MANAGER z OSK instruktora eventu → **200** (`data.event`); nieistniejący UUID → **404** (JSON); MANAGER innej OSK → **403**.
-8. **GET /events/:id/students:** MANAGER z OSK instruktora → **200** (`data.studentUserIds`; pusta tablica jeśli nikt nie zapisany); nieistniejący event → **404**; MANAGER innej OSK → **403**.
-9. **POST /events/:id/students:** MANAGER, `studentIds` = `users.id`, capacity nieprzekroczone → **200** (`assigned` / `skipped`); duplikat w tablicy → **400**; drugi event w tym samym czasie dla kursanta → **409**.
-10. **PATCH /events/:id:** MANAGER — zmiana tylko `capacity` → **200**; zmiana czasu na ten sam slot co dotychczas → **200** (bez kolizji z samym sobą); przesunięcie na zajęty slot innego eventu → **409**.
+7. **GET /events/:id:** MANAGER z OSK instruktora eventu → **200** (`data.event`); nieistniejący UUID → **404** (JSON); po **soft delete** tego samego ID → **404**; MANAGER innej OSK → **403**.
+8. **GET /events/:id/students:** MANAGER z OSK instruktora → **200** (`data.studentUserIds`; pusta tablica jeśli nikt nie zapisany); nieistniejący lub nieaktywny event → **404**; MANAGER innej OSK → **403**.
+9. **POST /events/:id/students:** MANAGER, `studentIds` = `users.id`, capacity nieprzekroczone → **200** (`assigned` / `skipped`); duplikat w tablicy → **400**; drugi **aktywny** event w tym samym czasie dla kursanta → **409**.
+10. **PATCH /events/:id:** MANAGER — zmiana tylko `capacity` → **200**; zmiana czasu na ten sam slot co dotychczas → **200** (bez kolizji z samym sobą); przesunięcie na zajęty slot innego **aktywnego** eventu → **409**.
+11. **DELETE /events/:id:** MANAGER z OSK instruktora → **204** (`success: true`); powtórzone DELETE na tym samym ID → **400** (już nieaktywny); nieistniejący UUID → **404**.
+12. **GET /schedule** (lub **/schedule/me**): po **DELETE /events/:id** wpis `instructor_event` **nie** pojawia się w `items` dla zakresu dat obejmującego ten event.
+13. **POST /events** w przedziale zwolnionym przez soft delete wcześniejszego eventu w tym samym miejscu → **201** (slot nie jest blokowany przez nieaktywny rekord).
