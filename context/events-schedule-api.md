@@ -1,5 +1,5 @@
 ---
-description: "API — eventy instruktora (GET/POST/PATCH /events) i terminarz lekcji (GET /schedule/me, GET /schedule)"
+description: "API — eventy instruktora (GET/POST/PUT/DELETE/PATCH /events, uczestnicy THEORY) i terminarz (GET /schedule/me, GET /schedule)"
 alwaysApply: true
 ---
 
@@ -7,7 +7,7 @@ alwaysApply: true
 
 Montowanie w `src/server.ts`:
 
-- **`/events`** — bloki czasu instruktora (`InstructorEvent`); **`GET /events/:id`** — odczyt pojedynczego eventu (prefill edycji); **`GET /events/:id/students`** — lista **`users.id`** kursantów przypisanych do eventu; **`PATCH /events/:id`** — częściowa edycja; opcjonalnie limit miejsc (`capacity`) i przypisanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`)
+- **`/events`** — bloki czasu instruktora (`InstructorEvent`); **`GET /events/:id`** — odczyt pojedynczego eventu (prefill edycji); **`GET /events/:id/students`** — lista **`users.id`** kursantów przypisanych do eventu; **`PUT /events/:id/students`** — pełna zamiana listy uczestników; **`DELETE /events/:id/students/:studentUserId`** — usunięcie jednego uczestnika (`studentUserId` = `users.id`); **`PATCH /events/:id`** — częściowa edycja; opcjonalnie limit miejsc (`capacity`) i dopisywanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`; semantyka „dokładka”, nie pełna zamiana — do synchronizacji zbioru użyj **PUT**)
 - **`/lessons`** — tworzenie lekcji (`Lesson`) — zob. [lessons-api.md](./lessons-api.md)
 - **`/schedule`** — **lekcje** (`Lesson`) oraz **eventy instruktora** (`InstructorEvent`) w zadanym zakresie dat, scalone i posortowane po `startTime` (terminarz osobisty lub podgląd przez MANAGER/ADMIN)
 
@@ -235,9 +235,26 @@ Implementacja: `getEventStudentUserIds` w `src/services/event.service.ts`, handl
 
 ---
 
+## Uczestnicy eventu THEORY — semantyka endpointów
+
+W bazie uczestnictwo to wiersze **`event_participants`** (powiązanie **`StudentProfile`** ↔ **`InstructorEvent`**). Dla managera **wszystkie operacje poniżej dotyczą wyłącznie eventów typu `THEORY`** (bloki jazdy `DRIVE` nie przyjmują listy uczestników tą ścieżką).
+
+| Potrzeba | Endpoint | Co robi serwer |
+|----------|----------|----------------|
+| **Odczytać** kto jest zapisany | `GET /events/:id/students` | Zwraca `data.studentUserIds` (UUID kont `users.id`), kolejność wg `event_participants.created_at`. |
+| **Zsynchronizować pełną listę** z UI (np. edycja całej grupy, import stanu) | `PUT /events/:id/students` | **Nadpisuje zbiór uczestników** body: po zapisie jest **dokładnie** ten zestaw `users.id`. Kogo **nie ma** w `studentIds` — zostaje **wypisany** z eventu. `studentIds: []` = **nikt** nie jest przypisany. |
+| **Dopisać** osoby bez ruszania pozostałych | `POST /events/:id/students` | Tylko **dodaje** brakujących; już zapisani → licznik `skipped`, **bez** usuwania innych. |
+| **Wypisać jedną** osobę | `DELETE /events/:id/students/:studentUserId` | Usuwa **jedno** powiązanie; `:studentUserId` = `users.id` kursanta (ten sam identyfikator co w tablicach GET/PUT/POST). |
+
+**GET vs PUT/DELETE — kolejność w tablicy:** `GET` sortuje wg kolejności **zapisów**. Odpowiedzi `PUT` i `DELETE` zwracają `studentUserIds` **posortowane leksykograficznie** — **ten sam zbiór** co w GET (dla tego samego stanu bazy), tylko inna kolejność elementów.
+
+**Kiedy użyć PUT zamiast POST:** gdy frontend trzyma **kompletną** listę wybranych kursantów i ma **zastąpić** stan serwera (np. multi-select + zapis). Samo **POST** nigdy **nie zdejmie** kogoś z listy — do tego służy **PUT** (lub **DELETE** dla pojedynczej osoby).
+
+---
+
 ## POST `/events/:id/students`
 
-Przypisanie **jednego lub wielu** kursantów do istniejącego eventu (`InstructorEvent`). Idempotentnie: kursant już zapisany na ten event jest **pomijany** (licznik `skipped`), bez błędu.
+Przypisanie **jednego lub wielu** kursantów do istniejącego eventu (`InstructorEvent`). Semantyka **„dokładka”**: istniejący u czestnicy **pozostają**; kursant już zapisany na ten event jest **pomijany** (licznik `skipped`), bez błędu. Do **pełnej podmiany** zbioru użyj **`PUT /events/:id/students`** (sekcja powyżej).
 
 ### Uwierzytelnianie i autoryzacja
 
@@ -259,6 +276,8 @@ Przypisanie **jednego lub wielu** kursantów do istniejącego eventu (`Instructo
 
 ### Reguły biznesowe (MVP)
 
+- Event musi mieć typ **`THEORY`** — przypisywanie kursantów do **`DRIVE`** → **422**.
+- Każdy kursant musi być zapisany w **`student_schools`** do co najmniej jednej szkoły, z którą powiązany jest instruktor eventu (dla **MANAGER** — tylko OSK właściciela) → w przeciwnym razie **422**.
 - Brak duplikatów w `studentIds` → **400**.
 - Event nie istnieje → **404**.
 - Którykolwiek `studentIds` nie jest aktywnym użytkownikiem z rolą **STUDENT** i profilem kursanta → **404** (`One or more students not found`).
@@ -290,6 +309,113 @@ Przypisanie **jednego lub wielu** kursantów do istniejącego eventu (`Instructo
 | **400** | Niepoprawne body (UUID, pusta tablica, duplikaty w `studentIds`) |
 | **404** | Event lub kursant nie znaleziony |
 | **409** | Przekroczenie `capacity` lub konflikt czasowy kursanta z innym eventem |
+| **422** | Event nie **`THEORY`** albo brak przypisania kursanta do uprawionej OSK |
+
+---
+
+## PUT `/events/:id/students`
+
+**Cel:** jednym żądaniem ustawić **dokładny** zestaw osób przypisanych do eventu — serwer **dopasowuje bazę** do body (dodaje brakujące powiązania, **usuwa** powiązania nie wymienione w `studentIds`). To **nie** jest operacja typu merge po jednym ID (tak działa **POST**); to **synchronizacja zbioru**.
+
+### Przykład zachowania
+
+- Przed: na evencie zapisani są kursanci **A, B, C**.
+- Body: `{ "studentIds": ["B", "D"] }` (UUID `users.id`).
+- Po **PUT:** zapisani są wyłącznie **B** i **D** (**A** i **C** zostali usunięci z tego eventu).
+
+Pusta tablica `{ "studentIds": [] }` czyści listę uczestników (przy zachowaniu reguł typu **THEORY**).
+
+### Uwierzytelnianie i autoryzacja
+
+- **`Authorization: Bearer`** jak pozostałe endpointy managera.
+- Jak **GET `/events/:id/students`** / **POST**: `authMiddleware`, rola **MANAGER+**, dla managera OSK — `assertActorCanManageAvailability` względem instruktora eventu.
+
+### Parametry ścieżki
+
+| Parametr | Opis |
+|----------|------|
+| `:id` | UUID `InstructorEvent.id` — ten sam zasób co w `GET /events/:id`. |
+
+### Body (JSON)
+
+| Pole | Typ | Walidacja |
+|------|-----|-----------|
+| `studentIds` | string[] | max **50** pozycji; może być **pusta** = brak uczestników; elementy = UUID **`users.id`**; **bez duplikatów** (duplikat w tablicy → **400**) |
+
+### Reguły biznesowe
+
+- Jak przy **POST** (typ **THEORY**, przynależność kursanta do uprawionej OSK przez `student_schools`, limit **capacity**, brak kolizji z lekcją / innym nakładającym się eventem, jedna transakcja), z tym że limit **capacity** dotyczy **końcowej** liczby `studentIds.length` (nie „obecni + nowi” jak przy POST).
+- **Idempotentność:** drugie takie samo **PUT** z tą samą tablicą `studentIds` → **200**, stan bez zmiany semantycznej (ten sam zbiór w odpowiedzi).
+
+### Odpowiedź (200)
+
+```json
+{
+  "success": true,
+  "data": {
+    "studentUserIds": ["<uuid>", "<uuid>"]
+  }
+}
+```
+
+- **`studentUserIds`** — **potwierdzenie stanu po zapisie** (można odświeżyć UI bez osobnego GET). Kolejność w tablicy: **posortowana leksykograficznie**; zbiór = żądanie po unikalności UUID.
+
+### Kody błędów
+
+| Kod | Sytuacja |
+|-----|----------|
+| **401** / **403** / **404** | Jak przy GET/POST |
+| **400** | Niepoprawne body, duplikaty w `studentIds`, zły format UUID |
+| **409** | Przekroczenie `capacity` lub konflikt czasowy kursanta |
+| **422** | Event nie **THEORY** lub kursant nie w uprawnionej OSK |
+
+Implementacja: `replaceEventStudents` w `src/services/event.service.ts`, handler `putEventStudentsHandler`.
+
+---
+
+## DELETE `/events/:id/students/:studentUserId`
+
+**Cel:** **inkrementalne** usunięcie jednej osoby z eventu — bez przesyłania pełnej listy. Nadaje się do akcji „wypisz tego kursanta” przy niezmienionej reszcie grupy. Gdy chcesz **nadpisać całą listę**, wygodniejszy jest **`PUT`** z kompletną tablicą `studentIds`.
+
+### Parametry ścieżki
+
+| Parametr | Opis |
+|----------|------|
+| `:id` | UUID `InstructorEvent.id` |
+| `:studentUserId` | UUID **`users.id`** kursanta — ten sam identyfikator co wartości w `studentUserIds` / `studentIds` przy GET i PUT/POST (**nie** `StudentProfile.id` w API). |
+
+### Uwierzytelnianie i autoryzacja
+
+Jak przy **GET/POST/PUT** uczestników (MANAGER+, ten sam dostęp do instruktora eventu).
+
+### Reguły biznesowe
+
+- Event musi mieć typ **`THEORY`** — inaczej **422**.
+- Kursant musi być **obecnie** zapisany na ten event — inaczej **404** (`Student is not assigned to this event`). Sam fakt istnienia konta kursanta bez przypisania do eventu kończy się tym błędem, nie **200**.
+
+### Odpowiedź (200)
+
+```json
+{
+  "success": true,
+  "data": {
+    "studentUserIds": ["<uuid>", "<uuid>"]
+  }
+}
+```
+
+- **`studentUserIds`** — kto pozostał po wypisaniu wskazanego uczestnika; kolejność jak przy **PUT** (**posortowane** UUID).
+
+### Kody błędów
+
+| Kod | Sytuacja |
+|-----|----------|
+| **401** / **403** | Jak przy innych `/events/.../students` |
+| **404** | Brak eventu **albo** podany kursant nie jest na liście uczestników |
+| **422** | Event nie **THEORY** |
+| **400** | Niepoprawny UUID w ścieżce |
+
+Implementacja: `removeStudentFromEvent` w `src/services/event.service.ts`, handler `deleteEventStudentsHandler`.
 
 ---
 

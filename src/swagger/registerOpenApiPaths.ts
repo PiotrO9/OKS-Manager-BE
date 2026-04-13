@@ -9,6 +9,7 @@ import {
 	assignStudentDrivingSchoolBodySchema,
 	assignStudentToCourseBodySchema,
 	courseIdParamsSchema,
+	eventIdAndStudentUserParamsSchema,
 	eventIdParamsSchema,
 	lessonIdParamsSchema,
 	drivingSchoolIdParamsSchema,
@@ -32,6 +33,7 @@ import {
 	assignStudentsBodySchema,
 	createInstructorEventBodySchema,
 	patchInstructorEventBodySchema,
+	replaceEventStudentsBodySchema,
 } from '../schemas/event.schemas';
 import {
 	bookLessonBodySchema,
@@ -1027,6 +1029,59 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 			409: clientError(
 				'Przekroczono capacity lub konflikt czasowy kursanta',
 			),
+			422: clientError(
+				'Event nie THEORY lub kursant nie w odpowiedniej szkole OSK',
+			),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'put',
+		path: '/events/{id}/students',
+		tags: ['Events'],
+		summary: 'Pełna zamiana listy kursantów na wydarzeniu (MANAGER)',
+		description:
+			'Stan docelowy = dokładnie studentIds (users.id); pusta tablica usuwa wszystkich. Tylko wydarzenia THEORY.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: eventIdParamsSchema,
+			body: {
+				content: {
+					'application/json': {
+						schema: replaceEventStudentsBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown(
+				'Stan po zapisie: data.studentUserIds (posortowane UUID)',
+			),
+			409: clientError(
+				'Przekroczono capacity lub konflikt czasowy kursanta',
+			),
+			422: clientError(
+				'Event nie THEORY lub kursant nie w odpowiedniej szkole OSK',
+			),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'delete',
+		path: '/events/{id}/students/{studentUserId}',
+		tags: ['Events'],
+		summary: 'Usunięcie jednego kursanta z wydarzenia (MANAGER)',
+		description:
+			'Parametr studentUserId — users.id kursanta. Tylko wydarzenia THEORY.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: eventIdAndStudentUserParamsSchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown(
+				'Pozostali uczestnicy: data.studentUserIds (posortowane UUID)',
+			),
+			422: clientError('Event nie THEORY'),
 		}),
 	});
 

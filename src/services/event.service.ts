@@ -1,4 +1,4 @@
-import { EventType, LessonStatus, Role } from '@prisma/client';
+import { EventType, LessonStatus, Prisma, Role } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { validateVehicleForInstructor } from '../lib/vehicle.helpers';
 import { getPrisma } from '../lib/prisma';
@@ -6,6 +6,7 @@ import type {
 	AssignStudentsBody,
 	CreateInstructorEventBody,
 	PatchInstructorEventBody,
+	ReplaceEventStudentsBody,
 } from '../schemas/event.schemas';
 import {
 	mapPersonToLessonDetailDto,
@@ -18,6 +19,135 @@ import {
 } from './instructor-availability.service';
 
 const prisma = getPrisma();
+
+function assertEventTypeAllowsParticipants(eventType: EventType): void {
+	if (eventType !== EventType.THEORY) {
+		throw AppError.unprocessableEntity(
+			'Student participants are only supported for THEORY events',
+		);
+	}
+}
+
+/** Szkoły OSK powiązane z instruktorem; dla MANAGERA tylko własne OSK. */
+async function getSchoolIdsForEventParticipantValidation(
+	actor: { id: string; role: Role },
+	instructorId: string,
+): Promise<string[]> {
+	if (actor.role !== Role.MANAGER && actor.role !== Role.ADMIN) {
+		throw AppError.forbidden('Forbidden');
+	}
+	const links = await prisma.instructorSchool.findMany({
+		where: {
+			instructorId,
+			school:
+				actor.role === Role.MANAGER
+					? { ownerId: actor.id, deletedAt: null }
+					: { deletedAt: null },
+		},
+		select: { schoolId: true },
+	});
+	return links.map((l) => l.schoolId);
+}
+
+async function assertStudentProfilesInAllowedSchools(
+	db: Prisma.TransactionClient | ReturnType<typeof getPrisma>,
+	profileIds: string[],
+	allowedSchoolIds: string[],
+): Promise<void> {
+	if (profileIds.length === 0) {
+		return;
+	}
+	if (allowedSchoolIds.length === 0) {
+		throw AppError.unprocessableEntity(
+			'No driving school context available for participant validation',
+		);
+	}
+	const rows = await db.studentSchool.findMany({
+		where: {
+			studentId: { in: profileIds },
+			schoolId: { in: allowedSchoolIds },
+		},
+		select: { studentId: true },
+	});
+	const covered = new Set(rows.map((r) => r.studentId));
+	for (const pid of profileIds) {
+		if (!covered.has(pid)) {
+			throw AppError.unprocessableEntity(
+				'One or more students are not enrolled in a driving school linked to this event',
+			);
+		}
+	}
+}
+
+async function loadActiveStudentUserIdToProfileIdMap(
+	uniqueUserIds: string[],
+): Promise<Map<string, string>> {
+	if (uniqueUserIds.length === 0) {
+		return new Map();
+	}
+	const users = await prisma.user.findMany({
+		where: { id: { in: uniqueUserIds } },
+		select: {
+			id: true,
+			role: true,
+			deletedAt: true,
+			studentProfile: { select: { id: true } },
+		},
+	});
+
+	if (users.length !== uniqueUserIds.length) {
+		throw AppError.notFound('One or more students not found');
+	}
+
+	const map = new Map<string, string>();
+	for (const u of users) {
+		if (
+			u.deletedAt !== null ||
+			u.role !== Role.STUDENT ||
+			!u.studentProfile
+		) {
+			throw AppError.notFound('One or more students not found');
+		}
+		map.set(u.id, u.studentProfile.id);
+	}
+	return map;
+}
+
+async function assertNewParticipantNoScheduleConflicts(
+	tx: Prisma.TransactionClient,
+	eventId: string,
+	studentProfileId: string,
+	start: Date,
+	end: Date,
+): Promise<void> {
+	const lessonConflict = await tx.lesson.findFirst({
+		where: {
+			studentId: studentProfileId,
+			status: { not: LessonStatus.CANCELLED },
+			startTime: { lt: end },
+			endTime: { gt: start },
+		},
+		select: { id: true },
+	});
+	if (lessonConflict) {
+		throw AppError.conflict('Student has a conflicting driving lesson');
+	}
+
+	const eventConflict = await tx.eventParticipant.findFirst({
+		where: {
+			studentId: studentProfileId,
+			eventId: { not: eventId },
+			event: {
+				startTime: { lt: end },
+				endTime: { gt: start },
+			},
+		},
+		select: { id: true },
+	});
+	if (eventConflict) {
+		throw AppError.conflict('Student has a conflicting scheduled event');
+	}
+}
 
 export type InstructorEventDto = {
 	id: string;
@@ -42,6 +172,8 @@ export type AssignStudentsToEventResult = {
 	assigned: number;
 	skipped: number;
 };
+
+export type ReplaceEventStudentsResult = { studentUserIds: string[] };
 
 export async function createInstructorEvent(
 	actor: { id: string; role: Role },
@@ -413,6 +545,11 @@ export async function updateInstructorEvent(
 	};
 }
 
+/**
+ * POST `/events/:id/students` — dopisuje kursantów do eventu **THEORY** (semantyka
+ * „dokładka”): istniejący uczestnicy zostają; kursanci już z listy → `skipped`.
+ * Pełna zamiana zbioru: {@link replaceEventStudents}.
+ */
 export async function assignStudentsToEvent(
 	actor: { id: string; role: Role },
 	eventId: string,
@@ -428,6 +565,7 @@ export async function assignStudentsToEvent(
 		select: {
 			id: true,
 			instructorId: true,
+			type: true,
 			startTime: true,
 			endTime: true,
 			capacity: true,
@@ -439,33 +577,10 @@ export async function assignStudentsToEvent(
 	}
 
 	await assertActorCanManageAvailability(actor, event.instructorId);
+	assertEventTypeAllowsParticipants(event.type);
 
-	const users = await prisma.user.findMany({
-		where: { id: { in: uniqueIds } },
-		select: {
-			id: true,
-			role: true,
-			deletedAt: true,
-			studentProfile: { select: { id: true } },
-		},
-	});
-
-	if (users.length !== uniqueIds.length) {
-		throw AppError.notFound('One or more students not found');
-	}
-
-	const userIdToProfileId = new Map<string, string>();
-	for (const u of users) {
-		if (
-			u.deletedAt !== null ||
-			u.role !== Role.STUDENT ||
-			!u.studentProfile
-		) {
-			throw AppError.notFound('One or more students not found');
-		}
-		userIdToProfileId.set(u.id, u.studentProfile.id);
-	}
-
+	const userIdToProfileId =
+		await loadActiveStudentUserIdToProfileIdMap(uniqueIds);
 	const profileIdsOrdered = uniqueIds.map((uid) => {
 		const pid = userIdToProfileId.get(uid);
 		if (!pid) {
@@ -473,6 +588,21 @@ export async function assignStudentsToEvent(
 		}
 		return pid;
 	});
+
+	const allowedSchoolIds = await getSchoolIdsForEventParticipantValidation(
+		actor,
+		event.instructorId,
+	);
+	if (allowedSchoolIds.length === 0) {
+		throw AppError.unprocessableEntity(
+			'Instructor is not linked to a driving school for this operation',
+		);
+	}
+	await assertStudentProfilesInAllowedSchools(
+		prisma,
+		profileIdsOrdered,
+		allowedSchoolIds,
+	);
 
 	const start = event.startTime;
 	const end = event.endTime;
@@ -503,37 +633,13 @@ export async function assignStudentsToEvent(
 		}
 
 		for (const studentId of newProfileIds) {
-			const lessonConflict = await tx.lesson.findFirst({
-				where: {
-					studentId,
-					status: { not: LessonStatus.CANCELLED },
-					startTime: { lt: end },
-					endTime: { gt: start },
-				},
-				select: { id: true },
-			});
-			if (lessonConflict) {
-				throw AppError.conflict(
-					'Student has a conflicting driving lesson',
-				);
-			}
-
-			const conflict = await tx.eventParticipant.findFirst({
-				where: {
-					studentId,
-					eventId: { not: eventId },
-					event: {
-						startTime: { lt: end },
-						endTime: { gt: start },
-					},
-				},
-				select: { id: true },
-			});
-			if (conflict) {
-				throw AppError.conflict(
-					'Student has a conflicting scheduled event',
-				);
-			}
+			await assertNewParticipantNoScheduleConflicts(
+				tx,
+				eventId,
+				studentId,
+				start,
+				end,
+			);
 		}
 
 		if (newProfileIds.length > 0) {
@@ -547,4 +653,168 @@ export async function assignStudentsToEvent(
 
 		return { assigned: newProfileIds.length, skipped };
 	});
+}
+
+/**
+ * PUT `/events/:id/students` — **nadpisanie** zbioru uczestników stanem z `body.studentIds`
+ * (`users.id`). Kursanci obecni w bazie, a **pominięci** w żądaniu, są usuwani
+ * z `event_participants`; pusta tablica czyści listę. Idempotentne przy tej samej
+ * liście. Zwraca `studentUserIds` posortowane (inna kolejność niż GET, ta sama zawartość).
+ *
+ * Wymaga: event **THEORY**, kursanci w uprawnionej OSK, `capacity`, brak kolizji czasowych.
+ */
+export async function replaceEventStudents(
+	actor: { id: string; role: Role },
+	eventId: string,
+	body: ReplaceEventStudentsBody,
+): Promise<ReplaceEventStudentsResult> {
+	const uniqueIds = [...new Set(body.studentIds)];
+	if (uniqueIds.length !== body.studentIds.length) {
+		throw AppError.badRequest('Duplicate studentIds in request');
+	}
+
+	const event = await prisma.instructorEvent.findUnique({
+		where: { id: eventId },
+		select: {
+			id: true,
+			instructorId: true,
+			type: true,
+			startTime: true,
+			endTime: true,
+			capacity: true,
+		},
+	});
+
+	if (!event) {
+		throw AppError.notFound('Event not found');
+	}
+
+	await assertActorCanManageAvailability(actor, event.instructorId);
+	assertEventTypeAllowsParticipants(event.type);
+
+	if (event.capacity != null && uniqueIds.length > event.capacity) {
+		throw AppError.conflict('Event capacity would be exceeded');
+	}
+
+	const userIdToProfileId =
+		await loadActiveStudentUserIdToProfileIdMap(uniqueIds);
+	const targetProfileIds = uniqueIds.map((uid) => {
+		const pid = userIdToProfileId.get(uid);
+		if (!pid) {
+			throw AppError.notFound('One or more students not found');
+		}
+		return pid;
+	});
+
+	if (uniqueIds.length > 0) {
+		const allowedSchoolIds =
+			await getSchoolIdsForEventParticipantValidation(
+				actor,
+				event.instructorId,
+			);
+		if (allowedSchoolIds.length === 0) {
+			throw AppError.unprocessableEntity(
+				'Instructor is not linked to a driving school for this operation',
+			);
+		}
+		await assertStudentProfilesInAllowedSchools(
+			prisma,
+			targetProfileIds,
+			allowedSchoolIds,
+		);
+	}
+
+	const start = event.startTime;
+	const end = event.endTime;
+
+	await prisma.$transaction(async (tx) => {
+		const existing = await tx.eventParticipant.findMany({
+			where: { eventId },
+			select: { studentId: true },
+		});
+		const existingSet = new Set(existing.map((e) => e.studentId));
+		const targetSet = new Set(targetProfileIds);
+
+		const toRemove = [...existingSet].filter((id) => !targetSet.has(id));
+		const toAdd = targetProfileIds.filter((id) => !existingSet.has(id));
+
+		if (toRemove.length > 0) {
+			await tx.eventParticipant.deleteMany({
+				where: {
+					eventId,
+					studentId: { in: toRemove },
+				},
+			});
+		}
+
+		for (const studentId of toAdd) {
+			await assertNewParticipantNoScheduleConflicts(
+				tx,
+				eventId,
+				studentId,
+				start,
+				end,
+			);
+		}
+
+		if (toAdd.length > 0) {
+			await tx.eventParticipant.createMany({
+				data: toAdd.map((studentId) => ({
+					eventId,
+					studentId,
+				})),
+			});
+		}
+	});
+
+	return {
+		studentUserIds: [...uniqueIds].sort(),
+	};
+}
+
+/**
+ * DELETE `/events/:id/students/:studentUserId` — usuwa **jedno** powiązanie
+ * kursant ↔ event. Parametr `studentUserId` to **`users.id`** (jak elementy
+ * `studentIds` / `studentUserIds`). Zwraca pozostałych uczestników (`studentUserIds`
+ * posortowane). Gdy trzeba ustawić całą listę od zera, użyj {@link replaceEventStudents}.
+ */
+export async function removeStudentFromEvent(
+	actor: { id: string; role: Role },
+	eventId: string,
+	studentUserId: string,
+): Promise<ReplaceEventStudentsResult> {
+	const event = await prisma.instructorEvent.findUnique({
+		where: { id: eventId },
+		select: {
+			id: true,
+			instructorId: true,
+			type: true,
+		},
+	});
+
+	if (!event) {
+		throw AppError.notFound('Event not found');
+	}
+
+	await assertActorCanManageAvailability(actor, event.instructorId);
+	assertEventTypeAllowsParticipants(event.type);
+
+	const userIdToProfileId = await loadActiveStudentUserIdToProfileIdMap([
+		studentUserId,
+	]);
+	const profileId = userIdToProfileId.get(studentUserId)!;
+
+	const deleted = await prisma.eventParticipant.deleteMany({
+		where: {
+			eventId,
+			studentId: profileId,
+		},
+	});
+
+	if (deleted.count === 0) {
+		throw AppError.notFound('Student is not assigned to this event');
+	}
+
+	const { studentUserIds } = await getEventStudentUserIds(actor, eventId);
+	return { studentUserIds: [...studentUserIds].sort() };
 }

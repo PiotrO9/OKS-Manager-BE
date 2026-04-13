@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import {
+	deleteEventStudentsHandler,
 	getEventHandler,
 	getEventStudentsHandler,
 	patchEventHandler,
 	postEventHandler,
 	postEventStudentsHandler,
+	putEventStudentsHandler,
 } from '../controllers/event.controller';
 import { asyncHandler } from '../lib/http/asyncHandler';
 import { authMiddleware, requireMinRole } from '../middleware/auth.middleware';
@@ -38,6 +40,20 @@ function createEventsRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		asyncHandler(getEventStudentsHandler),
+	);
+
+	router.put(
+		'/:id/students',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(putEventStudentsHandler),
+	);
+
+	router.delete(
+		'/:id/students/:studentUserId',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(deleteEventStudentsHandler),
 	);
 
 	router.post(

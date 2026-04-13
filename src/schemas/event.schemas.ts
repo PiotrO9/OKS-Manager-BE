@@ -129,3 +129,27 @@ export function parseAssignStudentsBody(
 	}
 	return { ok: true, data: parsed.data };
 }
+
+/** PUT `/events/:id/students` — pełna zamiana listy; pusta tablica usuwa wszystkich uczestników. */
+export const replaceEventStudentsBodySchema = z.object({
+	studentIds: z
+		.array(z.string().regex(UUID_PARAM_RE, 'Invalid studentId'))
+		.max(50, 'studentIds must not exceed 50 entries'),
+});
+
+export type ReplaceEventStudentsBody = z.infer<
+	typeof replaceEventStudentsBodySchema
+>;
+
+export function parseReplaceEventStudentsBody(
+	body: unknown,
+): { ok: true; data: ReplaceEventStudentsBody } | { ok: false; error: string } {
+	const parsed = replaceEventStudentsBodySchema.safeParse(body);
+	if (!parsed.success) {
+		return {
+			ok: false,
+			error: parsed.error.issues[0]?.message ?? 'Invalid body',
+		};
+	}
+	return { ok: true, data: parsed.data };
+}

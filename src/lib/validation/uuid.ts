@@ -151,6 +151,15 @@ export const eventIdParamsSchema = z.object({
 	id: z.string().trim().regex(UUID_PARAM_RE, 'Invalid event id'),
 });
 
+/** `DELETE /events/:id/students/:studentUserId` — `studentUserId` = `users.id` kursanta. */
+export const eventIdAndStudentUserParamsSchema = z.object({
+	id: z.string().trim().regex(UUID_PARAM_RE, 'Invalid event id'),
+	studentUserId: z
+		.string()
+		.trim()
+		.regex(UUID_PARAM_RE, 'Invalid student user id'),
+});
+
 export const lessonIdParamsSchema = z.object({
 	id: z.string().trim().regex(UUID_PARAM_RE, 'Invalid lesson id'),
 });
