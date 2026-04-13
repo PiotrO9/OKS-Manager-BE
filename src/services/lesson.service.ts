@@ -2,7 +2,10 @@ import { EventType, LessonStatus, LessonType, Role } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { validateVehicleForInstructor } from '../lib/vehicle.helpers';
 import { getPrisma } from '../lib/prisma';
-import type { BookLessonBody, UpdateLessonBody } from '../schemas/lesson.schemas';
+import type {
+	BookLessonBody,
+	UpdateLessonBody,
+} from '../schemas/lesson.schemas';
 import {
 	assertCourseDrivingPackageHoursAllowNewLesson,
 	assertStudentNoScheduleOverlap,
@@ -467,7 +470,9 @@ export async function updateLesson(
 	}
 
 	const start =
-		body.startTime !== undefined ? new Date(body.startTime) : existing.startTime;
+		body.startTime !== undefined
+			? new Date(body.startTime)
+			: existing.startTime;
 	const end =
 		body.endTime !== undefined ? new Date(body.endTime) : existing.endTime;
 	const instructorId = body.instructorId ?? existing.instructorId;
@@ -523,10 +528,7 @@ export async function updateLesson(
 		);
 	}
 
-	if (
-		course.instructorId != null &&
-		course.instructorId !== instructorId
-	) {
+	if (course.instructorId != null && course.instructorId !== instructorId) {
 		throw AppError.badRequest(
 			'instructor does not match course assigned instructor',
 		);
@@ -564,9 +566,15 @@ export async function updateLesson(
 				lessonId,
 			);
 
-			await assertStudentNoScheduleOverlap(tx, existing.studentId, start, end, {
-				excludeLessonId: lessonId,
-			});
+			await assertStudentNoScheduleOverlap(
+				tx,
+				existing.studentId,
+				start,
+				end,
+				{
+					excludeLessonId: lessonId,
+				},
+			);
 
 			await assertCourseDrivingPackageHoursAllowNewLesson(
 				tx,

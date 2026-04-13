@@ -7,7 +7,7 @@ alwaysApply: true
 
 Montowanie w `src/server.ts`:
 
-- **`/events`** — bloki czasu instruktora (`InstructorEvent`); **`GET /events/:id`** — odczyt pojedynczego eventu (prefill edycji); **`PATCH /events/:id`** — częściowa edycja; opcjonalnie limit miejsc (`capacity`) i przypisanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`)
+- **`/events`** — bloki czasu instruktora (`InstructorEvent`); **`GET /events/:id`** — odczyt pojedynczego eventu (prefill edycji); **`GET /events/:id/students`** — lista **`users.id`** kursantów przypisanych do eventu; **`PATCH /events/:id`** — częściowa edycja; opcjonalnie limit miejsc (`capacity`) i przypisanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`)
 - **`/lessons`** — tworzenie lekcji (`Lesson`) — zob. [lessons-api.md](./lessons-api.md)
 - **`/schedule`** — **lekcje** (`Lesson`) oraz **eventy instruktora** (`InstructorEvent`) w zadanym zakresie dat, scalone i posortowane po `startTime` (terminarz osobisty lub podgląd przez MANAGER/ADMIN)
 
@@ -184,6 +184,54 @@ Ten sam kształt co `data.event` w **POST `/events`** (201), ale kod **200**.
 | **400** | Niepoprawne body; po merge: brak `vehicleId` dla DRIVE; `startTime` ≥ `endTime`; start i koniec nie w jednej dobie UTC; pojazd nie w szkole instruktora |
 | **404** | Event nie istnieje; przy zmianie instruktora — nowy instruktor nie znaleziony / nieaktywny; pojazd nie znaleziony (DRIVE) |
 | **409** | Okno poza dostępnością; kolizja z lekcją lub innym eventem; pojazd zajęty (DRIVE) |
+
+---
+
+## GET `/events/:id/students`
+
+Odczyt listy **identyfikatorów użytkowników** (`User.id` / JWT subject) kursantów przypisanych do eventu. W bazie przypisanie jest przez **`EventParticipant`** (`student_id` → **`StudentProfile.id`**); endpoint zwraca **`users.id`**, tak jak pole **`studentIds`** w body **`POST /events/:id/students`** — bez dodatkowego mapowania po stronie klienta.
+
+### Uwierzytelnianie i autoryzacja
+
+- **`authMiddleware`** + **`requireMinRole('MANAGER')`** (MANAGER lub ADMIN).
+- **MANAGER** — tylko gdy może zarządzać dostępnością instruktora przypisanego do eventu (`assertActorCanManageAvailability` — **ta sama reguła** co przy **`GET /events/:id`** i **`POST /events/:id/students`**).
+- **ADMIN** — dowolny istniejący event.
+
+### Parametry ścieżki
+
+| Parametr | Opis |
+|----------|------|
+| `:id` | UUID `InstructorEvent.id` |
+
+### Zachowanie serwera
+
+1. Wyszukanie **`InstructorEvent`** po `:id`; brak rekordu → **404** (`Event not found`).
+2. Sprawdzenie uprawnień do **instruktora** tego eventu (`assertActorCanManageAvailability`).
+3. Odczyt **`event_participants`** dla tego `event_id`, join do **`student_profiles`** → pole **`user_id`** (UUID konta użytkownika).
+4. Kolejność w **`studentUserIds`**: rosnąco po **`event_participants.created_at`** (kto pierwszy zapisany, ten wcześniej na liście).
+5. Brak uczestników → **200** z `studentUserIds: []` (nie jest to błąd).
+
+### Odpowiedź (200)
+
+```json
+{
+  "success": true,
+  "data": {
+    "studentUserIds": ["<uuid-users.id>", "<uuid-users.id>"]
+  }
+}
+```
+
+### Kody błędów
+
+| Kod | Sytuacja |
+|-----|----------|
+| **401** | Brak / niepoprawny JWT |
+| **403** | Rola poniżej MANAGER; MANAGER bez uprawnień do instruktora eventu |
+| **400** | Niepoprawny UUID w ścieżce (`:id`) |
+| **404** | Event nie istnieje |
+
+Implementacja: `getEventStudentUserIds` w `src/services/event.service.ts`, handler `getEventStudentsHandler` w `src/controllers/event.controller.ts`.
 
 ---
 
@@ -368,5 +416,6 @@ Filtrowanie: lekcje **nakładające się** na zakres `[dateFrom, dateTo]` (UTC),
 5. **GET /schedule/me:** ADMIN → **403**.
 6. **GET /schedule:** MANAGER + `instructorId` + zakres → **200**; `studentId` + zakres → **200**; `studentId` i `instructorId` razem → **400**.
 7. **GET /events/:id:** MANAGER z OSK instruktora eventu → **200** (`data.event`); nieistniejący UUID → **404** (JSON); MANAGER innej OSK → **403**.
-8. **POST /events/:id/students:** MANAGER, `studentIds` = `users.id`, capacity nieprzekroczone → **200** (`assigned` / `skipped`); duplikat w tablicy → **400**; drugi event w tym samym czasie dla kursanta → **409**.
-9. **PATCH /events/:id:** MANAGER — zmiana tylko `capacity` → **200**; zmiana czasu na ten sam slot co dotychczas → **200** (bez kolizji z samym sobą); przesunięcie na zajęty slot innego eventu → **409**.
+8. **GET /events/:id/students:** MANAGER z OSK instruktora → **200** (`data.studentUserIds`; pusta tablica jeśli nikt nie zapisany); nieistniejący event → **404**; MANAGER innej OSK → **403**.
+9. **POST /events/:id/students:** MANAGER, `studentIds` = `users.id`, capacity nieprzekroczone → **200** (`assigned` / `skipped`); duplikat w tablicy → **400**; drugi event w tym samym czasie dla kursanta → **409**.
+10. **PATCH /events/:id:** MANAGER — zmiana tylko `capacity` → **200**; zmiana czasu na ten sam slot co dotychczas → **200** (bez kolizji z samym sobą); przesunięcie na zajęty slot innego eventu → **409**.

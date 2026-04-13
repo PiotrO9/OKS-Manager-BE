@@ -989,6 +989,22 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 	});
 
 	registry.registerPath({
+		method: 'get',
+		path: '/events/{id}/students',
+		tags: ['Events'],
+		summary: 'Lista kursantów przypisanych do wydarzenia (MANAGER)',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: eventIdParamsSchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown(
+				'UUID użytkowników (users.id) — data.studentUserIds',
+			),
+		}),
+	});
+
+	registry.registerPath({
 		method: 'post',
 		path: '/events/{id}/students',
 		tags: ['Events'],

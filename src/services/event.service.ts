@@ -209,6 +209,37 @@ export async function getInstructorEventById(
 	};
 }
 
+/** GET `/events/:id/students` — UUID użytkowników (`users.id`) przypisanych do eventu. */
+export async function getEventStudentUserIds(
+	actor: { id: string; role: Role },
+	eventId: string,
+): Promise<{ studentUserIds: string[] }> {
+	const event = await prisma.instructorEvent.findUnique({
+		where: { id: eventId },
+		select: { instructorId: true },
+	});
+
+	if (!event) {
+		throw AppError.notFound('Event not found');
+	}
+
+	await assertActorCanManageAvailability(actor, event.instructorId);
+
+	const rows = await prisma.eventParticipant.findMany({
+		where: { eventId },
+		orderBy: { createdAt: 'asc' },
+		select: {
+			student: {
+				select: { userId: true },
+			},
+		},
+	});
+
+	return {
+		studentUserIds: rows.map((r) => r.student.userId),
+	};
+}
+
 export async function updateInstructorEvent(
 	actor: { id: string; role: Role },
 	eventId: string,

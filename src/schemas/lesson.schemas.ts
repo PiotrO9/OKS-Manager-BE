@@ -53,7 +53,10 @@ export const updateLessonBodySchema = z
 			.string()
 			.regex(UUID_PARAM_RE, 'Invalid instructorId')
 			.optional(),
-		vehicleId: z.string().regex(UUID_PARAM_RE, 'Invalid vehicleId').optional(),
+		vehicleId: z
+			.string()
+			.regex(UUID_PARAM_RE, 'Invalid vehicleId')
+			.optional(),
 	})
 	.strict()
 	.superRefine((data, ctx) => {
