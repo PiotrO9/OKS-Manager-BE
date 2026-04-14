@@ -1,9 +1,4 @@
-import {
-	EventType,
-	LessonStatus,
-	Prisma,
-	Role,
-} from '@prisma/client';
+import { EventType, LessonStatus, Prisma, Role } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { validateVehicleForInstructor } from '../lib/vehicle.helpers';
 import { getPrisma } from '../lib/prisma';
@@ -209,8 +204,15 @@ export async function createInstructorEvent(
 	actor: { id: string; role: Role },
 	body: CreateInstructorEventBody,
 ): Promise<{ event: InstructorEventDto }> {
-	const { instructorId, type, startTime, endTime, vehicleId, capacity, courseId } =
-		body;
+	const {
+		instructorId,
+		type,
+		startTime,
+		endTime,
+		vehicleId,
+		capacity,
+		courseId,
+	} = body;
 
 	await assertActorCanManageAvailability(actor, instructorId);
 	await resolveActiveInstructorProfile(instructorId);

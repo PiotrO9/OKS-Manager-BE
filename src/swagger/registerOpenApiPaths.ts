@@ -978,9 +978,7 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 			params: eventIdParamsSchema,
 		},
 		responses: stdBearerResponses({
-			200: okDataUnknown(
-				'Event (data.event: instructor + students)',
-			),
+			200: okDataUnknown('Event (data.event: instructor + students)'),
 		}),
 	});
 
