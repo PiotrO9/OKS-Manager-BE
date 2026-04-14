@@ -189,12 +189,13 @@ export type InstructorEventDto = {
 	createdAt: string;
 };
 
-/** GET `/events/:id` — bez płaskich `instructorId` / `vehicleId`; pełny **`instructor`** jak przy GET `/lessons/:id` (teoria — bez pojazdu w odpowiedzi). */
+/** GET `/events/:id` — bez płaskich `instructorId` / `vehicleId`; pełny **`instructor`** jak przy GET `/lessons/:id`; **`students`** — uczestnicy z `event_participants`, ten sam kształt co osoba przy GET `/lessons/:id`, kolejność wg `created_at` (THEORY: wiele, DRIVE: zwykle 0–1). */
 export type InstructorEventWithDetailsDto = Omit<
 	InstructorEventDto,
 	'instructorId' | 'vehicleId'
 > & {
 	instructor: LessonPersonDetailDto;
+	students: LessonPersonDetailDto[];
 };
 
 export type AssignStudentsToEventResult = {
@@ -361,6 +362,25 @@ export async function getInstructorEventById(
 					},
 				},
 			},
+			participants: {
+				orderBy: { createdAt: 'asc' },
+				select: {
+					student: {
+						select: {
+							id: true,
+							userId: true,
+							user: {
+								select: {
+									firstName: true,
+									lastName: true,
+									email: true,
+									phone: true,
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	});
 
@@ -373,6 +393,10 @@ export async function getInstructorEventById(
 
 	await assertActorCanManageAvailability(actor, row.instructorId);
 
+	const students = row.participants.map((p) =>
+		mapPersonToLessonDetailDto(p.student),
+	);
+
 	return {
 		event: {
 			id: row.id,
@@ -383,6 +407,7 @@ export async function getInstructorEventById(
 			capacity: row.capacity,
 			createdAt: row.createdAt.toISOString(),
 			instructor: mapPersonToLessonDetailDto(row.instructor),
+			students,
 		},
 	};
 }

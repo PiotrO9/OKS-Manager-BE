@@ -967,6 +967,24 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 	});
 
 	registry.registerPath({
+		method: 'get',
+		path: '/events/{id}',
+		tags: ['Events'],
+		summary: 'Szczegóły wydarzenia instruktora (MANAGER)',
+		description:
+			'Odczyt pojedynczego `InstructorEvent`: `data.event` z `instructor` (jak osoba przy GET `/lessons/{id}`), opcjonalnie `courseId`, `capacity`, oraz `students` — tablica uczestników z `event_participants` w tym samym kształcie pól; kolejność jak przy GET `/events/{id}/students`. Szczegóły: context/events-schedule-api.md',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: eventIdParamsSchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown(
+				'Event (data.event: instructor + students)',
+			),
+		}),
+	});
+
+	registry.registerPath({
 		method: 'patch',
 		path: '/events/{id}',
 		tags: ['Events'],

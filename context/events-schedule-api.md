@@ -7,7 +7,7 @@ alwaysApply: true
 
 Montowanie w `src/server.ts`:
 
-- **`/events`** — bloki czasu instruktora (`InstructorEvent`); **`GET /events/:id`** — odczyt pojedynczego eventu (prefill edycji); **`DELETE /events/:id`** — soft delete (`isActive = false`; rekord pozostaje, nie widać go w harmonogramie ani w slotach); **`GET /events/:id/students`** — lista **`users.id`** kursantów przypisanych do eventu; **`PUT /events/:id/students`** — pełna zamiana listy uczestników; **`DELETE /events/:id/students/:studentUserId`** — usunięcie jednego uczestnika (`studentUserId` = `users.id`); **`PATCH /events/:id`** — częściowa edycja; opcjonalnie limit miejsc (`capacity`) i dopisywanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`; semantyka „dokładka”, nie pełna zamiana — do synchronizacji zbioru użyj **PUT**)
+- **`/events`** — bloki czasu instruktora (`InstructorEvent`); **`GET /events/:id`** — odczyt pojedynczego eventu (prefill edycji) z **`instructor`** i **`students`** (pełne obiekty kursantów z `event_participants`); **`DELETE /events/:id`** — soft delete (`isActive = false`; rekord pozostaje, nie widać go w harmonogramie ani w slotach); **`GET /events/:id/students`** — lista **`users.id`** kursantów przypisanych do eventu; **`PUT /events/:id/students`** — pełna zamiana listy uczestników; **`DELETE /events/:id/students/:studentUserId`** — usunięcie jednego uczestnika (`studentUserId` = `users.id`); **`PATCH /events/:id`** — częściowa edycja; opcjonalnie limit miejsc (`capacity`) i dopisywanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`; semantyka „dokładka”, nie pełna zamiana — do synchronizacji zbioru użyj **PUT**)
 - **`/lessons`** — tworzenie lekcji (`Lesson`) — zob. [lessons-api.md](./lessons-api.md)
 - **`/schedule`** — **lekcje** (`Lesson`) oraz **eventy instruktora** (`InstructorEvent`) w zadanym zakresie dat, scalone i posortowane po `startTime` (terminarz osobisty lub podgląd przez MANAGER/ADMIN)
 
@@ -104,7 +104,7 @@ Tworzenie eventu instruktora.
 
 ## GET `/events/:id`
 
-Odczyt pojedynczego eventu (`InstructorEvent`). **`data.event`** ma ten sam zestaw pól co **POST/PATCH**, ale **bez** płaskich **`instructorId`** i **`vehicleId`** — zamiast tego zagnieżdżony **`instructor`** w tym samym kształcie co przy **GET `/lessons/:id`** (`id`, `userId`, `firstName`, `lastName`, `email`, `phone`). **Pojazd nie jest zwracany** (zakres: bloki teorii). Odpowiedź zawsze **JSON** (w tym **404** — envelope błędu, nie HTML).
+Odczyt pojedynczego eventu (`InstructorEvent`). **`data.event`** ma ten sam zestaw pól co **POST/PATCH**, ale **bez** płaskich **`instructorId`** i **`vehicleId`** — zamiast tego zagnieżdżony **`instructor`** w tym samym kształcie co przy **GET `/lessons/:id`** (`id` = `InstructorProfile.id`, `userId`, `firstName`, `lastName`, `email`, `phone`). Dodatkowo zawsze **`students`**: tablica obiektów kursantów w tym samym kształcie pól co osoba przy **GET `/lessons/:id`** (`id` = `StudentProfile.id`), dane z **`event_participants`**, kolejność jak identyfikatory w **GET `/events/:id/students`** (wg `event_participants.created_at`). Dla **THEORY** może być wiele elementów; dla **DRIVE** zwykle zero lub jeden. **Pojazd nie jest zwracany**. Odpowiedź zawsze **JSON** (w tym **404** — envelope błędu, nie HTML).
 
 ### Uwierzytelnianie i autoryzacja
 
@@ -127,6 +127,7 @@ Odczyt pojedynczego eventu (`InstructorEvent`). **`data.event`** ma ten sam zest
     "event": {
       "id": "<uuid>",
       "type": "THEORY",
+      "courseId": "<uuid> | null",
       "startTime": "2026-04-01T08:00:00.000Z",
       "endTime": "2026-04-01T09:00:00.000Z",
       "capacity": 20,
@@ -138,7 +139,17 @@ Odczyt pojedynczego eventu (`InstructorEvent`). **`data.event`** ma ten sam zest
         "lastName": "Kowalski",
         "email": "jan@example.com",
         "phone": "+48..."
-      }
+      },
+      "students": [
+        {
+          "id": "<StudentProfile.id>",
+          "userId": "<User.id>",
+          "firstName": "Anna",
+          "lastName": "Nowak",
+          "email": "anna@example.com",
+          "phone": null
+        }
+      ]
     }
   }
 }
@@ -242,7 +253,7 @@ Implementacja: `deleteInstructorEvent` w `src/services/event.service.ts`, handle
 
 ## GET `/events/:id/students`
 
-Odczyt listy **identyfikatorów użytkowników** (`User.id` / JWT subject) kursantów przypisanych do eventu. W bazie przypisanie jest przez **`EventParticipant`** (`student_id` → **`StudentProfile.id`**); endpoint zwraca **`users.id`**, tak jak pole **`studentIds`** w body **`POST /events/:id/students`** — bez dodatkowego mapowania po stronie klienta.
+Odczyt listy **identyfikatorów użytkowników** (`User.id` / JWT subject) kursantów przypisanych do eventu. W bazie przypisanie jest przez **`EventParticipant`** (`student_id` → **`StudentProfile.id`**); endpoint zwraca **`users.id`**, tak jak pole **`studentIds`** w body **`POST /events/:id/students`** — bez dodatkowego mapowania po stronie klienta. Pełne obiekty kursantów (jak przy **GET `/lessons/:id`**) są także w **`data.event.students`** przy **GET `/events/:id`** — ten endpoint nadal jest przydatny, gdy potrzebne są wyłącznie UUID.
 
 ### Uwierzytelnianie i autoryzacja
 
@@ -594,7 +605,7 @@ Filtrowanie: lekcje **nakładające się** na zakres `[dateFrom, dateTo]` (UTC),
 4. **GET /schedule/me:** STUDENT z `dateFrom`/`dateTo` → **200**, `items` — jego lekcje oraz eventy, na które jest zapisany (`kind` odpowiednio `lesson` / `instructor_event`).
 5. **GET /schedule/me:** ADMIN → **403**.
 6. **GET /schedule:** MANAGER + `instructorId` + zakres → **200**; `studentId` + zakres → **200**; `studentId` i `instructorId` razem → **400**.
-7. **GET /events/:id:** MANAGER z OSK instruktora eventu → **200** (`data.event`); nieistniejący UUID → **404** (JSON); po **soft delete** tego samego ID → **404**; MANAGER innej OSK → **403**.
+7. **GET /events/:id:** MANAGER z OSK instruktora eventu → **200** (`data.event` z **`students`**); nieistniejący UUID → **404** (JSON); po **soft delete** tego samego ID → **404**; MANAGER innej OSK → **403**.
 8. **GET /events/:id/students:** MANAGER z OSK instruktora → **200** (`data.studentUserIds`; pusta tablica jeśli nikt nie zapisany); nieistniejący lub nieaktywny event → **404**; MANAGER innej OSK → **403**.
 9. **POST /events/:id/students:** MANAGER, `studentIds` = `users.id`, capacity nieprzekroczone → **200** (`assigned` / `skipped`); duplikat w tablicy → **400**; drugi **aktywny** event w tym samym czasie dla kursanta → **409**.
 10. **PATCH /events/:id:** MANAGER — zmiana tylko `capacity` → **200**; zmiana czasu na ten sam slot co dotychczas → **200** (bez kolizji z samym sobą); przesunięcie na zajęty slot innego **aktywnego** eventu → **409**.

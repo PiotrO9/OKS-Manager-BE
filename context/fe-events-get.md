@@ -21,13 +21,13 @@ Bez tego endpointu upstream często zwraca **HTML** (np. strona 404), a klient d
 | **Route** | `GET /events/:id` — `:id` = UUID `InstructorEvent` |
 | **Auth** | `Authorization: Bearer <JWT>` (jak przy `PATCH /events/:id`) |
 | **Rola** | min. **MANAGER** (ADMIN); MANAGER tylko w granicach swojej OSK względem **instruktora przypisanego do eventu** (ta sama logika co przy PATCH — np. `assertActorCanManageAvailability`) |
-| **Odpowiedź sukcesu** | **200**, body **JSON**: `data: { event }` — `event` bez płaskich `instructorId`/`vehicleId`; zagnieżdżony **`instructor`** jak przy **GET `/lessons/:id`** (bez pola `vehicle`) |
+| **Odpowiedź sukcesu** | **200**, body **JSON**: `data: { event }` — `event` bez płaskich `instructorId`/`vehicleId`; zagnieżdżony **`instructor`** jak przy **GET `/lessons/:id`** (bez pola `vehicle`); zawsze **`students`**: tablica kursantów (obiekty jak osoba w **GET `/lessons/:id`**, nie same UUID) |
 | **404** | Event nie istnieje — **JSON** z envelope błędu (nie strona HTML), spójnie z resztą API |
 | **403** | Brak uprawnień do podglądu / zarządzania tym instruktorem |
 
 ## Kształt `data.event`
 
-`id`, `type`, `startTime`, `endTime`, `capacity`, `createdAt` — jak w DTO tworzenia/aktualizacji; zamiast `instructorId` / `vehicleId` — **`instructor`** (profil + kontakt, jak **GET `/lessons/:id`**). Szczegóły: [events-schedule-api.md](./events-schedule-api.md).
+`id`, `type`, `courseId`, `startTime`, `endTime`, `capacity`, `createdAt` — jak w DTO tworzenia/aktualizacji; zamiast `instructorId` / `vehicleId` — **`instructor`** (profil + kontakt, jak **GET `/lessons/:id`**); dodatkowo **`students`** — zawsze tablica (pusta lub z wpisami z `event_participants`). Szczegóły: [events-schedule-api.md](./events-schedule-api.md).
 
 ## Uwagi implementacyjne
 
