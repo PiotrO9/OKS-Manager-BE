@@ -1,5 +1,4 @@
 import {
-	CourseParticipantStatus,
 	EventType,
 	LessonStatus,
 	Prisma,
@@ -178,81 +177,6 @@ async function assertCourseEligibleForInstructorEvent(
 	}
 }
 
-async function seedEventParticipantsFromCourseInTx(
-	tx: Prisma.TransactionClient,
-	actor: { id: string; role: Role },
-	eventId: string,
-	courseId: string,
-	instructorId: string,
-	start: Date,
-	end: Date,
-	capacity: number | null,
-): Promise<void> {
-	const participants = await tx.courseParticipant.findMany({
-		where: {
-			courseId,
-			status: CourseParticipantStatus.ACTIVE,
-		},
-		select: {
-			studentId: true,
-			student: {
-				select: {
-					user: {
-						select: { lastName: true, firstName: true },
-					},
-				},
-			},
-		},
-	});
-
-	participants.sort((a, b) => {
-		const ln = a.student.user.lastName.localeCompare(b.student.user.lastName);
-		if (ln !== 0) return ln;
-		return a.student.user.firstName.localeCompare(b.student.user.firstName);
-	});
-
-	let profileIds = participants.map((p) => p.studentId);
-	if (capacity != null && profileIds.length > capacity) {
-		profileIds = profileIds.slice(0, capacity);
-	}
-
-	if (profileIds.length === 0) {
-		return;
-	}
-
-	const allowedSchoolIds = await getSchoolIdsForEventParticipantValidation(
-		actor,
-		instructorId,
-	);
-	if (allowedSchoolIds.length === 0) {
-		throw AppError.unprocessableEntity(
-			'Instructor is not linked to a driving school for this operation',
-		);
-	}
-	await assertStudentProfilesInAllowedSchools(
-		tx,
-		profileIds,
-		allowedSchoolIds,
-	);
-
-	for (const studentId of profileIds) {
-		await assertNewParticipantNoScheduleConflicts(
-			tx,
-			eventId,
-			studentId,
-			start,
-			end,
-		);
-	}
-
-	await tx.eventParticipant.createMany({
-		data: profileIds.map((studentId) => ({
-			eventId,
-			studentId,
-		})),
-	});
-}
-
 export type InstructorEventDto = {
 	id: string;
 	instructorId: string;
@@ -388,19 +312,6 @@ export async function createInstructorEvent(
 				createdAt: true,
 			},
 		});
-
-		if (type === EventType.THEORY && courseId) {
-			await seedEventParticipantsFromCourseInTx(
-				tx,
-				actor,
-				created.id,
-				courseId,
-				instructorId,
-				start,
-				end,
-				capacity ?? null,
-			);
-		}
 
 		return created;
 	});

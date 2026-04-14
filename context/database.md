@@ -39,7 +39,7 @@ Instructor:
 - time_blocks
 - leaves
 
-**InstructorEvent** (`instructor_events`): blok czasu przypisany do instruktora; enum **`EventType`**: **`DRIVE`** (wymaga `vehicle_id`) | **`THEORY`**; opcjonalne **`capacity`** (limit uczestników); kolumna **`is_active`** (BOOLEAN, domyślnie `true`) — **soft delete**: przy `false` rekord nadal istnieje, ale API harmonogramu i moduły slotów / kolizji traktują go jak nieobecny (filtr `isActive: true` w zapytaniach); endpoint **`DELETE /events/:id`** ustawia `is_active = false` (bez kasowania **`event_participants`** w MVP). Przypisania kursantów: **`event_participants`** (M:N `StudentProfile` ↔ event). Szczegóły zachowania API: [events-schedule-api.md](./events-schedule-api.md) (sekcja *Soft delete — zachowanie*).
+**InstructorEvent** (`instructor_events`): blok czasu przypisany do instruktora; enum **`EventType`**: **`DRIVE`** (wymaga `vehicle_id`) | **`THEORY`**; opcjonalne **`course_id`** (powiązanie z kursem przy teorii); opcjonalne **`capacity`** (limit uczestników); kolumna **`is_active`** (BOOLEAN, domyślnie `true`) — **soft delete**: przy `false` rekord nadal istnieje, ale API harmonogramu i moduły slotów / kolizji traktują go jak nieobecny (filtr `isActive: true` w zapytaniach); endpoint **`DELETE /events/:id`** ustawia `is_active = false` (bez kasowania **`event_participants`** w MVP). Przypisania kursantów na event: wyłącznie **`event_participants`** (M:N `StudentProfile` ↔ event) — **nie** są wypełniane automatycznie z listy uczestników kursu przy tworzeniu eventu. Szczegóły zachowania API: [events-schedule-api.md](./events-schedule-api.md) (sekcja *Soft delete — zachowanie*).
 
 Calendar is computed dynamically.
 

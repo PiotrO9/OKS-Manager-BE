@@ -17,7 +17,7 @@ export const createInstructorEventBodySchema = z
 			.int('capacity must be an integer')
 			.min(0, 'capacity must be >= 0')
 			.optional(),
-		/** Opcjonalnie: wydarzenie teorii powiązane z kursem; przy THEORY inicjuje uczestników z kursu. */
+		/** Opcjonalnie: wydarzenie teorii powiązane z kursem (`Course.id`). Nie przypisuje uczestników — użyj `POST` / `PUT` `/events/:id/students`. */
 		courseId: z
 			.string()
 			.regex(UUID_PARAM_RE, 'Invalid courseId')

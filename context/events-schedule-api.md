@@ -64,8 +64,9 @@ Tworzenie eventu instruktora.
 | `endTime` | string | ISO 8601; musi być **po** `startTime` |
 | `vehicleId` | string | opcjonalne UUID; **wymagane** gdy `type === DRIVE` |
 | `capacity` | number | opcjonalne; liczba całkowita **≥ 0** — max liczba kursantów (`event_participants`); brak pola / pominięcie = **`null`** (bez limitu) |
+| `courseId` | string | opcjonalne UUID — **`Course.id`**; dozwolone **tylko** gdy `type === THEORY` (powiązanie wydarzenia z kursem). **Nie** powoduje automatycznego zapisu kursantów z kursu na event — lista uczestników jest pusta do momentu wywołań **`POST` / `PUT` `/events/:id/students`** (sekcja *Uczestnicy eventu THEORY*). |
 
-**Reguły biznesowe:** start i koniec muszą leżeć w **jednej dobie kalendarzowej UTC**; miejsce w grafiku musi być w wolnym oknie po odjęciu lekcji, time blocków i innych eventów (`assertInstructorTimeWindowAvailable`). Dla **DRIVE** pojazd musi istnieć, być aktywny i należeć do szkoły, do której instruktor jest przypisany (`instructor_schools`).
+**Reguły biznesowe:** start i koniec muszą leżeć w **jednej dobie kalendarzowej UTC**; miejsce w grafiku musi być w wolnym oknie po odjęciu lekcji, time blocków i innych eventów (`assertInstructorTimeWindowAvailable`). Dla **DRIVE** pojazd musi istnieć, być aktywny i należeć do szkoły, do której instruktor jest przypisany (`instructor_schools`). Gdy podano **`courseId`** przy **THEORY**, backend weryfikuje, że instruktor jest powiązany z OSK tego kursu (`assertCourseEligibleForInstructorEvent`).
 
 ### Odpowiedź (201)
 

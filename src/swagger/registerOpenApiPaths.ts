@@ -946,6 +946,8 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		path: '/events',
 		tags: ['Events'],
 		summary: 'Tworzenie wydarzenia instruktora (MANAGER)',
+		description:
+			'Dla THEORY opcjonalne `courseId` wiąże event z kursem; uczestników (`event_participants`) trzeba dodać osobno przez POST/PUT `/events/{id}/students` — przy tworzeniu lista jest pusta.',
 		security: [{ bearerAuth: [] }],
 		request: {
 			body: {
