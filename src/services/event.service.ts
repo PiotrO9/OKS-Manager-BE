@@ -1,4 +1,10 @@
-import { EventType, LessonStatus, Prisma, Role } from '@prisma/client';
+import {
+	CourseParticipantStatus,
+	EventType,
+	LessonStatus,
+	Prisma,
+	Role,
+} from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { validateVehicleForInstructor } from '../lib/vehicle.helpers';
 import { getPrisma } from '../lib/prisma';
@@ -113,6 +119,59 @@ async function loadActiveStudentUserIdToProfileIdMap(
 	return map;
 }
 
+/**
+ * Zbiorczo: profile kursantów z `candidateProfileIds`, którzy mają kolizję z oknem
+ * `[start, end)` — lekcja (nie CANCELLED) lub udział w **innym** aktywnym evencie
+ * (wyłączenie `eventId`). Używane przez POST/PUT uczestników oraz GET eligible-students.
+ */
+export async function findStudentProfileIdsWithScheduleConflictsForEventWindow(
+	tx: Prisma.TransactionClient | ReturnType<typeof getPrisma>,
+	params: {
+		eventId: string;
+		start: Date;
+		end: Date;
+		candidateProfileIds: string[];
+	},
+): Promise<Set<string>> {
+	const { eventId, start, end, candidateProfileIds } = params;
+	if (candidateProfileIds.length === 0) {
+		return new Set();
+	}
+
+	const [lessonRows, eventRows] = await Promise.all([
+		tx.lesson.findMany({
+			where: {
+				studentId: { in: candidateProfileIds },
+				status: { not: LessonStatus.CANCELLED },
+				startTime: { lt: end },
+				endTime: { gt: start },
+			},
+			select: { studentId: true },
+		}),
+		tx.eventParticipant.findMany({
+			where: {
+				studentId: { in: candidateProfileIds },
+				eventId: { not: eventId },
+				event: {
+					isActive: true,
+					startTime: { lt: end },
+					endTime: { gt: start },
+				},
+			},
+			select: { studentId: true },
+		}),
+	]);
+
+	const result = new Set<string>();
+	for (const r of lessonRows) {
+		result.add(r.studentId);
+	}
+	for (const r of eventRows) {
+		result.add(r.studentId);
+	}
+	return result;
+}
+
 async function assertNewParticipantNoScheduleConflicts(
 	tx: Prisma.TransactionClient,
 	eventId: string,
@@ -120,6 +179,17 @@ async function assertNewParticipantNoScheduleConflicts(
 	start: Date,
 	end: Date,
 ): Promise<void> {
+	const conflicting =
+		await findStudentProfileIdsWithScheduleConflictsForEventWindow(tx, {
+			eventId,
+			start,
+			end,
+			candidateProfileIds: [studentProfileId],
+		});
+	if (!conflicting.has(studentProfileId)) {
+		return;
+	}
+
 	const lessonConflict = await tx.lesson.findFirst({
 		where: {
 			studentId: studentProfileId,
@@ -132,22 +202,7 @@ async function assertNewParticipantNoScheduleConflicts(
 	if (lessonConflict) {
 		throw AppError.conflict('Student has a conflicting driving lesson');
 	}
-
-	const eventConflict = await tx.eventParticipant.findFirst({
-		where: {
-			studentId: studentProfileId,
-			eventId: { not: eventId },
-			event: {
-				isActive: true,
-				startTime: { lt: end },
-				endTime: { gt: start },
-			},
-		},
-		select: { id: true },
-	});
-	if (eventConflict) {
-		throw AppError.conflict('Student has a conflicting scheduled event');
-	}
+	throw AppError.conflict('Student has a conflicting scheduled event');
 }
 
 async function assertCourseEligibleForInstructorEvent(
@@ -199,6 +254,168 @@ export type AssignStudentsToEventResult = {
 };
 
 export type ReplaceEventStudentsResult = { studentUserIds: string[] };
+
+export type TheoryEventEligibleCapacityDto = {
+	limit: number | null;
+	used: number;
+	remaining: number | null;
+};
+
+export type TheoryEventEligibleStudentRowDto = {
+	id: string;
+	userId: string;
+	firstName: string;
+	lastName: string;
+	email: string;
+	phone: string | null;
+	pkkNumber: string | null;
+	isActive: boolean;
+	createdAt: string;
+	isAssignedToEvent: boolean;
+	hasScheduleConflict: boolean;
+	canAssign: boolean;
+};
+
+export type ListTheoryEventEligibleStudentsResult = {
+	courseId: string;
+	capacity: TheoryEventEligibleCapacityDto;
+	students: TheoryEventEligibleStudentRowDto[];
+};
+
+/**
+ * GET `/events/:id/eligible-students` — kursanci z kursu powiązanego z eventem THEORY
+ * (`course_participants` ACTIVE), z flagami kolizji grafiku i capacity (jak przy POST/PUT uczestników).
+ */
+export async function listTheoryEventEligibleStudents(
+	actor: { id: string; role: Role },
+	eventId: string,
+): Promise<ListTheoryEventEligibleStudentsResult> {
+	const row = await prisma.instructorEvent.findUnique({
+		where: { id: eventId },
+		select: {
+			id: true,
+			instructorId: true,
+			isActive: true,
+			type: true,
+			courseId: true,
+			startTime: true,
+			endTime: true,
+			capacity: true,
+		},
+	});
+
+	if (!row) {
+		throw AppError.notFound('Event not found');
+	}
+	if (!row.isActive) {
+		throw AppError.notFound('Event not found');
+	}
+	if (row.type !== EventType.THEORY) {
+		throw AppError.unprocessableEntity('Event is not a THEORY event');
+	}
+	if (row.courseId === null) {
+		throw AppError.unprocessableEntity('THEORY event has no linked course');
+	}
+
+	await assertActorCanManageAvailability(actor, row.instructorId);
+
+	const courseId = row.courseId;
+	const start = row.startTime;
+	const end = row.endTime;
+
+	const [participants, courseParticipants] = await Promise.all([
+		prisma.eventParticipant.findMany({
+			where: { eventId: row.id },
+			select: { studentId: true },
+		}),
+		prisma.courseParticipant.findMany({
+			where: {
+				courseId,
+				status: CourseParticipantStatus.ACTIVE,
+			},
+			select: {
+				student: {
+					select: {
+						id: true,
+						userId: true,
+						pkkNumber: true,
+						createdAt: true,
+						user: {
+							select: {
+								firstName: true,
+								lastName: true,
+								email: true,
+								phone: true,
+								isActive: true,
+							},
+						},
+					},
+				},
+			},
+			orderBy: [
+				{ student: { user: { lastName: 'asc' } } },
+				{ student: { user: { firstName: 'asc' } } },
+			],
+		}),
+	]);
+
+	const assignedSet = new Set(participants.map((p) => p.studentId));
+	const used = participants.length;
+	const limit = row.capacity;
+	const remaining = limit === null ? null : Math.max(0, limit - used);
+
+	const profileIds = courseParticipants.map((cp) => cp.student.id);
+
+	const conflictingIds =
+		profileIds.length === 0
+			? new Set<string>()
+			: await findStudentProfileIdsWithScheduleConflictsForEventWindow(
+					prisma,
+					{
+						eventId: row.id,
+						start,
+						end,
+						candidateProfileIds: profileIds,
+					},
+				);
+
+	const students: TheoryEventEligibleStudentRowDto[] = courseParticipants.map(
+		(cp) => {
+			const s = cp.student;
+			const isAssignedToEvent = assignedSet.has(s.id);
+			const hasScheduleConflict = conflictingIds.has(s.id);
+			const canAssign =
+				!isAssignedToEvent &&
+				!hasScheduleConflict &&
+				(remaining === null || remaining > 0);
+
+			return {
+				id: s.id,
+				userId: s.userId,
+				firstName: s.user.firstName,
+				lastName: s.user.lastName,
+				email: s.user.email,
+				phone: s.user.phone,
+				pkkNumber: s.pkkNumber,
+				isActive: s.user.isActive,
+				createdAt: s.createdAt.toISOString(),
+				isAssignedToEvent,
+				hasScheduleConflict,
+				canAssign,
+			};
+		},
+	);
+
+	return {
+		courseId,
+		capacity: {
+			limit,
+			used,
+			remaining,
+		},
+		students,
+	};
+}
 
 export async function createInstructorEvent(
 	actor: { id: string; role: Role },

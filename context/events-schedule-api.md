@@ -1,5 +1,5 @@
 ---
-description: "API — eventy instruktora (GET/POST/PUT/DELETE/PATCH /events, uczestnicy THEORY) i terminarz (GET /schedule/me, GET /schedule)"
+description: "API — eventy instruktora (GET/POST/PUT/DELETE/PATCH /events, uczestnicy THEORY, GET eligible-students) i terminarz (GET /schedule/me, GET /schedule)"
 alwaysApply: true
 ---
 
@@ -7,7 +7,7 @@ alwaysApply: true
 
 Montowanie w `src/server.ts`:
 
-- **`/events`** — bloki czasu instruktora (`InstructorEvent`); **`GET /events/:id`** — odczyt pojedynczego eventu (prefill edycji) z **`instructor`** i **`students`** (pełne obiekty kursantów z `event_participants`); **`DELETE /events/:id`** — soft delete (`isActive = false`; rekord pozostaje, nie widać go w harmonogramie ani w slotach); **`GET /events/:id/students`** — lista **`users.id`** kursantów przypisanych do eventu; **`PUT /events/:id/students`** — pełna zamiana listy uczestników; **`DELETE /events/:id/students/:studentUserId`** — usunięcie jednego uczestnika (`studentUserId` = `users.id`); **`PATCH /events/:id`** — częściowa edycja; opcjonalnie limit miejsc (`capacity`) i dopisywanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`; semantyka „dokładka”, nie pełna zamiana — do synchronizacji zbioru użyj **PUT**)
+- **`/events`** — bloki czasu instruktora (`InstructorEvent`); **`GET /events/:id`** — odczyt pojedynczego eventu (prefill edycji) z **`instructor`** i **`students`** (pełne obiekty kursantów z `event_participants`); **`DELETE /events/:id`** — soft delete (`isActive = false`; rekord pozostaje, nie widać go w harmonogramie ani w slotach); **`GET /events/:id/students`** — lista **`users.id`** kursantów przypisanych do eventu; **`GET /events/:id/eligible-students`** — kursanci **kursu** powiązanego z eventem **THEORY** (`courseId`), z flagami kolizji grafiku i **capacity** (zob. sekcja poniżej); **`PUT /events/:id/students`** — pełna zamiana listy uczestników; **`DELETE /events/:id/students/:studentUserId`** — usunięcie jednego uczestnika (`studentUserId` = `users.id`); **`PATCH /events/:id`** — częściowa edycja; opcjonalnie limit miejsc (`capacity`) i dopisywanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`; semantyka „dokładka”, nie pełna zamiana — do synchronizacji zbioru użyj **PUT**)
 - **`/lessons`** — tworzenie lekcji (`Lesson`) — zob. [lessons-api.md](./lessons-api.md)
 - **`/schedule`** — **lekcje** (`Lesson`) oraz **eventy instruktora** (`InstructorEvent`) w zadanym zakresie dat, scalone i posortowane po `startTime` (terminarz osobisty lub podgląd przez MANAGER/ADMIN)
 
@@ -299,12 +299,60 @@ Implementacja: `getEventStudentUserIds` w `src/services/event.service.ts`, handl
 
 ---
 
+## GET `/events/:id/eligible-students`
+
+Lista **wszystkich kursantów zapisanych na kurs** powiązany z eventem (`InstructorEvent.courseId` = `Course.id`), z informacją czy można ich **nowo** dopisać do tego wydarzenia bez błędu **409** (kolizja lekcji / innego aktywnego eventu w tym samym oknie czasu) lub **capacity**. Źródło kursantów: **`course_participants`** ze statusem **`ACTIVE`** (jak przy filtrowaniu listy kursantów po kursie w **`GET /students?courseId=...`**). Tylko eventy **`type === THEORY`** z ustawionym **`courseId`**; inne przypadki → **422**.
+
+### Uwierzytelnianie i autoryzacja
+
+- **`authMiddleware`** + **`requireMinRole('MANAGER')`** (MANAGER lub ADMIN).
+- **MANAGER** — `assertActorCanManageAvailability` względem instruktora eventu (**ta sama reguła** co przy **`GET /events/:id`**).
+- **ADMIN** — dowolny istniejący, aktywny event.
+
+### Parametry ścieżki
+
+| Parametr | Opis |
+|----------|------|
+| `:id` | UUID `InstructorEvent.id` |
+
+### Zachowanie serwera
+
+1. Event po `:id`; brak lub `isActive === false` → **404**.
+2. `type !== THEORY` → **422** (`Event is not a THEORY event`).
+3. `courseId === null` → **422** (`THEORY event has no linked course`).
+4. Uprawnienia jak wyżej.
+5. Odczyt uczestników kursu (`course_participants`, **ACTIVE**) z joinem do profilu kursanta i użytkownika; sort: `lastName`, `firstName`.
+6. **`data.capacity`**: `limit` = `event.capacity` (`null` = brak limitu), `used` = liczba wierszy `event_participants` dla tego eventu, `remaining` = `null` gdy brak limitu, w przeciwnym razie `max(0, limit - used)`.
+7. **`hasScheduleConflict`**: `true` gdy dla profilu kursanta w oknie `[startTime, endTime)` zachodzi ta sama logika co przy **`POST`/`PUT` `/events/:id/students`** — nakładająca się lekcja (nie `CANCELLED`) lub udział w **innym** aktywnym evencie (bieżący `eventId` jest wyłączony z porównania z innymi eventami).
+8. **`canAssign`**: `true` wyłącznie gdy kursant **nie** jest jeszcze na tym evencie **oraz** `hasScheduleConflict === false` **oraz** jest wolne miejsce (`remaining === null` **lub** `remaining > 0`). Dla osób już zapisanych na event: `canAssign === false` (stan „zapisany” w **`isAssignedToEvent`**).
+
+### Odpowiedź (200) — kształt `data`
+
+- **`courseId`** — UUID kursu z eventu.
+- **`capacity`** — `{ limit, used, remaining }` jak wyżej.
+- **`students`** — tablica obiektów: m.in. `id` (profil), `userId`, dane kontaktowe, `createdAt`, `isAssignedToEvent`, `hasScheduleConflict`, `canAssign`.
+
+Implementacja: `listTheoryEventEligibleStudents` w `src/services/event.service.ts` (funkcja zbiorcza kolizji: `findStudentProfileIdsWithScheduleConflictsForEventWindow`), handler `getEventEligibleStudentsHandler`, trasa **`GET /:id/eligible-students`** w `src/routes/events.routes.ts` (przed **`GET /:id`**, aby ścieżka była jednoznaczna).
+
+### Kody błędów
+
+| Kod | Sytuacja |
+|-----|----------|
+| **401** | Brak / niepoprawny JWT |
+| **403** | Rola / brak dostępu do instruktora eventu |
+| **400** | Niepoprawny UUID w `:id` |
+| **404** | Event nie istnieje lub nieaktywny |
+| **422** | Event nie THEORY lub brak `courseId` |
+
+---
+
 ## Uczestnicy eventu THEORY — semantyka endpointów
 
 W bazie uczestnictwo to wiersze **`event_participants`** (powiązanie **`StudentProfile`** ↔ **`InstructorEvent`**). Dla managera **wszystkie operacje poniżej dotyczą wyłącznie eventów typu `THEORY`** (bloki jazdy `DRIVE` nie przyjmują listy uczestników tą ścieżką).
 
 | Potrzeba | Endpoint | Co robi serwer |
 |----------|----------|----------------|
+| **Lista kursu + kolizje + capacity** (wybór uczestników) | `GET /events/:id/eligible-students` | Kursanci kursu (`courseId`, `ACTIVE`), flagi `hasScheduleConflict` / `canAssign`, `capacity.used` / `remaining` — spójne z walidacją POST/PUT. |
 | **Odczytać** kto jest zapisany | `GET /events/:id/students` | Zwraca `data.studentUserIds` (UUID kont `users.id`), kolejność wg `event_participants.created_at`. |
 | **Zsynchronizować pełną listę** z UI (np. edycja całej grupy, import stanu) | `PUT /events/:id/students` | **Nadpisuje zbiór uczestników** body: po zapisie jest **dokładnie** ten zestaw `users.id`. Kogo **nie ma** w `studentIds` — zostaje **wypisany** z eventu. `studentIds: []` = **nikt** nie jest przypisany. |
 | **Dopisać** osoby bez ruszania pozostałych | `POST /events/:id/students` | Tylko **dodaje** brakujących; już zapisani → licznik `skipped`, **bez** usuwania innych. |

@@ -1049,6 +1049,28 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 	});
 
 	registry.registerPath({
+		method: 'get',
+		path: '/events/{id}/eligible-students',
+		tags: ['Events'],
+		summary:
+			'Kursanci kursu powiązanego z eventem THEORY — kolizje i capacity (MANAGER)',
+		description:
+			'Tylko `THEORY` z `courseId`: uczestnicy aktywni kursu (`course_participants` ACTIVE), pola `hasScheduleConflict` / `canAssign` zgodne z walidacją POST/PUT `/events/{id}/students`. Szczegóły: context/events-schedule-api.md',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: eventIdParamsSchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown(
+				'data.courseId, data.capacity (limit, used, remaining), data.students[]',
+			),
+			422: clientError(
+				'Event nie THEORY lub brak powiązanego kursu (courseId)',
+			),
+		}),
+	});
+
+	registry.registerPath({
 		method: 'post',
 		path: '/events/{id}/students',
 		tags: ['Events'],

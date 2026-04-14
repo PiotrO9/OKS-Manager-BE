@@ -18,6 +18,7 @@ import {
 	deleteInstructorEvent,
 	getEventStudentUserIds,
 	getInstructorEventById,
+	listTheoryEventEligibleStudents,
 	removeStudentFromEvent,
 	replaceEventStudents,
 	updateInstructorEvent,
@@ -121,6 +122,22 @@ async function getEventStudentsHandler(req: Request, res: Response) {
 	return sendJsonSuccess(res, data, 200);
 }
 
+async function getEventEligibleStudentsHandler(req: Request, res: Response) {
+	const user = requireUser(req);
+	const paramsParsed = eventIdParamsSchema.safeParse(req.params);
+	if (!paramsParsed.success) {
+		throw AppError.badRequest(
+			paramsParsed.error.issues[0]?.message ?? 'Invalid params',
+		);
+	}
+
+	const data = await listTheoryEventEligibleStudents(
+		user,
+		paramsParsed.data.id,
+	);
+	return sendJsonSuccess(res, data, 200);
+}
+
 async function patchEventHandler(req: Request, res: Response) {
 	const user = requireUser(req);
 	const paramsParsed = eventIdParamsSchema.safeParse(req.params);
@@ -157,6 +174,7 @@ async function deleteEventHandler(req: Request, res: Response) {
 export {
 	deleteEventHandler,
 	deleteEventStudentsHandler,
+	getEventEligibleStudentsHandler,
 	getEventHandler,
 	getEventStudentsHandler,
 	patchEventHandler,
