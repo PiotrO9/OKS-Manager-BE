@@ -7,7 +7,7 @@ alwaysApply: true
 
 Montowanie w `src/server.ts`:
 
-- **`/events`** — bloki czasu instruktora (`InstructorEvent`); **`GET /events/:id`** — odczyt pojedynczego eventu (prefill edycji) z **`instructor`** i **`students`** (pełne obiekty kursantów z `event_participants`); **`DELETE /events/:id`** — soft delete (`isActive = false`; rekord pozostaje, nie widać go w harmonogramie ani w slotach); **`GET /events/:id/students`** — lista **`users.id`** kursantów przypisanych do eventu; **`GET /events/:id/eligible-students`** — kursanci **kursu** powiązanego z eventem **THEORY** (`courseId`), z flagami kolizji grafiku i **capacity** (zob. sekcja poniżej); **`PUT /events/:id/students`** — pełna zamiana listy uczestników; **`DELETE /events/:id/students/:studentUserId`** — usunięcie jednego uczestnika (`studentUserId` = `users.id`); **`PATCH /events/:id`** — częściowa edycja; opcjonalnie limit miejsc (`capacity`) i dopisywanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`; semantyka „dokładka”, nie pełna zamiana — do synchronizacji zbioru użyj **PUT**)
+- **`/events`** — bloki czasu instruktora (`InstructorEvent`); **`GET /events/:id`** — odczyt pojedynczego eventu (prefill edycji) z **`instructor`** i **`students`** (pełne obiekty kursantów z `event_participants`); opcjonalnie **`?includeSlots=true`** — pole **`freeWindows`** (wolne okna czasowe instruktora na dzień eventu, z wykluczeniem bieżącego eventu z listy zajętości); **`DELETE /events/:id`** — soft delete (`isActive = false`; rekord pozostaje, nie widać go w harmonogramie ani w slotach); **`GET /events/:id/students`** — lista **`users.id`** kursantów przypisanych do eventu; **`GET /events/:id/eligible-students`** — kursanci **kursu** powiązanego z eventem **THEORY** (`courseId`), z flagami kolizji grafiku i **capacity** (zob. sekcja poniżej); opcjonalnie query **`startTime`** + **`endTime`** (ISO) nadpisują okno przy liczeniu kolizji; **`PUT /events/:id/students`** — pełna zamiana listy uczestników; **`DELETE /events/:id/students/:studentUserId`** — usunięcie jednego uczestnika (`studentUserId` = `users.id`); **`PATCH /events/:id`** — częściowa edycja; opcjonalnie limit miejsc (`capacity`) i dopisywanie kursantów przez **`POST /events/:id/students`** (tabela `event_participants`; semantyka „dokładka”, nie pełna zamiana — do synchronizacji zbioru użyj **PUT**)
 - **`/lessons`** — tworzenie lekcji (`Lesson`) — zob. [lessons-api.md](./lessons-api.md)
 - **`/schedule`** — **lekcje** (`Lesson`) oraz **eventy instruktora** (`InstructorEvent`) w zadanym zakresie dat, scalone i posortowane po `startTime` (terminarz osobisty lub podgląd przez MANAGER/ADMIN)
 
@@ -118,7 +118,15 @@ Odczyt pojedynczego eventu (`InstructorEvent`). **`data.event`** ma ten sam zest
 |----------|------|
 | `:id` | UUID `InstructorEvent.id` |
 
+### Query params (opcjonalne)
+
+| Parametr | Typ | Opis |
+|----------|-----|------|
+| `includeSlots` | `"true"` \| `"false"` | Gdy **`includeSlots=true`**, odpowiedź zawiera **`freeWindows`** — wolne okna czasowe instruktora na **dzień kalendarzowy UTC** eventu (`computeDayWindows` z wykluczeniem bieżącego eventu, więc slot tego eventu jest widoczny jako wolny). Gdy brak parametru lub `false`, **`freeWindows` nie jest zwracane** (oszczędność przy podglądzie bez formularza edycji). |
+
 ### Odpowiedź (200)
+
+`freeWindows` — tylko przy `?includeSlots=true`: tablica `{ startTime, endTime }` w ISO UTC. Pusta tablica gdy instruktor nie ma dostępności na ten dzień (np. urlop, brak tygodniowych godzin). Przykład z `includeSlots=true`:
 
 ```json
 {
@@ -149,11 +157,23 @@ Odczyt pojedynczego eventu (`InstructorEvent`). **`data.event`** ma ten sam zest
           "email": "anna@example.com",
           "phone": null
         }
+      ],
+      "freeWindows": [
+        {
+          "startTime": "2026-04-01T07:00:00.000Z",
+          "endTime": "2026-04-01T09:00:00.000Z"
+        },
+        {
+          "startTime": "2026-04-01T10:00:00.000Z",
+          "endTime": "2026-04-01T12:30:00.000Z"
+        }
       ]
     }
   }
 }
 ```
+
+Bez `includeSlots` kształt jak wcześniej (bez pola `freeWindows`).
 
 ### Kody błędów
 
@@ -161,7 +181,7 @@ Odczyt pojedynczego eventu (`InstructorEvent`). **`data.event`** ma ten sam zest
 |-----|----------|
 | **401** | Brak / niepoprawny JWT |
 | **403** | Rola poniżej MANAGER; MANAGER bez uprawnień do instruktora eventu |
-| **400** | Niepoprawny UUID w `:id` |
+| **400** | Niepoprawny UUID w `:id`; niepoprawny query (np. zły `includeSlots`) |
 | **404** | Event nie istnieje lub jest **nieaktywny** (soft delete — `isActive = false`) |
 
 ---
@@ -193,7 +213,7 @@ Częściowa aktualizacja istniejącego eventu (`InstructorEvent`). Brak pola w b
 | `vehicleId` | string \| null | UUID lub **`null`** (wyczyszczenie); po merge: dla **`DRIVE`** pojazd jest **wymagany** |
 | `capacity` | number \| null | liczba całkowita **≥ 0** lub **`null`** (bez limitu) |
 
-**Reguły biznesowe (po scaleniu z rekordem w bazie):** `startTime` musi być przed `endTime`; dla **`DRIVE`** — `vehicleId` ustawiony i walidacja pojazdu jak przy `POST /events`. Przy zmianie **czasu** lub **instruktora**: ten sam zestaw reguł co przy tworzeniu — jedna doba UTC, miejsce w grafiku (`assertInstructorTimeWindowAvailable`), brak nakładania na lekcje i inne eventy; **edytowany event jest wykluczany** z sprawdzania kolizji i z obliczania „zajętych” fragmentów dnia (brak false positive). Przy zmianie tylko **`type`** / **`capacity`** / **`vehicleId`** (bez zmiany czasu i instruktora) — pomijane są walidacje czasowe względem grafiku i kolizji instruktora; dla **`DRIVE`** nadal sprawdzane jest **zajęcie pojazdu** (z wykluczeniem tego eventu). MVP: race condition przy równoległych edycjach — akceptowalne.
+**Reguły biznesowe (po scaleniu z rekordem w bazie):** `startTime` musi być przed `endTime`; dla **`DRIVE`** — `vehicleId` ustawiony i walidacja pojazdu jak przy `POST /events`. Przy zmianie **czasu** lub **instruktora**: ten sam zestaw reguł co przy tworzeniu — jedna doba UTC, miejsce w grafiku (`assertInstructorTimeWindowAvailable`), brak nakładania na lekcje i inne eventy; **edytowany event jest wykluczany** z sprawdzania kolizji i z obliczania „zajętych” fragmentów dnia (brak false positive). **Dodatkowo:** jeśli na evencie są uczestnicy (`event_participants`), po zmianie czasu/instruktora sprawdzane jest, czy **żaden** z nich nie ma kolizji z nowym oknem (nakładająca się lekcja lub udział w **innym** aktywnym evencie) — w przeciwnym razie **409** (`Time change conflicts with existing participant schedules`). Operacja jest atomowa. Przy zmianie tylko **`type`** / **`capacity`** / **`vehicleId`** (bez zmiany czasu i instruktora) — pomijane są walidacje czasowe względem grafiku i kolizji instruktora; dla **`DRIVE`** nadal sprawdzane jest **zajęcie pojazdu** (z wykluczeniem tego eventu). MVP: race condition przy równoległych edycjach — akceptowalne.
 
 ### Odpowiedź (200)
 
@@ -207,7 +227,7 @@ Ten sam kształt co `data.event` w **POST `/events`** (201), ale kod **200**.
 | **403** | Rola poniżej MANAGER; MANAGER bez uprawnień do instruktora (obecnego lub nowego) |
 | **400** | Niepoprawne body; po merge: brak `vehicleId` dla DRIVE; `startTime` ≥ `endTime`; start i koniec nie w jednej dobie UTC; pojazd nie w szkole instruktora |
 | **404** | Event nie istnieje, jest **nieaktywny** (soft delete), przy zmianie instruktora — nowy instruktor nie znaleziony / nieaktywny, lub pojazd nie znaleziony (DRIVE) |
-| **409** | Okno poza dostępnością; kolizja z lekcją lub innym **aktywnym** eventem; pojazd zajęty (DRIVE) |
+| **409** | Okno poza dostępnością; kolizja z lekcją lub innym **aktywnym** eventem; pojazd zajęty (DRIVE); zmiana czasu/instruktora koliduje z grafikiem **istniejących uczestników** (`Time change conflicts with existing participant schedules`) |
 
 ---
 
@@ -315,6 +335,13 @@ Lista **wszystkich kursantów zapisanych na kurs** powiązany z eventem (`Instru
 |----------|------|
 | `:id` | UUID `InstructorEvent.id` |
 
+### Query params (opcjonalne)
+
+| Parametr | Typ | Opis |
+|----------|-----|------|
+| `startTime` | ISO 8601 datetime | Razem z **`endTime`** — nadpisują okno czasowe zapisane na evencie przy obliczaniu **`hasScheduleConflict`** / **`canAssign`**. Oba muszą być podane razem; `startTime` musi być przed `endTime`. Użyteczne przy edycji formularza (np. debounce po zmianie godziny), zanim zapiszesz **PATCH**. |
+| `endTime` | ISO 8601 datetime | j.w. |
+
 ### Zachowanie serwera
 
 1. Event po `:id`; brak lub `isActive === false` → **404**.
@@ -323,7 +350,7 @@ Lista **wszystkich kursantów zapisanych na kurs** powiązany z eventem (`Instru
 4. Uprawnienia jak wyżej.
 5. Odczyt uczestników kursu (`course_participants`, **ACTIVE**) z joinem do profilu kursanta i użytkownika; sort: `lastName`, `firstName`.
 6. **`data.capacity`**: `limit` = `event.capacity` (`null` = brak limitu), `used` = liczba wierszy `event_participants` dla tego eventu, `remaining` = `null` gdy brak limitu, w przeciwnym razie `max(0, limit - used)`.
-7. **`hasScheduleConflict`**: `true` gdy dla profilu kursanta w oknie `[startTime, endTime)` zachodzi ta sama logika co przy **`POST`/`PUT` `/events/:id/students`** — nakładająca się lekcja (nie `CANCELLED`) lub udział w **innym** aktywnym evencie (bieżący `eventId` jest wyłączony z porównania z innymi eventami).
+7. **`hasScheduleConflict`**: `true` gdy dla profilu kursanta w oknie czasowym użytym do walidacji zachodzi ta sama logika co przy **`POST`/`PUT` `/events/:id/students`** — nakładająca się lekcja (nie `CANCELLED`) lub udział w **innym** aktywnym evencie (bieżący `eventId` jest wyłączony z porównania z innymi eventami). Okno: jeśli podano **`?startTime=`** i **`?endTime=`** — użyj ich zamiast `event.startTime` / `event.endTime`; w przeciwnym razie użyj czasów z rekordu eventu.
 8. **`canAssign`**: `true` wyłącznie gdy kursant **nie** jest jeszcze na tym evencie **oraz** `hasScheduleConflict === false` **oraz** jest wolne miejsce (`remaining === null` **lub** `remaining > 0`). Dla osób już zapisanych na event: `canAssign === false` (stan „zapisany” w **`isAssignedToEvent`**).
 
 ### Odpowiedź (200) — kształt `data`
@@ -340,7 +367,7 @@ Implementacja: `listTheoryEventEligibleStudents` w `src/services/event.service.t
 |-----|----------|
 | **401** | Brak / niepoprawny JWT |
 | **403** | Rola / brak dostępu do instruktora eventu |
-| **400** | Niepoprawny UUID w `:id` |
+| **400** | Niepoprawny UUID w `:id`; niepoprawny query (np. tylko jedno z `startTime`/`endTime`, zły format ISO, `startTime` ≥ `endTime`) |
 | **404** | Event nie istnieje lub nieaktywny |
 | **422** | Event nie THEORY lub brak `courseId` |
 
@@ -660,3 +687,6 @@ Filtrowanie: lekcje **nakładające się** na zakres `[dateFrom, dateTo]` (UTC),
 11. **DELETE /events/:id:** MANAGER z OSK instruktora → **204** (`success: true`); powtórzone DELETE na tym samym ID → **400** (już nieaktywny); nieistniejący UUID → **404**.
 12. **GET /schedule** (lub **/schedule/me**): po **DELETE /events/:id** wpis `instructor_event` **nie** pojawia się w `items` dla zakresu dat obejmującego ten event.
 13. **POST /events** w przedziale zwolnionym przez soft delete wcześniejszego eventu w tym samym miejscu → **201** (slot nie jest blokowany przez nieaktywny rekord).
+14. **GET /events/:id?includeSlots=true:** MANAGER → **200**, `data.event.freeWindows` — tablica `{ startTime, endTime }` (ISO UTC); bez `includeSlots` pole **`freeWindows` nie występuje**.
+15. **GET /events/:id/eligible-students?startTime=...&endTime=...** (oba ISO, start przed end) → **200**, kolizje liczone względem podanego okna; tylko `startTime` bez `endTime` → **400**.
+16. **PATCH /events/:id** ze zmianą czasu, gdy istniejący uczestnik ma w nowym oknie kolizję z lekcją / innym eventem → **409** (`Time change conflicts with existing participant schedules`).

@@ -32,6 +32,8 @@ import {
 import {
 	assignStudentsBodySchema,
 	createInstructorEventBodySchema,
+	eligibleStudentsQuerySchema,
+	getEventQuerySchema,
 	patchInstructorEventBodySchema,
 	replaceEventStudentsBodySchema,
 } from '../schemas/event.schemas';
@@ -972,13 +974,16 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		tags: ['Events'],
 		summary: 'Szczegóły wydarzenia instruktora (MANAGER)',
 		description:
-			'Odczyt pojedynczego `InstructorEvent`: `data.event` z `instructor` (jak osoba przy GET `/lessons/{id}`), opcjonalnie `courseId`, `capacity`, oraz `students` — tablica uczestników z `event_participants` w tym samym kształcie pól; kolejność jak przy GET `/events/{id}/students`. Szczegóły: context/events-schedule-api.md',
+			'Odczyt pojedynczego `InstructorEvent`: `data.event` z `instructor` (jak osoba przy GET `/lessons/{id}`), opcjonalnie `courseId`, `capacity`, oraz `students` — tablica uczestników z `event_participants` w tym samym kształcie pól; kolejność jak przy GET `/events/{id}/students`. Query `includeSlots=true` dodaje `freeWindows` (wolne okna instruktora na dzień eventu). Szczegóły: context/events-schedule-api.md',
 		security: [{ bearerAuth: [] }],
 		request: {
 			params: eventIdParamsSchema,
+			query: getEventQuerySchema,
 		},
 		responses: stdBearerResponses({
-			200: okDataUnknown('Event (data.event: instructor + students)'),
+			200: okDataUnknown(
+				'Event (data.event: instructor + students, opcjonalnie freeWindows)',
+			),
 		}),
 	});
 
@@ -988,7 +993,7 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		tags: ['Events'],
 		summary: 'Edycja wydarzenia instruktora (MANAGER)',
 		description:
-			'Częściowy update (PATCH). Przy zmianie czasu lub instruktora: walidacja dostępności i kolizji; edytowany event jest wykluczany z nakładania na siebie. Szczegóły: context/events-schedule-api.md',
+			'Częściowy update (PATCH). Przy zmianie czasu lub instruktora: walidacja dostępności i kolizji; edytowany event jest wykluczany z nakładania na siebie; przy istniejących uczestnikach — brak kolizji ich grafiku z nowym oknem. Szczegóły: context/events-schedule-api.md',
 		security: [{ bearerAuth: [] }],
 		request: {
 			params: eventIdParamsSchema,
@@ -1055,10 +1060,11 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		summary:
 			'Kursanci kursu powiązanego z eventem THEORY — kolizje i capacity (MANAGER)',
 		description:
-			'Tylko `THEORY` z `courseId`: uczestnicy aktywni kursu (`course_participants` ACTIVE), pola `hasScheduleConflict` / `canAssign` zgodne z walidacją POST/PUT `/events/{id}/students`. Szczegóły: context/events-schedule-api.md',
+			'Tylko `THEORY` z `courseId`: uczestnicy aktywni kursu (`course_participants` ACTIVE), pola `hasScheduleConflict` / `canAssign` zgodne z walidacją POST/PUT `/events/{id}/students`. Opcjonalnie `startTime` + `endTime` (ISO) nadpisują okno czasowe przy liczeniu kolizji. Szczegóły: context/events-schedule-api.md',
 		security: [{ bearerAuth: [] }],
 		request: {
 			params: eventIdParamsSchema,
+			query: eligibleStudentsQuerySchema,
 		},
 		responses: stdBearerResponses({
 			200: okDataUnknown(

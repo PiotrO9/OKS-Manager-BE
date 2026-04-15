@@ -7,6 +7,8 @@ import {
 	eventIdParamsSchema,
 } from '../lib/validation/uuid';
 import {
+	eligibleStudentsQuerySchema,
+	getEventQuerySchema,
 	parseAssignStudentsBody,
 	parseCreateInstructorEventBody,
 	parsePatchInstructorEventBody,
@@ -105,7 +107,18 @@ async function getEventHandler(req: Request, res: Response) {
 		);
 	}
 
-	const data = await getInstructorEventById(user, paramsParsed.data.id);
+	const queryParsed = getEventQuerySchema.safeParse(req.query);
+	if (!queryParsed.success) {
+		throw AppError.badRequest(
+			queryParsed.error.issues[0]?.message ?? 'Invalid query',
+		);
+	}
+
+	const includeSlots = queryParsed.data.includeSlots === 'true';
+
+	const data = await getInstructorEventById(user, paramsParsed.data.id, {
+		includeSlots,
+	});
 	return sendJsonSuccess(res, data, 200);
 }
 
@@ -131,9 +144,26 @@ async function getEventEligibleStudentsHandler(req: Request, res: Response) {
 		);
 	}
 
+	const queryParsed = eligibleStudentsQuerySchema.safeParse(req.query);
+	if (!queryParsed.success) {
+		throw AppError.badRequest(
+			queryParsed.error.issues[0]?.message ?? 'Invalid query',
+		);
+	}
+
+	const q = queryParsed.data;
+	let opts: { overrideStart?: Date; overrideEnd?: Date } | undefined;
+	if (q.startTime !== undefined && q.endTime !== undefined) {
+		opts = {
+			overrideStart: new Date(q.startTime),
+			overrideEnd: new Date(q.endTime),
+		};
+	}
+
 	const data = await listTheoryEventEligibleStudents(
 		user,
 		paramsParsed.data.id,
+		opts,
 	);
 	return sendJsonSuccess(res, data, 200);
 }

@@ -21,10 +21,33 @@ import {
 import {
 	assertActorCanManageAvailability,
 	assertInstructorTimeWindowAvailable,
+	computeDayWindows,
 	resolveActiveInstructorProfile,
 } from './instructor-availability.service';
 
 const prisma = getPrisma();
+
+/** Konwersja wolnych okien (minuty od północy UTC) na ISO dla dnia eventu. */
+function utcDayFreeWindowsToIso(
+	dayAnchor: Date,
+	windows: { start: number; end: number }[],
+): { startTime: string; endTime: string }[] {
+	const dayUtcMidnight = new Date(
+		Date.UTC(
+			dayAnchor.getUTCFullYear(),
+			dayAnchor.getUTCMonth(),
+			dayAnchor.getUTCDate(),
+		),
+	);
+	return windows.map((w) => ({
+		startTime: new Date(
+			dayUtcMidnight.getTime() + w.start * 60_000,
+		).toISOString(),
+		endTime: new Date(
+			dayUtcMidnight.getTime() + w.end * 60_000,
+		).toISOString(),
+	}));
+}
 
 function assertEventTypeAllowsParticipants(eventType: EventType): void {
 	if (eventType !== EventType.THEORY) {
@@ -239,13 +262,14 @@ export type InstructorEventDto = {
 	createdAt: string;
 };
 
-/** GET `/events/:id` — bez płaskich `instructorId` / `vehicleId`; pełny **`instructor`** jak przy GET `/lessons/:id`; **`students`** — uczestnicy z `event_participants`, ten sam kształt co osoba przy GET `/lessons/:id`, kolejność wg `created_at` (THEORY: wiele, DRIVE: zwykle 0–1). */
+/** GET `/events/:id` — bez płaskich `instructorId` / `vehicleId`; pełny **`instructor`** jak przy GET `/lessons/:id`; **`students`** — uczestnicy z `event_participants`, ten sam kształt co osoba przy GET `/lessons/:id`, kolejność wg `created_at` (THEORY: wiele, DRIVE: zwykle 0–1). Opcjonalnie **`freeWindows`** gdy `?includeSlots=true`. */
 export type InstructorEventWithDetailsDto = Omit<
 	InstructorEventDto,
 	'instructorId' | 'vehicleId'
 > & {
 	instructor: LessonPersonDetailDto;
 	students: LessonPersonDetailDto[];
+	freeWindows?: { startTime: string; endTime: string }[];
 };
 
 export type AssignStudentsToEventResult = {
@@ -289,6 +313,7 @@ export type ListTheoryEventEligibleStudentsResult = {
 export async function listTheoryEventEligibleStudents(
 	actor: { id: string; role: Role },
 	eventId: string,
+	opts?: { overrideStart?: Date; overrideEnd?: Date },
 ): Promise<ListTheoryEventEligibleStudentsResult> {
 	const row = await prisma.instructorEvent.findUnique({
 		where: { id: eventId },
@@ -320,8 +345,8 @@ export async function listTheoryEventEligibleStudents(
 	await assertActorCanManageAvailability(actor, row.instructorId);
 
 	const courseId = row.courseId;
-	const start = row.startTime;
-	const end = row.endTime;
+	const start = opts?.overrideStart ?? row.startTime;
+	const end = opts?.overrideEnd ?? row.endTime;
 
 	const [participants, courseParticipants] = await Promise.all([
 		prisma.eventParticipant.findMany({
@@ -554,6 +579,7 @@ export async function createInstructorEvent(
 export async function getInstructorEventById(
 	actor: { id: string; role: Role },
 	eventId: string,
+	opts?: { includeSlots?: boolean },
 ): Promise<{ event: InstructorEventWithDetailsDto }> {
 	const row = await prisma.instructorEvent.findUnique({
 		where: { id: eventId },
@@ -616,6 +642,25 @@ export async function getInstructorEventById(
 		mapPersonToLessonDetailDto(p.student),
 	);
 
+	let freeWindows: { startTime: string; endTime: string }[] | undefined;
+	if (opts?.includeSlots) {
+		const dayAnchor = row.startTime;
+		const free = await computeDayWindows(
+			row.instructorId,
+			new Date(
+				Date.UTC(
+					dayAnchor.getUTCFullYear(),
+					dayAnchor.getUTCMonth(),
+					dayAnchor.getUTCDate(),
+				),
+			),
+			prisma,
+			eventId,
+		);
+		freeWindows =
+			free === null ? [] : utcDayFreeWindowsToIso(dayAnchor, free);
+	}
+
 	return {
 		event: {
 			id: row.id,
@@ -627,6 +672,7 @@ export async function getInstructorEventById(
 			createdAt: row.createdAt.toISOString(),
 			instructor: mapPersonToLessonDetailDto(row.instructor),
 			students,
+			...(freeWindows !== undefined ? { freeWindows } : {}),
 		},
 	};
 }
@@ -774,6 +820,30 @@ export async function updateInstructorEvent(
 				throw AppError.conflict(
 					'Time slot conflicts with a scheduled block',
 				);
+			}
+
+			const existingParticipants = await tx.eventParticipant.findMany({
+				where: { eventId },
+				select: { studentId: true },
+			});
+			if (existingParticipants.length > 0) {
+				const conflicting =
+					await findStudentProfileIdsWithScheduleConflictsForEventWindow(
+						tx,
+						{
+							eventId,
+							start: mergedStart,
+							end: mergedEnd,
+							candidateProfileIds: existingParticipants.map(
+								(p) => p.studentId,
+							),
+						},
+					);
+				if (conflicting.size > 0) {
+					throw AppError.conflict(
+						'Time change conflicts with existing participant schedules',
+					);
+				}
 			}
 		}
 

@@ -165,3 +165,43 @@ export function parseReplaceEventStudentsBody(
 	}
 	return { ok: true, data: parsed.data };
 }
+
+/** GET `/events/:id` — opcjonalnie `includeSlots=true` dla `freeWindows` w odpowiedzi. */
+export const getEventQuerySchema = z.object({
+	includeSlots: z.enum(['true', 'false']).optional(),
+});
+
+export type GetEventQuery = z.infer<typeof getEventQuerySchema>;
+
+/** GET `/events/:id/eligible-students` — opcjonalne nadpisanie okna czasowego przy liczeniu kolizji kursantów. */
+export const eligibleStudentsQuerySchema = z
+	.object({
+		startTime: z.string().datetime().optional(),
+		endTime: z.string().datetime().optional(),
+	})
+	.superRefine((data, ctx) => {
+		const hasStart = data.startTime !== undefined;
+		const hasEnd = data.endTime !== undefined;
+		if (hasStart !== hasEnd) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message:
+					'Both startTime and endTime are required when overriding the event window',
+				path: hasStart ? ['endTime'] : ['startTime'],
+			});
+			return;
+		}
+		if (hasStart && hasEnd) {
+			const start = new Date(data.startTime!);
+			const end = new Date(data.endTime!);
+			if (start.getTime() >= end.getTime()) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: 'startTime must be before endTime',
+					path: ['startTime'],
+				});
+			}
+		}
+	});
+
+export type EligibleStudentsQuery = z.infer<typeof eligibleStudentsQuerySchema>;
