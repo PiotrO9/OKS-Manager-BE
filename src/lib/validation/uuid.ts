@@ -97,6 +97,58 @@ export const studentDetailQuerySchema = z.object({
 
 export type StudentDetailQuery = z.infer<typeof studentDetailQuerySchema>;
 
+const STUDENT_EVENTS_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export const studentEventsQuerySchema = z
+	.object({
+		schoolId: zodPreprocessQueryFirst(
+			z.preprocess(
+				(val) => (val === '' || val === null ? undefined : val),
+				z.string().regex(UUID_PARAM_RE, 'Invalid schoolId').optional(),
+			),
+		).optional(),
+		dateFrom: zodPreprocessQueryFirst(
+			z
+				.string()
+				.regex(
+					STUDENT_EVENTS_DATE_RE,
+					'dateFrom must be in YYYY-MM-DD format',
+				)
+				.optional(),
+		),
+		dateTo: zodPreprocessQueryFirst(
+			z
+				.string()
+				.regex(
+					STUDENT_EVENTS_DATE_RE,
+					'dateTo must be in YYYY-MM-DD format',
+				)
+				.optional(),
+		),
+	})
+	.superRefine((data, ctx) => {
+		const hasFrom = data.dateFrom !== undefined;
+		const hasTo = data.dateTo !== undefined;
+		if (hasFrom !== hasTo) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message:
+					'Both dateFrom and dateTo are required when filtering by date range',
+				path: hasFrom ? ['dateTo'] : ['dateFrom'],
+			});
+			return;
+		}
+		if (hasFrom && data.dateFrom! > data.dateTo!) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: 'dateFrom must be on or before dateTo',
+				path: ['dateFrom'],
+			});
+		}
+	});
+
+export type StudentEventsQuery = z.infer<typeof studentEventsQuerySchema>;
+
 export const assignStudentDrivingSchoolBodySchema = z.object({
 	schoolId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid schoolId'),
 });

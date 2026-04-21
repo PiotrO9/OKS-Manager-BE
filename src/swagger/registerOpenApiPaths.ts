@@ -22,6 +22,7 @@ import {
 	studentCourseParamsSchema,
 	studentDetailParamsSchema,
 	studentDetailQuerySchema,
+	studentEventsQuerySchema,
 	studentUserIdParamsSchema,
 	uuidSchema,
 } from '../lib/validation/uuid';
@@ -610,6 +611,22 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		},
 		responses: stdBearerResponses({
 			200: okDataUnknown('Szczegóły'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'get',
+		path: '/students/{userId}/events',
+		tags: ['Students'],
+		summary:
+			'Wydarzenia instruktora przypisane do kursanta (tylko aktywne; opcjonalny zakres dat; schoolId opcjonalne przy jednej OSK)',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: studentDetailParamsSchema,
+			query: studentEventsQuerySchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('Lista eventów (data.events)'),
 		}),
 	});
 

@@ -1,11 +1,16 @@
 import { CourseParticipantStatus, Prisma, Role } from '@prisma/client';
+import { buildInstructorEventOverlapWhere } from '../lib/instructor-event-date-filter';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
 import {
 	assertActorCanAssignStudentToSchoolForAdminOrManager,
 	attachStudentToSchoolReplaceInTx,
 } from '../lib/studentSchoolRegistration';
-import type { ListStudentsQuery } from '../lib/validation/uuid';
+import type {
+	ListStudentsQuery,
+	StudentEventsQuery,
+} from '../lib/validation/uuid';
+import type { InstructorEventDto } from './event.service';
 
 const prisma = getPrisma();
 
@@ -486,6 +491,117 @@ export async function getStudentDetail(
 			name: cp.course.name,
 			category: cp.course.category,
 			status: cp.status,
+		})),
+	};
+}
+
+/**
+ * Gdy `schoolId` nie podano — używa jedynej aktywnej szkoły kursanta.
+ * Przy wielu przypisaniach wymaga jawnego `schoolId`.
+ */
+async function resolveSchoolIdForStudentEvents(
+	studentUserId: string,
+	querySchoolId: string | undefined,
+): Promise<string> {
+	const links = await prisma.studentSchool.findMany({
+		where: {
+			student: { userId: studentUserId, user: { deletedAt: null } },
+			school: { deletedAt: null },
+		},
+		select: { schoolId: true },
+	});
+
+	if (links.length === 0) {
+		throw AppError.notFound('Student not found');
+	}
+
+	if (querySchoolId !== undefined) {
+		const ok = links.some((l) => l.schoolId === querySchoolId);
+		if (!ok) {
+			throw AppError.notFound('Student not found');
+		}
+		return querySchoolId;
+	}
+
+	if (links.length > 1) {
+		throw AppError.badRequest(
+			'schoolId is required when the student is enrolled in multiple schools',
+		);
+	}
+
+	return links[0].schoolId;
+}
+
+export async function listStudentInstructorEvents(
+	actorId: string,
+	actorRole: Role,
+	studentUserId: string,
+	query: StudentEventsQuery,
+): Promise<{ events: InstructorEventDto[] }> {
+	if (actorRole === Role.STUDENT && actorId !== studentUserId) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	const schoolId = await resolveSchoolIdForStudentEvents(
+		studentUserId,
+		query.schoolId,
+	);
+
+	if (actorRole !== Role.STUDENT) {
+		await assertActorCanListStudentsForSchool(actorId, actorRole, schoolId);
+	}
+
+	const student = await prisma.studentProfile.findFirst({
+		where: {
+			userId: studentUserId,
+			user: { deletedAt: null },
+			studentSchools: {
+				some: { schoolId, school: { deletedAt: null } },
+			},
+		},
+		select: { id: true },
+	});
+
+	if (!student) {
+		throw AppError.notFound('Student not found');
+	}
+
+	const dateWhere =
+		query.dateFrom && query.dateTo
+			? buildInstructorEventOverlapWhere(query.dateFrom, query.dateTo)
+			: {};
+
+	const rows = await prisma.instructorEvent.findMany({
+		where: {
+			isActive: true,
+			participants: { some: { studentId: student.id } },
+			...dateWhere,
+		},
+		select: {
+			id: true,
+			instructorId: true,
+			type: true,
+			courseId: true,
+			startTime: true,
+			endTime: true,
+			vehicleId: true,
+			capacity: true,
+			createdAt: true,
+		},
+		orderBy: { startTime: 'asc' },
+	});
+
+	return {
+		events: rows.map((row) => ({
+			id: row.id,
+			instructorId: row.instructorId,
+			type: row.type,
+			courseId: row.courseId,
+			startTime: row.startTime.toISOString(),
+			endTime: row.endTime.toISOString(),
+			vehicleId: row.vehicleId,
+			capacity: row.capacity,
+			createdAt: row.createdAt.toISOString(),
 		})),
 	};
 }

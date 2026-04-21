@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
 	assignStudentToCourse,
 	getStudentDetail,
+	getStudentEvents,
 	listStudents,
 	patchCourseParticipantStatus,
 	patchStudent,
@@ -19,6 +20,13 @@ function createStudentsRouter() {
 		authMiddleware,
 		requireMinRole('INSTRUCTOR'),
 		asyncHandler(listStudents),
+	);
+
+	router.get(
+		'/:userId/events',
+		authMiddleware,
+		requireMinRole('STUDENT'),
+		asyncHandler(getStudentEvents),
 	);
 
 	router.get(

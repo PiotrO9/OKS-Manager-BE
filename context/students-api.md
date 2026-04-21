@@ -7,7 +7,7 @@ alwaysApply: true
 
 Montowanie w `src/server.ts` pod prefiksem **`/students`**.
 
-Implementacja: `src/routes/students.routes.ts`, `src/controllers/students.controller.ts`, `src/services/students.service.ts`, walidacja w `src/lib/validation/uuid.ts` m.in.: `listStudentsQuerySchema`, `studentDetailParamsSchema`, `studentDetailQuerySchema`, **`patchStudentBodySchema`**, **`studentCourseParamsSchema`**, **`patchCourseParticipantStatusBodySchema`** (`courseParticipantStatusSchema`).
+Implementacja: `src/routes/students.routes.ts`, `src/controllers/students.controller.ts`, `src/services/students.service.ts`, walidacja w `src/lib/validation/uuid.ts` m.in.: `listStudentsQuerySchema`, `studentDetailParamsSchema`, `studentDetailQuerySchema`, **`studentEventsQuerySchema`**, **`patchStudentBodySchema`**, **`studentCourseParamsSchema`**, **`patchCourseParticipantStatusBodySchema`** (`courseParticipantStatusSchema`).
 
 Operacje **PATCH** (OSK, PKK) i przypisanie do kursu opisuje też [auth.md](./auth.md) (sekcje studenci).
 
@@ -23,6 +23,7 @@ Szczegóły sesji: [auth.md](./auth.md).
 |--------|---------|--------------------|------|
 | GET | `/students` | `authMiddleware`, `requireMinRole('INSTRUCTOR')` | Paginowana lista kursantów w OSK; opcjonalnie filtr po kursie. |
 | GET | `/students/:userId` | `authMiddleware`, `requireMinRole('STUDENT')` | Szczegóły kursanta (`users.id` w ścieżce) z **`notes`**, listą kursów w OSK i `status` z **`course_participants`**. |
+| GET | `/students/:userId/events` | `authMiddleware`, `requireMinRole('STUDENT')` | Aktywne **`InstructorEvent`**, do których kursant jest przypisany (`event_participants`); query: **`schoolId`** opcjonalne (gdy kursant ma jedną OSK — wybierana automatycznie; przy wielu — wymagane), opcjonalnie **`dateFrom`** + **`dateTo`** (`YYYY-MM-DD`, overlap jak harmonogram); odpowiedź **`data.events`**. |
 | PATCH | `/students/:userId` | `requireMinRole('INSTRUCTOR')` | Aktualizacja **`student_profiles.notes`** (body z polem **`notes`**) — reguły jak przy PKK — [auth.md](./auth.md). |
 | PATCH | `/students/:userId/driving-school` | `requireMinRole('MANAGER')` | Przypisanie / zmiana OSK — [auth.md](./auth.md). |
 | PATCH | `/students/:userId/pkk` | `requireMinRole('INSTRUCTOR')` | PKK — [auth.md](./auth.md). |
