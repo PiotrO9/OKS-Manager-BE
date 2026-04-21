@@ -2,6 +2,7 @@ import {
 	CourseParticipantStatus,
 	EventType,
 	LessonStatus,
+	LessonType,
 	Prisma,
 	Role,
 } from '@prisma/client';
@@ -17,6 +18,7 @@ import type {
 import {
 	mapPersonToLessonDetailDto,
 	type LessonPersonDetailDto,
+	type LessonVehicleDetailDto,
 } from './lesson.service';
 import {
 	assertActorCanManageAvailability,
@@ -260,6 +262,18 @@ export type InstructorEventDto = {
 	vehicleId: string | null;
 	capacity: number | null;
 	createdAt: string;
+};
+
+/** GET `/students/:userId/events` — jak `InstructorEventDto`, ale zagnieżdżone **`instructor`** / **`vehicle`** (jak GET `/lessons/:id`), **`course`**, **`participantCount`**, **`calendarLessonType`** (THEORY / PRACTICE dla jednego kodu kalendarza). */
+export type StudentInstructorEventListItemDto = Omit<
+	InstructorEventDto,
+	'instructorId' | 'vehicleId'
+> & {
+	instructor: LessonPersonDetailDto;
+	vehicle: LessonVehicleDetailDto | null;
+	participantCount: number;
+	calendarLessonType: LessonType;
+	course: { id: string; name: string } | null;
 };
 
 /** GET `/events/:id` — bez płaskich `instructorId` / `vehicleId`; pełny **`instructor`** jak przy GET `/lessons/:id`; **`students`** — uczestnicy z `event_participants`, ten sam kształt co osoba przy GET `/lessons/:id`, kolejność wg `created_at` (THEORY: wiele, DRIVE: zwykle 0–1). Opcjonalnie **`freeWindows`** gdy `?includeSlots=true`. */

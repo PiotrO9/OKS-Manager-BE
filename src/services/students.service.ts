@@ -1,4 +1,10 @@
-import { CourseParticipantStatus, Prisma, Role } from '@prisma/client';
+import {
+	CourseParticipantStatus,
+	EventType,
+	LessonType,
+	Prisma,
+	Role,
+} from '@prisma/client';
 import { buildInstructorEventOverlapWhere } from '../lib/instructor-event-date-filter';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
@@ -10,7 +16,11 @@ import type {
 	ListStudentsQuery,
 	StudentEventsQuery,
 } from '../lib/validation/uuid';
-import type { InstructorEventDto } from './event.service';
+import type { StudentInstructorEventListItemDto } from './event.service';
+import {
+	mapPersonToLessonDetailDto,
+	mapVehicleToLessonDetailDto,
+} from './lesson.service';
 
 const prisma = getPrisma();
 
@@ -537,7 +547,7 @@ export async function listStudentInstructorEvents(
 	actorRole: Role,
 	studentUserId: string,
 	query: StudentEventsQuery,
-): Promise<{ events: InstructorEventDto[] }> {
+): Promise<{ events: StudentInstructorEventListItemDto[] }> {
 	if (actorRole === Role.STUDENT && actorId !== studentUserId) {
 		throw AppError.forbidden('Forbidden');
 	}
@@ -579,14 +589,48 @@ export async function listStudentInstructorEvents(
 		},
 		select: {
 			id: true,
-			instructorId: true,
 			type: true,
 			courseId: true,
 			startTime: true,
 			endTime: true,
-			vehicleId: true,
 			capacity: true,
 			createdAt: true,
+			instructor: {
+				select: {
+					id: true,
+					userId: true,
+					user: {
+						select: {
+							firstName: true,
+							lastName: true,
+							email: true,
+							phone: true,
+						},
+					},
+				},
+			},
+			vehicle: {
+				select: {
+					id: true,
+					schoolId: true,
+					name: true,
+					registrationNumber: true,
+					inspectionDate: true,
+					insuranceDate: true,
+					brand: true,
+					model: true,
+					photoUrl: true,
+					modelYear: true,
+					mileageKm: true,
+					note: true,
+					isActive: true,
+					createdAt: true,
+				},
+			},
+			course: {
+				select: { id: true, name: true },
+			},
+			_count: { select: { participants: true } },
 		},
 		orderBy: { startTime: 'asc' },
 	});
@@ -594,14 +638,22 @@ export async function listStudentInstructorEvents(
 	return {
 		events: rows.map((row) => ({
 			id: row.id,
-			instructorId: row.instructorId,
 			type: row.type,
 			courseId: row.courseId,
 			startTime: row.startTime.toISOString(),
 			endTime: row.endTime.toISOString(),
-			vehicleId: row.vehicleId,
 			capacity: row.capacity,
 			createdAt: row.createdAt.toISOString(),
+			instructor: mapPersonToLessonDetailDto(row.instructor),
+			vehicle: row.vehicle
+				? mapVehicleToLessonDetailDto(row.vehicle)
+				: null,
+			participantCount: row._count.participants,
+			calendarLessonType:
+				row.type === EventType.THEORY
+					? LessonType.THEORY
+					: LessonType.PRACTICE,
+			course: row.course,
 		})),
 	};
 }
