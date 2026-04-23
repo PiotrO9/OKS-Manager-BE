@@ -9,22 +9,48 @@ import {
 import {
 	eligibleStudentsQuerySchema,
 	getEventQuerySchema,
+	listEventsQuerySchema,
 	parseAssignStudentsBody,
+	parseBulkUpdateEventStatusBody,
 	parseCreateInstructorEventBody,
 	parsePatchInstructorEventBody,
 	parseReplaceEventStudentsBody,
 } from '../schemas/event.schemas';
 import {
 	assignStudentsToEvent,
+	bulkUpdateEventStatus,
 	createInstructorEvent,
 	deleteInstructorEvent,
 	getEventStudentUserIds,
 	getInstructorEventById,
+	listInstructorEvents,
 	listTheoryEventEligibleStudents,
 	removeStudentFromEvent,
 	replaceEventStudents,
 	updateInstructorEvent,
 } from '../services/event.service';
+
+async function getEventsHandler(req: Request, res: Response) {
+	const user = requireUser(req);
+	const queryParsed = listEventsQuerySchema.safeParse(req.query);
+	if (!queryParsed.success) {
+		throw AppError.badRequest(
+			queryParsed.error.issues[0]?.message ?? 'Invalid query',
+		);
+	}
+	const data = await listInstructorEvents(user, queryParsed.data);
+	return sendJsonSuccess(res, data, 200);
+}
+
+async function patchEventsBulkStatusHandler(req: Request, res: Response) {
+	const user = requireUser(req);
+	const parsed = parseBulkUpdateEventStatusBody(req.body);
+	if (!parsed.ok) {
+		throw AppError.badRequest(parsed.error);
+	}
+	const data = await bulkUpdateEventStatus(user, parsed.data);
+	return sendJsonSuccess(res, data, 200);
+}
 
 async function postEventHandler(req: Request, res: Response) {
 	const user = requireUser(req);
@@ -207,7 +233,9 @@ export {
 	getEventEligibleStudentsHandler,
 	getEventHandler,
 	getEventStudentsHandler,
+	getEventsHandler,
 	patchEventHandler,
+	patchEventsBulkStatusHandler,
 	postEventHandler,
 	postEventStudentsHandler,
 	putEventStudentsHandler,

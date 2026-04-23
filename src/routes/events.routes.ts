@@ -5,7 +5,9 @@ import {
 	getEventEligibleStudentsHandler,
 	getEventHandler,
 	getEventStudentsHandler,
+	getEventsHandler,
 	patchEventHandler,
+	patchEventsBulkStatusHandler,
 	postEventHandler,
 	postEventStudentsHandler,
 	putEventStudentsHandler,
@@ -15,6 +17,20 @@ import { authMiddleware, requireMinRole } from '../middleware/auth.middleware';
 
 function createEventsRouter() {
 	const router = Router();
+
+	router.get(
+		'/',
+		authMiddleware,
+		requireMinRole('INSTRUCTOR'),
+		asyncHandler(getEventsHandler),
+	);
+
+	router.patch(
+		'/bulk-status',
+		authMiddleware,
+		requireMinRole('INSTRUCTOR'),
+		asyncHandler(patchEventsBulkStatusHandler),
+	);
 
 	router.post(
 		'/',

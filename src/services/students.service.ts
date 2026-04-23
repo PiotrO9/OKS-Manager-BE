@@ -590,6 +590,7 @@ export async function listStudentInstructorEvents(
 		select: {
 			id: true,
 			type: true,
+			status: true,
 			courseId: true,
 			startTime: true,
 			endTime: true,
@@ -639,6 +640,7 @@ export async function listStudentInstructorEvents(
 		events: rows.map((row) => ({
 			id: row.id,
 			type: row.type,
+			status: row.status,
 			courseId: row.courseId,
 			startTime: row.startTime.toISOString(),
 			endTime: row.endTime.toISOString(),

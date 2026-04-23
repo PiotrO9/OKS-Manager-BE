@@ -1,5 +1,6 @@
 import {
 	CourseParticipantStatus,
+	EventStatus,
 	EventType,
 	LessonStatus,
 	LessonType,
@@ -11,7 +12,9 @@ import { validateVehicleForInstructor } from '../lib/vehicle.helpers';
 import { getPrisma } from '../lib/prisma';
 import type {
 	AssignStudentsBody,
+	BulkUpdateEventStatusBody,
 	CreateInstructorEventBody,
+	ListEventsQuery,
 	PatchInstructorEventBody,
 	ReplaceEventStudentsBody,
 } from '../schemas/event.schemas';
@@ -256,6 +259,7 @@ export type InstructorEventDto = {
 	id: string;
 	instructorId: string;
 	type: EventType;
+	status: EventStatus;
 	courseId: string | null;
 	startTime: string;
 	endTime: string;
@@ -285,6 +289,272 @@ export type InstructorEventWithDetailsDto = Omit<
 	students: LessonPersonDetailDto[];
 	freeWindows?: { startTime: string; endTime: string }[];
 };
+
+/** GET `/events` — płaskie podsumowanie + liczba uczestników. */
+export type InstructorEventListItemDto = {
+	id: string;
+	type: EventType;
+	status: EventStatus;
+	instructorId: string;
+	courseId: string | null;
+	startTime: string;
+	endTime: string;
+	vehicleId: string | null;
+	capacity: number | null;
+	participantCount: number;
+	createdAt: string;
+};
+
+/**
+ * Przedział dat kalendarzowych (UTC) → nakładające się `InstructorEvent` (jak harmonogram).
+ */
+function buildInstructorEventDateOverlapWhere(
+	dateFrom: string,
+	dateTo: string,
+): { startTime: { lt: Date }; endTime: { gt: Date } } {
+	const rangeStart = new Date(`${dateFrom}T00:00:00.000Z`);
+	const rangeEnd = new Date(`${dateTo}T23:59:59.999Z`);
+	return {
+		startTime: { lt: rangeEnd },
+		endTime: { gt: rangeStart },
+	};
+}
+
+/**
+ * GET `/events` — aktywne eventy w oknie; INSTRUCTOR: tylko własne; MANAGER: OSK
+ * managera; ADMIN: wszystkie. Opcjonalny `instructorId` tylko dla MANAGER/ADMIN.
+ */
+export async function listInstructorEvents(
+	actor: { id: string; role: Role },
+	query: ListEventsQuery,
+): Promise<{ events: InstructorEventListItemDto[] }> {
+	if (actor.role === Role.STUDENT) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	const overlap = buildInstructorEventDateOverlapWhere(
+		query.dateFrom,
+		query.dateTo,
+	);
+	const statusFilter =
+		query.status && query.status.length > 0
+			? { status: { in: query.status } as const }
+			: {};
+
+	if (query.instructorId !== undefined && actor.role === Role.INSTRUCTOR) {
+		throw AppError.unprocessableEntity(
+			'instructorId filter is not available for instructor role',
+		);
+	}
+
+	if (actor.role === Role.INSTRUCTOR) {
+		const profile = await prisma.instructorProfile.findUnique({
+			where: { userId: actor.id },
+			select: { id: true },
+		});
+		if (!profile) {
+			throw AppError.notFound('Instructor profile not found');
+		}
+		const rows = await prisma.instructorEvent.findMany({
+			where: {
+				isActive: true,
+				...overlap,
+				...statusFilter,
+				instructorId: profile.id,
+			},
+			select: {
+				id: true,
+				type: true,
+				status: true,
+				instructorId: true,
+				courseId: true,
+				startTime: true,
+				endTime: true,
+				vehicleId: true,
+				capacity: true,
+				createdAt: true,
+				_count: { select: { participants: true } },
+			},
+			orderBy: { startTime: 'asc' },
+		});
+		return {
+			events: rows.map((row) => ({
+				id: row.id,
+				type: row.type,
+				status: row.status,
+				instructorId: row.instructorId,
+				courseId: row.courseId,
+				startTime: row.startTime.toISOString(),
+				endTime: row.endTime.toISOString(),
+				vehicleId: row.vehicleId,
+				capacity: row.capacity,
+				participantCount: row._count.participants,
+				createdAt: row.createdAt.toISOString(),
+			})),
+		};
+	}
+
+	if (actor.role === Role.MANAGER) {
+		if (query.instructorId !== undefined) {
+			await assertActorCanManageAvailability(actor, query.instructorId);
+		}
+		const rows = await prisma.instructorEvent.findMany({
+			where: {
+				isActive: true,
+				...overlap,
+				...statusFilter,
+				...(query.instructorId !== undefined
+					? { instructorId: query.instructorId }
+					: {}),
+				instructor: {
+					instructorSchools: {
+						some: {
+							school: { ownerId: actor.id, deletedAt: null },
+						},
+					},
+				},
+			},
+			select: {
+				id: true,
+				type: true,
+				status: true,
+				instructorId: true,
+				courseId: true,
+				startTime: true,
+				endTime: true,
+				vehicleId: true,
+				capacity: true,
+				createdAt: true,
+				_count: { select: { participants: true } },
+			},
+			orderBy: { startTime: 'asc' },
+		});
+		return {
+			events: rows.map((row) => ({
+				id: row.id,
+				type: row.type,
+				status: row.status,
+				instructorId: row.instructorId,
+				courseId: row.courseId,
+				startTime: row.startTime.toISOString(),
+				endTime: row.endTime.toISOString(),
+				vehicleId: row.vehicleId,
+				capacity: row.capacity,
+				participantCount: row._count.participants,
+				createdAt: row.createdAt.toISOString(),
+			})),
+		};
+	}
+
+	if (actor.role === Role.ADMIN) {
+		const rows = await prisma.instructorEvent.findMany({
+			where: {
+				isActive: true,
+				...overlap,
+				...statusFilter,
+				...(query.instructorId !== undefined
+					? { instructorId: query.instructorId }
+					: {}),
+			},
+			select: {
+				id: true,
+				type: true,
+				status: true,
+				instructorId: true,
+				courseId: true,
+				startTime: true,
+				endTime: true,
+				vehicleId: true,
+				capacity: true,
+				createdAt: true,
+				_count: { select: { participants: true } },
+			},
+			orderBy: { startTime: 'asc' },
+		});
+		return {
+			events: rows.map((row) => ({
+				id: row.id,
+				type: row.type,
+				status: row.status,
+				instructorId: row.instructorId,
+				courseId: row.courseId,
+				startTime: row.startTime.toISOString(),
+				endTime: row.endTime.toISOString(),
+				vehicleId: row.vehicleId,
+				capacity: row.capacity,
+				participantCount: row._count.participants,
+				createdAt: row.createdAt.toISOString(),
+			})),
+		};
+	}
+
+	throw AppError.forbidden('Forbidden');
+}
+
+/** PATCH `/events/bulk-status` — tylko eventy, do których aktor ma uprawnienia. */
+export async function bulkUpdateEventStatus(
+	actor: { id: string; role: Role },
+	body: BulkUpdateEventStatusBody,
+): Promise<{ updated: number; skipped: number }> {
+	if (actor.role === Role.STUDENT) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	const uniqueIds = [...new Set(body.eventIds)];
+
+	const rows = await prisma.instructorEvent.findMany({
+		where: { id: { in: uniqueIds }, isActive: true },
+		select: { id: true, instructorId: true },
+	});
+
+	const allowed: string[] = [];
+
+	if (actor.role === Role.ADMIN) {
+		for (const r of rows) {
+			allowed.push(r.id);
+		}
+	} else if (actor.role === Role.INSTRUCTOR) {
+		const profile = await prisma.instructorProfile.findUnique({
+			where: { userId: actor.id },
+			select: { id: true },
+		});
+		if (!profile) {
+			throw AppError.notFound('Instructor profile not found');
+		}
+		for (const r of rows) {
+			if (r.instructorId === profile.id) {
+				allowed.push(r.id);
+			}
+		}
+	} else if (actor.role === Role.MANAGER) {
+		const links = await prisma.instructorSchool.findMany({
+			where: { school: { ownerId: actor.id, deletedAt: null } },
+			select: { instructorId: true },
+		});
+		const allowedInstructorIds = new Set(links.map((l) => l.instructorId));
+		for (const r of rows) {
+			if (allowedInstructorIds.has(r.instructorId)) {
+				allowed.push(r.id);
+			}
+		}
+	} else {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	if (allowed.length === 0) {
+		return { updated: 0, skipped: uniqueIds.length };
+	}
+
+	const result = await prisma.instructorEvent.updateMany({
+		where: { id: { in: allowed } },
+		data: { status: body.status },
+	});
+
+	return {
+		updated: result.count,
+		skipped: uniqueIds.length - result.count,
+	};
+}
 
 export type AssignStudentsToEventResult = {
 	assigned: number;
@@ -564,6 +834,7 @@ export async function createInstructorEvent(
 				instructorId: true,
 				courseId: true,
 				type: true,
+				status: true,
 				startTime: true,
 				endTime: true,
 				vehicleId: true,
@@ -580,6 +851,7 @@ export async function createInstructorEvent(
 			id: row.id,
 			instructorId: row.instructorId,
 			type: row.type,
+			status: row.status,
 			courseId: row.courseId,
 			startTime: row.startTime.toISOString(),
 			endTime: row.endTime.toISOString(),
@@ -603,6 +875,7 @@ export async function getInstructorEventById(
 			isActive: true,
 			courseId: true,
 			type: true,
+			status: true,
 			startTime: true,
 			endTime: true,
 			capacity: true,
@@ -679,6 +952,7 @@ export async function getInstructorEventById(
 		event: {
 			id: row.id,
 			type: row.type,
+			status: row.status,
 			courseId: row.courseId,
 			startTime: row.startTime.toISOString(),
 			endTime: row.endTime.toISOString(),
@@ -737,6 +1011,7 @@ export async function updateInstructorEvent(
 			instructorId: true,
 			isActive: true,
 			type: true,
+			status: true,
 			startTime: true,
 			endTime: true,
 			vehicleId: true,
@@ -763,6 +1038,7 @@ export async function updateInstructorEvent(
 
 	const mergedInstructorId = body.instructorId ?? current.instructorId;
 	const mergedType = body.type ?? current.type;
+	const mergedStatus = body.status ?? current.status;
 	const mergedStart = body.startTime
 		? new Date(body.startTime)
 		: current.startTime;
@@ -905,6 +1181,7 @@ export async function updateInstructorEvent(
 			data: {
 				instructorId: mergedInstructorId,
 				type: mergedType,
+				status: mergedStatus,
 				startTime: mergedStart,
 				endTime: mergedEnd,
 				vehicleId: resolvedVehicleId,
@@ -915,6 +1192,7 @@ export async function updateInstructorEvent(
 				instructorId: true,
 				courseId: true,
 				type: true,
+				status: true,
 				startTime: true,
 				endTime: true,
 				vehicleId: true,
@@ -929,6 +1207,7 @@ export async function updateInstructorEvent(
 			id: row.id,
 			instructorId: row.instructorId,
 			type: row.type,
+			status: row.status,
 			courseId: row.courseId,
 			startTime: row.startTime.toISOString(),
 			endTime: row.endTime.toISOString(),

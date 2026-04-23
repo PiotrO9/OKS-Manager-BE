@@ -1,4 +1,10 @@
-import { EventType, LessonStatus, LessonType, Role } from '@prisma/client';
+import {
+	EventStatus,
+	EventType,
+	LessonStatus,
+	LessonType,
+	Role,
+} from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
 import type {
@@ -30,8 +36,8 @@ export type ScheduleInstructorEventItemDto = {
 	 * (ułatwia jeden kod kalendarza dla lekcji i eventów).
 	 */
 	type: LessonType;
-	/** Brak statusu w DB — stała dla kompatybilności z filtrem jak u lekcji. */
-	status: 'SCHEDULED';
+	/** Status biznesowy `InstructorEvent` (EventStatus). */
+	status: EventStatus;
 	startTime: string;
 	endTime: string;
 	capacity: number | null;
@@ -69,6 +75,7 @@ type LessonRow = {
 type EventRow = {
 	id: string;
 	type: EventType;
+	status: EventStatus;
 	startTime: Date;
 	endTime: Date;
 	capacity: number | null;
@@ -132,6 +139,7 @@ const lessonInclude = {
 };
 
 const eventInclude = {
+	status: true,
 	instructor: {
 		select: {
 			id: true,
@@ -230,7 +238,7 @@ function mapInstructorEvent(
 		id: row.id,
 		eventType: row.type,
 		type: eventTypeToCalendarLessonType(row.type),
-		status: 'SCHEDULED',
+		status: row.status,
 		startTime: row.startTime.toISOString(),
 		endTime: row.endTime.toISOString(),
 		capacity: row.capacity,

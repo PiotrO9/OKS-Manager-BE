@@ -1,6 +1,28 @@
-import { EventType } from '@prisma/client';
+import { EventStatus, EventType } from '@prisma/client';
 import { z } from 'zod';
 import { UUID_PARAM_RE } from '../lib/validation/uuid';
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** `status` w query: `?status=PLANNED&status=DONE` lub `?status=PLANNED,DONE` */
+const listEventsStatusQuery = z.preprocess(
+	(v) => {
+		if (v === undefined || v === '') {
+			return undefined;
+		}
+		if (Array.isArray(v)) {
+			return v;
+		}
+		if (typeof v === 'string') {
+			return v
+				.split(',')
+				.map((s) => s.trim())
+				.filter(Boolean);
+		}
+		return v;
+	},
+	z.array(z.nativeEnum(EventStatus)).min(1).max(4).optional(),
+);
 
 export const createInstructorEventBodySchema = z
 	.object({
@@ -75,6 +97,7 @@ export const patchInstructorEventBodySchema = z
 			.regex(UUID_PARAM_RE, 'Invalid instructorId')
 			.optional(),
 		type: z.nativeEnum(EventType).optional(),
+		status: z.nativeEnum(EventStatus).optional(),
 		startTime: z.string().datetime().optional(),
 		endTime: z.string().datetime().optional(),
 		vehicleId: z
@@ -157,6 +180,60 @@ export function parseReplaceEventStudentsBody(
 	body: unknown,
 ): { ok: true; data: ReplaceEventStudentsBody } | { ok: false; error: string } {
 	const parsed = replaceEventStudentsBodySchema.safeParse(body);
+	if (!parsed.success) {
+		return {
+			ok: false,
+			error: parsed.error.issues[0]?.message ?? 'Invalid body',
+		};
+	}
+	return { ok: true, data: parsed.data };
+}
+
+/** GET `/events` — lista eventów w oknie dat (overlap), opcjonalnie filtr statusów i instruktora (manager/admin). */
+export const listEventsQuerySchema = z
+	.object({
+		dateFrom: z
+			.string({ required_error: 'dateFrom is required' })
+			.regex(DATE_RE, 'dateFrom must be in YYYY-MM-DD format'),
+		dateTo: z
+			.string({ required_error: 'dateTo is required' })
+			.regex(DATE_RE, 'dateTo must be in YYYY-MM-DD format'),
+		status: listEventsStatusQuery,
+		instructorId: z
+			.string()
+			.regex(UUID_PARAM_RE, 'Invalid instructorId')
+			.optional(),
+	})
+	.superRefine((data, ctx) => {
+		if (data.dateFrom > data.dateTo) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: 'dateFrom must be on or before dateTo',
+				path: ['dateFrom'],
+			});
+		}
+	});
+
+export type ListEventsQuery = z.infer<typeof listEventsQuerySchema>;
+
+export const bulkUpdateEventStatusBodySchema = z.object({
+	status: z.nativeEnum(EventStatus),
+	eventIds: z
+		.array(z.string().regex(UUID_PARAM_RE, 'Invalid event id'))
+		.min(1, 'eventIds must not be empty')
+		.max(100, 'eventIds must not exceed 100 entries'),
+});
+
+export type BulkUpdateEventStatusBody = z.infer<
+	typeof bulkUpdateEventStatusBodySchema
+>;
+
+export function parseBulkUpdateEventStatusBody(
+	body: unknown,
+):
+	| { ok: true; data: BulkUpdateEventStatusBody }
+	| { ok: false; error: string } {
+	const parsed = bulkUpdateEventStatusBodySchema.safeParse(body);
 	if (!parsed.success) {
 		return {
 			ok: false,
