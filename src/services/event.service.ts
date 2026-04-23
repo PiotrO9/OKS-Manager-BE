@@ -891,6 +891,15 @@ export async function updateInstructorEvent(
 			}
 		}
 
+		if (mergedCapacity != null) {
+			const participantCount = await tx.eventParticipant.count({
+				where: { eventId },
+			});
+			if (mergedCapacity < participantCount) {
+				throw AppError.conflict('Event capacity would be exceeded');
+			}
+		}
+
 		return tx.instructorEvent.update({
 			where: { id: eventId },
 			data: {
