@@ -139,6 +139,7 @@ Odczyt pojedynczego eventu (`InstructorEvent`). **`data.event`** ma ten sam zest
       "startTime": "2026-04-01T08:00:00.000Z",
       "endTime": "2026-04-01T09:00:00.000Z",
       "capacity": 20,
+      "status": "PLANNED",
       "createdAt": "...",
       "instructor": {
         "id": "<InstructorProfile.id>",
@@ -212,8 +213,9 @@ Częściowa aktualizacja istniejącego eventu (`InstructorEvent`). Brak pola w b
 | `endTime` | string | ISO 8601; jeśli podane **oba** z `startTime` w body — musi być **po** `startTime` (Zod) |
 | `vehicleId` | string \| null | UUID lub **`null`** (wyczyszczenie); po merge: dla **`DRIVE`** pojazd jest **wymagany** |
 | `capacity` | number \| null | liczba całkowita **≥ 0** lub **`null`** (bez limitu) |
+| `status` | string | opcjonalnie — enum Prisma: **`PLANNED`**, **`DONE`**, **`NO_SHOW`**, **`CANCELLED`**
 
-**Reguły biznesowe (po scaleniu z rekordem w bazie):** `startTime` musi być przed `endTime`; dla **`DRIVE`** — `vehicleId` ustawiony i walidacja pojazdu jak przy `POST /events`. Przy zmianie **czasu** lub **instruktora**: ten sam zestaw reguł co przy tworzeniu — jedna doba UTC, miejsce w grafiku (`assertInstructorTimeWindowAvailable`), brak nakładania na lekcje i inne eventy; **edytowany event jest wykluczany** z sprawdzania kolizji i z obliczania „zajętych” fragmentów dnia (brak false positive). **Dodatkowo:** jeśli na evencie są uczestnicy (`event_participants`), po zmianie czasu/instruktora sprawdzane jest, czy **żaden** z nich nie ma kolizji z nowym oknem (nakładająca się lekcja lub udział w **innym** aktywnym evencie) — w przeciwnym razie **409** (`Time change conflicts with existing participant schedules`). Operacja jest atomowa. Przy zmianie tylko **`type`** / **`capacity`** / **`vehicleId`** (bez zmiany czasu i instruktora) — pomijane są walidacje czasowe względem grafiku i kolizji instruktora; dla **`DRIVE`** nadal sprawdzane jest **zajęcie pojazdu** (z wykluczeniem tego eventu). MVP: race condition przy równoległych edycjach — akceptowalne.
+**Reguły biznesowe (po scaleniu z rekordem w bazie):** `startTime` musi być przed `endTime`; dla **`DRIVE`** — `vehicleId` ustawiony i walidacja pojazdu jak przy `POST /events`. Zmiana **tylko** `status` nie uruchamia walidacji grafiku ani kolizji (MVP). Przy zmianie **czasu** lub **instruktora**: ten sam zestaw reguł co przy tworzeniu — jedna doba UTC, miejsce w grafiku (`assertInstructorTimeWindowAvailable`), brak nakładania na lekcje i inne eventy; **edytowany event jest wykluczany** z sprawdzania kolizji i z obliczania „zajętych” fragmentów dnia (brak false positive). **Dodatkowo:** jeśli na evencie są uczestnicy (`event_participants`), po zmianie czasu/instruktora sprawdzane jest, czy **żaden** z nich nie ma kolizji z nowym oknem (nakładająca się lekcja lub udział w **innym** aktywnym evencie) — w przeciwnym razie **409** (`Time change conflicts with existing participant schedules`). Operacja jest atomowa. Przy zmianie tylko **`type`** / **`capacity`** / **`vehicleId`** (bez zmiany czasu i instruktora) — pomijane są walidacje czasowe względem grafiku i kolizji instruktora; dla **`DRIVE`** nadal sprawdzane jest **zajęcie pojazdu** (z wykluczeniem tego eventu). MVP: race condition przy równoległych edycjach — akceptowalne.
 
 ### Odpowiedź (200)
 
@@ -582,7 +584,7 @@ Lista pozycji terminarza zalogowanego użytkownika w zakresie dat: **lekcje** or
 | `kind` | Znaczenie |
 |--------|-----------|
 | **`lesson`** | Lekcja (`Lesson`): `type` = `Lesson.lessonType` (**`THEORY`** \| **`PRACTICE`** — w bazie mogą zostać stare wpisy `THEORY`; **nowe** rezerwacje lekcji to wyłącznie **`PRACTICE`** przez `POST /lessons`), `status`, opcjonalnie `vehicle` |
-| **`instructor_event`** | Event (`InstructorEvent`): **`eventType`** (`DRIVE` \| `THEORY`); dodatkowo **`type`** jak u lekcji (**`THEORY`** \| **`PRACTICE`** — DRIVE→PRACTICE), **`status`:** `SCHEDULED`, `capacity`, `participantCount`, opcjonalnie `vehicle` |
+| **`instructor_event`** | Event (`InstructorEvent`): **`eventType`** (`DRIVE` \| `THEORY`); dodatkowo **`type`** jak u lekcji (**`THEORY`** \| **`PRACTICE`** — DRIVE→PRACTICE), **`status`:** `EventStatus` (np. `PLANNED` \| `DONE` \| `NO_SHOW` \| `CANCELLED`), `capacity`, `participantCount`, opcjonalnie `vehicle` |
 
 ```json
 {
@@ -605,7 +607,7 @@ Lista pozycji terminarza zalogowanego użytkownika w zakresie dat: **lekcje** or
         "id": "<uuid>",
         "eventType": "THEORY",
         "type": "THEORY",
-        "status": "SCHEDULED",
+        "status": "PLANNED",
         "startTime": "2026-04-01T10:00:00.000Z",
         "endTime": "2026-04-01T11:30:00.000Z",
         "capacity": 20,

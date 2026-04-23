@@ -139,7 +139,6 @@ const lessonInclude = {
 };
 
 const eventInclude = {
-	status: true,
 	instructor: {
 		select: {
 			id: true,
