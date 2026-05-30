@@ -1,4 +1,10 @@
-import type { Course, CourseKind, DrivingSchool } from '@prisma/client';
+import {
+	Role,
+	type Course,
+	type CourseKind,
+	type CourseParticipantStatus,
+	type DrivingSchool,
+} from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
 import type {
@@ -132,6 +138,12 @@ export type CourseListItemDto = {
 	instructor: CourseListInstructorDto | null;
 };
 
+export type CurrentUserCourseDto = {
+	id: string;
+	name: string;
+	status: CourseParticipantStatus;
+};
+
 async function listCoursesForSchool(
 	userId: string,
 	schoolId: string,
@@ -174,6 +186,38 @@ async function listCoursesForSchool(
 					name: `${row.instructor.user.firstName} ${row.instructor.user.lastName}`.trim(),
 				}
 			: null,
+	}));
+}
+
+async function listCoursesForCurrentUser(
+	userId: string,
+	role: Role,
+): Promise<CurrentUserCourseDto[]> {
+	if (role !== Role.STUDENT) {
+		return [];
+	}
+
+	const rows = await prisma.courseParticipant.findMany({
+		where: {
+			student: { userId },
+			course: { deletedAt: null },
+		},
+		orderBy: { createdAt: 'asc' },
+		select: {
+			status: true,
+			course: {
+				select: {
+					id: true,
+					name: true,
+				},
+			},
+		},
+	});
+
+	return rows.map((row) => ({
+		id: row.course.id,
+		name: row.course.name,
+		status: row.status,
 	}));
 }
 
@@ -320,6 +364,7 @@ async function patchCourseInstructorForOwner(
 export const courseService = {
 	createCourseForUser,
 	listCoursesForSchool,
+	listCoursesForCurrentUser,
 	getCourseDetailForOwner,
 	patchCourseInstructorForOwner,
 };

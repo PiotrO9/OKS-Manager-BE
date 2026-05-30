@@ -14,6 +14,7 @@ import { createCoursesRouter } from './routes/courses.routes';
 import { createCourseTypesRouter } from './routes/course-types.routes';
 import { createEventsRouter } from './routes/events.routes';
 import { createLessonsRouter } from './routes/lessons.routes';
+import { createMeRouter } from './routes/me.routes';
 import { createScheduleRouter } from './routes/schedule.routes';
 import { setupSwagger } from './swagger/setupSwagger';
 
@@ -48,6 +49,7 @@ function createApp() {
 	app.use('/course-types', createCourseTypesRouter());
 	app.use('/events', createEventsRouter());
 	app.use('/lessons', createLessonsRouter());
+	app.use('/me', createMeRouter());
 	app.use('/schedule', createScheduleRouter());
 
 	app.get('/test', async (req, res) => {

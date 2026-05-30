@@ -229,6 +229,17 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 	});
 
 	registry.registerPath({
+		method: 'get',
+		path: '/me/courses',
+		tags: ['Courses'],
+		summary: 'Kursy aktualnego użytkownika (STUDENT)',
+		security: [{ bearerAuth: [] }],
+		responses: stdBearerResponses({
+			200: okDataUnknown('Lista kursów aktualnego użytkownika'),
+		}),
+	});
+
+	registry.registerPath({
 		method: 'patch',
 		path: '/auth/profile',
 		tags: ['Auth'],

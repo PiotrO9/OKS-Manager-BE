@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Kursy — API
 
-Montowanie w `src/server.ts` pod prefiksem **`/courses`**.
+Montowanie w `src/server.ts` pod prefiksem **`/courses`**. Lista kursów aktualnego użytkownika jest osobnym endpointem pod **`/me/courses`**.
 
 Implementacja: `src/routes/courses.routes.ts`, `src/controllers/courses.controller.ts`, `src/services/course.service.ts`, schematy body: `src/schemas/course.schemas.ts`.
 
@@ -20,7 +20,8 @@ Implementacja: `src/routes/courses.routes.ts`, `src/controllers/courses.controll
 ## Uwierzytelnianie i autoryzacja
 
 - Nagłówek **`Authorization: Bearer <access_token>`** (jak przy `GET /auth/me`).
-- Wszystkie trasy: **`authMiddleware`** + **`requireMinRole('MANAGER')`** (MANAGER lub ADMIN; STUDENT / INSTRUCTOR nie przechodzą).
+- Trasy pod **`/courses`**: **`authMiddleware`** + **`requireMinRole('MANAGER')`** (MANAGER lub ADMIN; STUDENT / INSTRUCTOR nie przechodzą).
+- **`GET /me/courses`**: tylko **`authMiddleware`**. Dla roli innej niż **`STUDENT`** zwraca pustą listę.
 
 Szczegóły sesji: [auth.md](./auth.md).
 
@@ -38,6 +39,7 @@ Szczegóły sesji: [auth.md](./auth.md).
 | GET | `/courses/:id` | Szczegóły kursu (jak poniżej). Dostęp: **właściciel** szkoły kursu; brak kursu / soft-delete → **404**; obcy właściciel → **403**. |
 | POST | `/courses` | Utworzenie kursu w szkole (body poniżej). Właściciel `schoolId` z body. |
 | PATCH | `/courses/:id` | Częściowa aktualizacja: **`instructorId`** i/lub **`capacity`** (opcjonalnie, niezależnie). Patrz sekcja PATCH. |
+| GET | `/me/courses` | Lista kursów aktualnie zalogowanego kursanta. Bez query/body. Rola inna niż **STUDENT** → `data.courses: []`. |
 
 ## GET lista — query
 
@@ -67,6 +69,10 @@ Zapis: dla `PRACTICAL` / `EXTRA` pole `capacity` w DB jest **null**; daty teorii
 ## GET lista — odpowiedź (200)
 
 `data.courses`: tablica elementów: `id`, `name`, `category`, `type` (to samo co `kind`), `totalHours`, `instructor`: `{ id: User.id, name }` lub `null`.
+
+## GET `/me/courses` — odpowiedź (200)
+
+`data.courses`: tablica elementów: `id`, `name`, `status`. `status` pochodzi z `course_participants.status` (`ACTIVE` / `FINISHED`). Dla roli innej niż **STUDENT** oraz dla kursanta bez kursów zwracane jest `[]`. Kursy z `courses.deleted_at` ustawionym nie są zwracane.
 
 ## GET szczegółów — odpowiedź (200)
 
