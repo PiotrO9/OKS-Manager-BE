@@ -64,6 +64,11 @@ enum EventStatus {
   CANCELLED
 }
 
+enum VehicleStatus {
+  ACTIVE
+  UNAVAILABLE
+}
+
 // NOTE: DB-level constraints (EXCLUDE, CHECK) must be added as raw SQL migrations.
 // See context/db_constraints.md for recommended SQL snippets.
 
@@ -244,6 +249,7 @@ model Vehicle {
   mileageKm          Int?      @map("mileage_km")
   note               String?   @map("note") @db.Text
   isActive           Boolean   @default(true) @map("is_active")
+  status             VehicleStatus @default(ACTIVE) @map("status")
   createdAt          DateTime  @default(now()) @map("created_at")
 
   school           DrivingSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)

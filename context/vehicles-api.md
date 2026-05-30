@@ -24,6 +24,7 @@ Szczegóły sesji: [auth.md](./auth.md).
 | GET | `/vehicles/:id` | Szczegóły pojazdu + `isDefault`. Dostęp tylko, gdy użytkownik jest właścicielem szkoły pojazdu. |
 | POST | `/vehicles` | **Upsert:** bez `id` (lub bez sensownego UUID) w body → **tworzenie**; z poprawnym `id` → **aktualizacja** jak patch (patrz body). |
 | PATCH | `/vehicles/:id` | Aktualizacja pól pojazdu (ten sam kształt body co przy upsert „update”). |
+| PATCH | `/vehicles/:id/status` | Zmiana statusu dostępności pojazdu. Body: `{ "status": "ACTIVE" }` albo `{ "status": "UNAVAILABLE" }`. Sukces zwraca `{ "success": true }`. Status jest informacyjny na MVP i nie blokuje automatycznie lekcji/eventów. |
 | DELETE | `/vehicles/:id` | **Soft delete:** `isActive: false`. Idempotentnie: drugi delete na już nieaktywnym zwraca sukces z `{ id }`. |
 | POST | `/vehicles/:id/photo` | Upload zdjęcia: **multipart**, pole pliku **`file`**. Dozwolone typy: `image/jpeg`, `image/png`, `image/webp`. Limit rozmiaru: **5 MB**; przy przekroczeniu → **400** `file too large (max 5 MB)`. |
 
@@ -41,6 +42,10 @@ Wymagane: `name`, `registrationNumber`, `schoolId` (UUID). Opcjonalnie: `inspect
 ## Body: aktualizacja (`POST /vehicles` z `id` lub `PATCH /vehicles/:id`)
 
 Nadal wymagane w body do walidacji: `name`, `registrationNumber` (oraz pozostałe zasady parse). Pola opcjonalne można patchować zgodnie ze schematem. Pojazd nieaktywny → zachowanie jak **404** przy update.
+
+## Body: status (`PATCH /vehicles/:id/status`)
+
+Wymagane: `status`, jedna z wartości: `ACTIVE`, `UNAVAILABLE`. Niepoprawny status → **400**. Pojazd nieistniejący albo nieaktywny → **404**. Pojazd z cudzego OSK → **403**. Ustawienie tego samego statusu jest traktowane jako sukces.
 
 ## Zdjęcie (`POST /vehicles/:id/photo`)
 

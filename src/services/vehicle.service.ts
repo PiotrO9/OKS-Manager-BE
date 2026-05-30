@@ -4,6 +4,7 @@ import {
 	type DrivingSchool,
 	LessonStatus,
 	type Vehicle,
+	type VehicleStatus,
 } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
@@ -497,6 +498,29 @@ async function updateVehicleForUser(
 	});
 }
 
+async function updateVehicleStatusForUser(
+	userId: string,
+	vehicleId: string,
+	status: VehicleStatus,
+): Promise<void> {
+	const loaded = await loadVehicleForOwner(userId, vehicleId);
+	if (!loaded.ok) {
+		if (loaded.notFound) {
+			throw AppError.notFound('Vehicle not found');
+		}
+		throw AppError.forbidden('Forbidden');
+	}
+
+	if (!loaded.vehicle.isActive) {
+		throw AppError.notFound('Vehicle not found');
+	}
+
+	await prisma.vehicle.update({
+		where: { id: vehicleId },
+		data: { status },
+	});
+}
+
 async function deleteVehicleForUser(
 	userId: string,
 	vehicleId: string,
@@ -527,5 +551,6 @@ export const vehicleService = {
 	uploadVehiclePhotoForUser,
 	upsertVehicleForUser,
 	updateVehicleForUser,
+	updateVehicleStatusForUser,
 	deleteVehicleForUser,
 };

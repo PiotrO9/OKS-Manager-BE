@@ -59,6 +59,7 @@ import {
 	slotsQuerySchema,
 } from '../schemas/instructor-availability.openapi';
 import {
+	patchVehicleStatusBodySchema,
 	vehicleIdParamsSchema,
 	vehicleListQuerySchema,
 } from '../schemas/vehicle.schemas';
@@ -788,6 +789,27 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		summary: 'Zdjęcie pojazdu (multipart, pole file)',
 		security: [{ bearerAuth: [] }],
 		request: { params: vehicleIdParamsSchema },
+		responses: stdBearerResponses({
+			200: okDataUnknown('OK'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'patch',
+		path: '/vehicles/{id}/status',
+		tags: ['Vehicles'],
+		summary: 'Zmiana statusu pojazdu ACTIVE / UNAVAILABLE (MANAGER)',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: vehicleIdParamsSchema,
+			body: {
+				content: {
+					'application/json': {
+						schema: patchVehicleStatusBodySchema,
+					},
+				},
+			},
+		},
 		responses: stdBearerResponses({
 			200: okDataUnknown('OK'),
 		}),

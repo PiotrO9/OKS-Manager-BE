@@ -1,3 +1,4 @@
+import { VehicleStatus } from '@prisma/client';
 import { z } from 'zod';
 import {
 	schoolIdQuerySchema,
@@ -44,6 +45,10 @@ export const vehicleListQuerySchema = schoolIdQuerySchema
 			}
 		}
 	});
+
+export const patchVehicleStatusBodySchema = z.object({
+	status: z.nativeEnum(VehicleStatus),
+});
 
 export type OptionalVehicleFields = {
 	brand: string | null;

@@ -3,6 +3,7 @@ import { sendJsonSuccess } from '../lib/apiResponse';
 import { AppError } from '../lib/http/AppError';
 import { requireUser } from '../lib/http/requireUser';
 import {
+	patchVehicleStatusBodySchema,
 	vehicleIdParamsSchema,
 	vehicleListQuerySchema,
 } from '../schemas/vehicle.schemas';
@@ -88,6 +89,27 @@ async function updateVehicle(req: Request, res: Response) {
 	return sendJsonSuccess(res, updated);
 }
 
+async function updateVehicleStatus(req: Request, res: Response) {
+	const user = requireUser(req);
+	const params = vehicleIdParamsSchema.safeParse(req.params);
+	if (!params.success) {
+		throw AppError.badRequest('Invalid vehicle id');
+	}
+
+	const bodyParsed = patchVehicleStatusBodySchema.safeParse(req.body);
+	if (!bodyParsed.success) {
+		const message = bodyParsed.error.issues[0]?.message ?? 'Invalid body';
+		throw AppError.badRequest(message);
+	}
+
+	await vehicleService.updateVehicleStatusForUser(
+		user.id,
+		params.data.id,
+		bodyParsed.data.status,
+	);
+	return sendJsonSuccess(res);
+}
+
 async function deleteVehicle(req: Request, res: Response) {
 	const user = requireUser(req);
 	const params = vehicleIdParamsSchema.safeParse(req.params);
@@ -108,5 +130,6 @@ export {
 	getVehicleById,
 	uploadVehiclePhoto,
 	updateVehicle,
+	updateVehicleStatus,
 	deleteVehicle,
 };
