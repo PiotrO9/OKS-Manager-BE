@@ -4,6 +4,7 @@ import {
 	type DrivingSchool,
 	LessonStatus,
 	type Vehicle,
+	type VehicleAvailabilityStatus,
 } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
 import { getPrisma } from '../lib/prisma';
@@ -45,12 +46,32 @@ type VehicleForAccessRow = {
 	modelYear: number | null;
 	mileageKm: number | null;
 	note: string | null;
+	availabilityStatus: VehicleAvailabilityStatus;
+	createdAt: Date;
 	school: {
 		ownerId: string;
 		deletedAt: Date | null;
 		defaultVehicleId: string | null;
 	};
 };
+
+type VehicleResponse = Omit<Vehicle, 'availabilityStatus'> & {
+	status: VehicleAvailabilityStatus;
+	isDefault?: boolean;
+};
+
+function vehicleToResponse(
+	vehicle: Vehicle,
+	isDefault?: boolean,
+): VehicleResponse {
+	const { availabilityStatus, ...rest } = vehicle;
+
+	return {
+		...rest,
+		status: availabilityStatus,
+		...(isDefault === undefined ? {} : { isDefault }),
+	};
+}
 
 async function getSchoolOwnedByUser(
 	userId: string,
@@ -84,6 +105,8 @@ async function loadVehicleWithSchoolForAccess(
 			modelYear: true,
 			mileageKm: true,
 			note: true,
+			availabilityStatus: true,
+			createdAt: true,
 			school: {
 				select: {
 					ownerId: true,
@@ -132,7 +155,7 @@ async function listVehiclesBySchoolForUser(
 	schoolId: string,
 	timeRange?: { start: Date; end: Date },
 ): Promise<{
-	vehicles: (Vehicle & { isDefault: boolean })[];
+	vehicles: VehicleResponse[];
 	defaultVehicleId: string | null;
 }> {
 	const school = await getSchoolOwnedByUser(userId, schoolId);
@@ -194,7 +217,9 @@ async function listVehiclesBySchoolForUser(
 	}
 
 	return {
-		vehicles: vehiclesWithDefault,
+		vehicles: vehiclesWithDefault.map(({ isDefault, ...vehicle }) =>
+			vehicleToResponse(vehicle, isDefault),
+		),
 		defaultVehicleId,
 	};
 }
@@ -210,12 +235,11 @@ async function getVehicleByIdForUser(userId: string, vehicleId: string) {
 
 	const { school, ...vehicle } = loaded.row;
 
-	return {
-		...vehicle,
-		isDefault:
-			school.defaultVehicleId !== null &&
+	return vehicleToResponse(
+		vehicle,
+		school.defaultVehicleId !== null &&
 			school.defaultVehicleId === vehicle.id,
-	};
+	);
 }
 
 async function uploadVehiclePhotoForUser(
@@ -295,7 +319,7 @@ async function uploadVehiclePhotoForUser(
 async function upsertVehicleForUser(
 	userId: string,
 	body: Record<string, unknown>,
-): Promise<{ status: 200 | 201; vehicle: Vehicle }> {
+): Promise<{ status: 200 | 201; vehicle: VehicleResponse }> {
 	const idParse = parseUuidParam(body.id);
 	if (idParse === 'invalid') {
 		throw AppError.badRequest('Invalid vehicle id');
@@ -373,7 +397,7 @@ async function upsertVehicleForUser(
 			return vehicle;
 		});
 
-		return { status: 201, vehicle: created };
+		return { status: 201, vehicle: vehicleToResponse(created) };
 	}
 
 	const patchPayload = parseVehicleWriteBody(body, 'patch');
@@ -437,14 +461,14 @@ async function upsertVehicleForUser(
 		},
 	});
 
-	return { status: 200, vehicle: updated };
+	return { status: 200, vehicle: vehicleToResponse(updated) };
 }
 
 async function updateVehicleForUser(
 	userId: string,
 	vehicleId: string,
 	body: Record<string, unknown>,
-): Promise<Vehicle> {
+): Promise<VehicleResponse> {
 	const loaded = await loadVehicleForOwner(userId, vehicleId);
 	if (!loaded.ok) {
 		if (loaded.notFound) {
@@ -485,7 +509,7 @@ async function updateVehicleForUser(
 
 	const optionalPatch = optional as OptionalVehiclePatch;
 
-	return prisma.vehicle.update({
+	const updated = await prisma.vehicle.update({
 		where: { id: vehicleId },
 		data: {
 			name,
@@ -495,6 +519,33 @@ async function updateVehicleForUser(
 			...optionalPatch,
 		},
 	});
+
+	return vehicleToResponse(updated);
+}
+
+async function updateVehicleStatusForUser(
+	userId: string,
+	vehicleId: string,
+	status: VehicleAvailabilityStatus,
+): Promise<VehicleResponse> {
+	const loaded = await loadVehicleForOwner(userId, vehicleId);
+	if (!loaded.ok) {
+		if (loaded.notFound) {
+			throw AppError.notFound('Vehicle not found');
+		}
+		throw AppError.forbidden('Forbidden');
+	}
+
+	if (!loaded.vehicle.isActive) {
+		throw AppError.notFound('Vehicle not found');
+	}
+
+	const updated = await prisma.vehicle.update({
+		where: { id: vehicleId },
+		data: { availabilityStatus: status },
+	});
+
+	return vehicleToResponse(updated);
 }
 
 async function deleteVehicleForUser(
@@ -527,5 +578,6 @@ export const vehicleService = {
 	uploadVehiclePhotoForUser,
 	upsertVehicleForUser,
 	updateVehicleForUser,
+	updateVehicleStatusForUser,
 	deleteVehicleForUser,
 };

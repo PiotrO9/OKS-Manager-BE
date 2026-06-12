@@ -5,6 +5,7 @@ import {
 	getVehicleById,
 	listVehiclesBySchool,
 	updateVehicle,
+	updateVehicleStatus,
 	uploadVehiclePhoto,
 	upsertVehicle,
 } from '../controllers/vehicles.controller';
@@ -57,6 +58,12 @@ function createVehiclesRouter() {
 			});
 		},
 		asyncHandler(uploadVehiclePhoto),
+	);
+	router.patch(
+		'/:id/status',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(updateVehicleStatus),
 	);
 	router.patch(
 		'/:id',

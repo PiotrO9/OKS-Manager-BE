@@ -6,6 +6,10 @@ import {
 
 export { vehicleIdParamsSchema };
 
+export const vehicleAvailabilityStatusSchema = z.object({
+	status: z.enum(['ACTIVE', 'UNAVAILABLE']),
+});
+
 /** Lista pojazdów OSK; opcjonalnie `startTime`+`endTime` (ISO datetime) filtrują pojazdy zajęte w tym oknie. */
 export const vehicleListQuerySchema = schoolIdQuerySchema
 	.merge(
