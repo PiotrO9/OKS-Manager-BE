@@ -59,6 +59,7 @@ import {
 	slotsQuerySchema,
 } from '../schemas/instructor-availability.openapi';
 import {
+	vehicleAvailabilityStatusSchema,
 	vehicleIdParamsSchema,
 	vehicleListQuerySchema,
 } from '../schemas/vehicle.schemas';
@@ -224,6 +225,17 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		security: [{ bearerAuth: [] }],
 		responses: stdBearerResponses({
 			200: okDataUnknown('Profil i kontekst OSK'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'get',
+		path: '/me/courses',
+		tags: ['Courses'],
+		summary: 'Kursy aktualnego użytkownika (STUDENT)',
+		security: [{ bearerAuth: [] }],
+		responses: stdBearerResponses({
+			200: okDataUnknown('Lista kursów aktualnego użytkownika'),
 		}),
 	});
 
@@ -790,6 +802,27 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		request: { params: vehicleIdParamsSchema },
 		responses: stdBearerResponses({
 			200: okDataUnknown('OK'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'patch',
+		path: '/vehicles/{id}/status',
+		tags: ['Vehicles'],
+		summary: 'Zmiana statusu pojazdu ACTIVE / UNAVAILABLE (MANAGER)',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: vehicleIdParamsSchema,
+			body: {
+				content: {
+					'application/json': {
+						schema: vehicleAvailabilityStatusSchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('Zaktualizowany pojazd'),
 		}),
 	});
 
