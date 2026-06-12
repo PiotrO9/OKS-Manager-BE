@@ -37,6 +37,7 @@ Dozwolone (wszystkie opcjonalne; brak pól lub `{}` → no-op, **200** z bieżą
 | `lastName` | string | jak wyżej |
 | `experienceYears` | number | jeśli obecne: liczba całkowita 0–80 |
 | `qualifications` | string | jeśli obecne: string (może być pusty `""`) |
+| `qualifiedCourseTypeIds` | string[] | jeśli obecne: pełne zastąpienie listy kategorii uprawnień instruktora; `[]` czyści listę; każdy element musi być UUID istniejącego `CourseType`; duplikaty są deduplikowane |
 
 **Nieznane klucze** w body są **usuwane** (Zod `.strip()`), nie powodują **400**.
 
@@ -44,11 +45,13 @@ Prisma **nigdy** nie dostaje surowego `req.body` — tylko zwhitelistowane pola 
 
 ## PATCH — odpowiedź (200)
 
-`data`: `id`, `firstName`, `lastName`, `email`, `experienceYears`, `qualifications` (`string | null`).
+`data`: `id`, `firstName`, `lastName`, `email`, `experienceYears`, `qualifications` (`string | null`), `qualifiedCourseTypes`.
+
+`qualifiedCourseTypes`: tablica `{ id, code, name }` posortowana po `code`.
 
 ## GET szczegółów — dodatkowe pola
 
-Oprócz powyższych (w szerszym kształcie): `userId`, `phone`, `licenseNumber`, `schoolIds`, `qualifications`.
+Oprócz powyższych (w szerszym kształcie): `userId`, `phone`, `licenseNumber`, `schoolIds`, `qualifications`, `qualifiedCourseTypes`.
 
 ## Kody błędów
 
@@ -56,7 +59,7 @@ Oprócz powyższych (w szerszym kształcie): `userId`, `phone`, `licenseNumber`,
 |-----|----------|
 | **401** | Brak / niepoprawny JWT (`authMiddleware`) |
 | **403** | Rola poniżej MANAGER; MANAGER bez powiązania instruktora z własną OSK (GET / PATCH / DELETE); konto wyłączone (middleware auth) |
-| **400** | Niepoprawny `schoolId` (lista); niepoprawny UUID `:id`; niepoprawne body PATCH (np. pusty `firstName` po trim, `experienceYears` spoza zakresu) |
+| **400** | Niepoprawny `schoolId` (lista); niepoprawny UUID `:id`; niepoprawne body PATCH (np. pusty `firstName` po trim, `experienceYears` spoza zakresu, błędne `qualifiedCourseTypeIds`); nieistniejący `CourseType` w `qualifiedCourseTypeIds` (`Invalid qualifiedCourseTypeIds`) |
 | **404** | Brak profilu; użytkownik nie jest aktywnym instruktorem (GET / PATCH / DELETE jak „not found”; powtórny DELETE po dezaktywacji też **404**) |
 
 ## Migracje
@@ -72,9 +75,12 @@ Po dodaniu kolumny `qualifications` na `instructor_profiles` uruchom migracje / 
 3. **PATCH:** body `{}` → **200**, brak zmian w DB.
 4. **PATCH:** nadmiarowe pole `email` w JSON → **200** (pole odrzucone przez strip), email bez zmian.
 5. **PATCH:** `firstName: ""` lub same spacje → **400**.
-6. **GET /:id:** odpowiedź zawiera `qualifications` (null lub tekst).
-7. **DELETE MANAGER:** instruktor ze swojej OSK → **204**; bez powiązania → **403**; po DELETE GET → **404**.
-8. **DELETE ADMIN:** aktywny instruktor → **204**; już wyłączony → **404**.
+6. **PATCH:** `qualifiedCourseTypeIds: [<CourseType.id>]` → **200**, odpowiedź zawiera `qualifiedCourseTypes`.
+7. **PATCH:** `qualifiedCourseTypeIds: []` → **200**, lista kategorii wyczyszczona.
+8. **PATCH:** nieistniejący `CourseType.id` → **400** (`Invalid qualifiedCourseTypeIds`).
+9. **GET /:id:** odpowiedź zawiera `qualifications` (null lub tekst) oraz `qualifiedCourseTypes`.
+10. **DELETE MANAGER:** instruktor ze swojej OSK → **204**; bez powiązania → **403**; po DELETE GET → **404**.
+11. **DELETE ADMIN:** aktywny instruktor → **204**; już wyłączony → **404**.
 
 ---
 

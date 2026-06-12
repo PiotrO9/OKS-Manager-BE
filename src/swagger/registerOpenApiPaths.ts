@@ -450,6 +450,8 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		path: '/instructors/{id}',
 		tags: ['Instructors'],
 		summary: 'PATCH profilu instruktora (MANAGER/ADMIN)',
+		description:
+			'Aktualizuje dane instruktora. `qualifiedCourseTypeIds` opcjonalnie zastępuje pełną listę strukturalnych kategorii uprawnień instruktora; `[]` czyści listę.',
 		security: [{ bearerAuth: [] }],
 		request: {
 			params: instructorIdParamsSchema,

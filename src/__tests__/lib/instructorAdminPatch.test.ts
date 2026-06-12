@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { instructorAdminPatchBodySchema } from '../../lib/validation/instructorAdminPatch';
 
+const COURSE_TYPE_ID_A = '11111111-1111-4111-8111-111111111111';
+const COURSE_TYPE_ID_B = '22222222-2222-4222-8222-222222222222';
+
 describe('instructorAdminPatchBodySchema — valid payloads', () => {
 	it('accepts firstName and trims it', () => {
 		const r = instructorAdminPatchBodySchema.safeParse({
@@ -25,6 +28,49 @@ describe('instructorAdminPatchBodySchema — valid payloads', () => {
 
 	it('accepts an empty object (all fields optional)', () => {
 		expect(instructorAdminPatchBodySchema.safeParse({}).success).toBe(true);
+	});
+
+	it('accepts qualifiedCourseTypeIds as UUID array', () => {
+		const r = instructorAdminPatchBodySchema.safeParse({
+			qualifiedCourseTypeIds: [COURSE_TYPE_ID_A, COURSE_TYPE_ID_B],
+		});
+
+		expect(r.success).toBe(true);
+		if (r.success) {
+			expect(r.data.qualifiedCourseTypeIds).toEqual([
+				COURSE_TYPE_ID_A,
+				COURSE_TYPE_ID_B,
+			]);
+		}
+	});
+
+	it('accepts empty qualifiedCourseTypeIds', () => {
+		const r = instructorAdminPatchBodySchema.safeParse({
+			qualifiedCourseTypeIds: [],
+		});
+
+		expect(r.success).toBe(true);
+		if (r.success) {
+			expect(r.data.qualifiedCourseTypeIds).toEqual([]);
+		}
+	});
+
+	it('deduplicates qualifiedCourseTypeIds', () => {
+		const r = instructorAdminPatchBodySchema.safeParse({
+			qualifiedCourseTypeIds: [
+				COURSE_TYPE_ID_A,
+				COURSE_TYPE_ID_A,
+				COURSE_TYPE_ID_B,
+			],
+		});
+
+		expect(r.success).toBe(true);
+		if (r.success) {
+			expect(r.data.qualifiedCourseTypeIds).toEqual([
+				COURSE_TYPE_ID_A,
+				COURSE_TYPE_ID_B,
+			]);
+		}
 	});
 
 	it('strips unknown keys', () => {
@@ -79,6 +125,14 @@ describe('instructorAdminPatchBodySchema — invalid payloads', () => {
 		expect(
 			instructorAdminPatchBodySchema.safeParse({
 				experienceYears: 'abc' as unknown as number,
+			}).success,
+		).toBe(false);
+	});
+
+	it('rejects invalid qualifiedCourseTypeIds entry', () => {
+		expect(
+			instructorAdminPatchBodySchema.safeParse({
+				qualifiedCourseTypeIds: [COURSE_TYPE_ID_A, 'not-a-uuid'],
 			}).success,
 		).toBe(false);
 	});

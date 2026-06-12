@@ -29,6 +29,26 @@ function activeInstructorUserByIdWhere(userId: string): Prisma.UserWhereInput {
 	};
 }
 
+export type InstructorQualifiedCourseType = {
+	id: string;
+	code: string;
+	name: string;
+};
+
+const qualifiedCourseTypesSelect = {
+	id: true,
+	code: true,
+	name: true,
+} satisfies Prisma.CourseTypeSelect;
+
+function mapQualifiedCourseTypes(
+	rows: InstructorQualifiedCourseType[],
+): InstructorQualifiedCourseType[] {
+	return rows
+		.map((row) => ({ id: row.id, code: row.code, name: row.name }))
+		.sort((a, b) => a.code.localeCompare(b.code));
+}
+
 export type InstructorListItem = {
 	id: string;
 	firstName: string;
@@ -46,6 +66,7 @@ export type InstructorDetail = {
 	licenseNumber: string;
 	experienceYears: number | null;
 	qualifications: string | null;
+	qualifiedCourseTypes: InstructorQualifiedCourseType[];
 	schoolIds: string[];
 };
 
@@ -110,6 +131,10 @@ export async function getInstructorByIdForUser(
 	actor: Actor,
 	instructorId: string,
 ): Promise<InstructorDetail> {
+	if (actor.role !== Role.ADMIN && actor.role !== Role.MANAGER) {
+		throw AppError.forbidden('Forbidden');
+	}
+
 	const profile = await prisma.instructorProfile.findFirst({
 		where: activeInstructorProfileWhere(instructorId),
 		select: {
@@ -134,6 +159,10 @@ export async function getInstructorByIdForUser(
 					},
 				},
 			},
+			qualifiedCourseTypes: {
+				select: qualifiedCourseTypesSelect,
+				orderBy: { code: 'asc' },
+			},
 		},
 	});
 
@@ -143,19 +172,25 @@ export async function getInstructorByIdForUser(
 
 	const u = profile.user;
 
-	const linkedToOwnedSchool = profile.instructorSchools.some(
-		(row) =>
-			row.school.deletedAt === null && row.school.ownerId === actor.id,
-	);
-	if (!linkedToOwnedSchool) {
-		throw AppError.forbidden('Forbidden');
+	if (actor.role === Role.MANAGER) {
+		const linkedToOwnedSchool = profile.instructorSchools.some(
+			(row) =>
+				row.school.deletedAt === null &&
+				row.school.ownerId === actor.id,
+		);
+		if (!linkedToOwnedSchool) {
+			throw AppError.forbidden('Forbidden');
+		}
 	}
 
 	const active = profile.instructorSchools.filter(
 		(row) => row.school.deletedAt === null,
 	);
 	const schoolIds = active
-		.filter((row) => row.school.ownerId === actor.id)
+		.filter(
+			(row) =>
+				actor.role === Role.ADMIN || row.school.ownerId === actor.id,
+		)
 		.map((row) => row.schoolId);
 
 	schoolIds.sort();
@@ -170,6 +205,9 @@ export async function getInstructorByIdForUser(
 		licenseNumber: profile.licenseNumber,
 		experienceYears: profile.experienceYears,
 		qualifications: profile.qualifications,
+		qualifiedCourseTypes: mapQualifiedCourseTypes(
+			profile.qualifiedCourseTypes,
+		),
 		schoolIds,
 	};
 }
@@ -181,6 +219,7 @@ export type InstructorPatchResult = {
 	email: string;
 	experienceYears: number | null;
 	qualifications: string | null;
+	qualifiedCourseTypes: InstructorQualifiedCourseType[];
 };
 
 /** MANAGER — jak GET (powiązanie z własną OSK); ADMIN — dowolny aktywny instruktor. */
@@ -192,6 +231,7 @@ export async function updateInstructorForManagerOrAdmin(
 		lastName?: string;
 		experienceYears?: number;
 		qualifications?: string;
+		qualifiedCourseTypeIds?: string[];
 	},
 ): Promise<InstructorPatchResult> {
 	if (actor.role !== Role.ADMIN && actor.role !== Role.MANAGER) {
@@ -219,6 +259,10 @@ export async function updateInstructorForManagerOrAdmin(
 						select: { ownerId: true, deletedAt: true },
 					},
 				},
+			},
+			qualifiedCourseTypes: {
+				select: qualifiedCourseTypesSelect,
+				orderBy: { code: 'asc' },
 			},
 		},
 	});
@@ -251,8 +295,15 @@ export async function updateInstructorForManagerOrAdmin(
 	const hasUserUpdate = Object.keys(userUpdate).length > 0;
 	const hasProfileUpdate = patch.experienceYears !== undefined;
 	const hasQualificationsUpdate = patch.qualifications !== undefined;
+	const hasQualifiedCourseTypesUpdate =
+		patch.qualifiedCourseTypeIds !== undefined;
 
-	if (!hasUserUpdate && !hasProfileUpdate && !hasQualificationsUpdate) {
+	if (
+		!hasUserUpdate &&
+		!hasProfileUpdate &&
+		!hasQualificationsUpdate &&
+		!hasQualifiedCourseTypesUpdate
+	) {
 		return {
 			id: profile.id,
 			firstName: u.firstName,
@@ -260,7 +311,22 @@ export async function updateInstructorForManagerOrAdmin(
 			email: u.email,
 			experienceYears: profile.experienceYears,
 			qualifications: profile.qualifications,
+			qualifiedCourseTypes: mapQualifiedCourseTypes(
+				profile.qualifiedCourseTypes,
+			),
 		};
+	}
+
+	if (hasQualifiedCourseTypesUpdate) {
+		const ids = patch.qualifiedCourseTypeIds ?? [];
+		if (ids.length > 0) {
+			const found = await prisma.courseType.count({
+				where: { id: { in: ids } },
+			});
+			if (found !== ids.length) {
+				throw AppError.badRequest('Invalid qualifiedCourseTypeIds');
+			}
+		}
 	}
 
 	const profileUpdateData: Prisma.InstructorProfileUpdateManyMutationInput =
@@ -292,6 +358,19 @@ export async function updateInstructorForManagerOrAdmin(
 		}
 	}
 
+	if (hasQualifiedCourseTypesUpdate) {
+		await prisma.instructorProfile.update({
+			where: { id: instructorId },
+			data: {
+				qualifiedCourseTypes: {
+					set: (patch.qualifiedCourseTypeIds ?? []).map((id) => ({
+						id,
+					})),
+				},
+			},
+		});
+	}
+
 	const fresh = await prisma.instructorProfile.findFirst({
 		where: activeInstructorProfileWhere(instructorId),
 		select: {
@@ -304,6 +383,10 @@ export async function updateInstructorForManagerOrAdmin(
 					lastName: true,
 					email: true,
 				},
+			},
+			qualifiedCourseTypes: {
+				select: qualifiedCourseTypesSelect,
+				orderBy: { code: 'asc' },
 			},
 		},
 	});
@@ -319,6 +402,9 @@ export async function updateInstructorForManagerOrAdmin(
 		email: fresh.user.email,
 		experienceYears: fresh.experienceYears,
 		qualifications: fresh.qualifications,
+		qualifiedCourseTypes: mapQualifiedCourseTypes(
+			fresh.qualifiedCourseTypes,
+		),
 	};
 }
 

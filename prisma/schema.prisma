@@ -187,6 +187,7 @@ model InstructorProfile {
   lessonRatings       LessonRating[]                  @relation("InstructorLessonRatings")
   assignedCourses     Course[]                        @relation("CourseAssignedInstructor")
   instructorEvents    InstructorEvent[]               @relation("InstructorEvents")
+  qualifiedCourseTypes CourseType[]                   @relation("InstructorQualifiedCourseTypes")
 
   @@map("instructor_profiles")
 }
@@ -267,7 +268,8 @@ model CourseType {
   name      String   @map("name")
   createdAt DateTime @default(now()) @map("created_at")
 
-  schoolSettingsOffered SchoolSettings[] @relation("SchoolSettingsOfferedCourseTypes")
+  schoolSettingsOffered SchoolSettings[]      @relation("SchoolSettingsOfferedCourseTypes")
+  qualifiedInstructors InstructorProfile[] @relation("InstructorQualifiedCourseTypes")
 
   @@map("course_types")
 }
