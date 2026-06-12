@@ -8,6 +8,7 @@ import {
 	Role,
 } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
+import { assertInstructorQualifiedForCourseType } from '../lib/instructorCourseQualification';
 import { validateVehicleForInstructor } from '../lib/vehicle.helpers';
 import { getPrisma } from '../lib/prisma';
 import type {
@@ -239,7 +240,7 @@ async function assertCourseEligibleForInstructorEvent(
 ): Promise<void> {
 	const course = await prisma.course.findFirst({
 		where: { id: courseId, deletedAt: null },
-		select: { id: true, schoolId: true },
+		select: { id: true, schoolId: true, courseTypeId: true },
 	});
 	if (!course) {
 		throw AppError.notFound('Course not found');
@@ -253,6 +254,10 @@ async function assertCourseEligibleForInstructorEvent(
 			'Instructor is not linked to the driving school of this course',
 		);
 	}
+	await assertInstructorQualifiedForCourseType(
+		instructorId,
+		course.courseTypeId,
+	);
 }
 
 export type InstructorEventDto = {
@@ -1010,6 +1015,7 @@ export async function updateInstructorEvent(
 			id: true,
 			instructorId: true,
 			isActive: true,
+			courseId: true,
 			type: true,
 			status: true,
 			startTime: true,
@@ -1050,6 +1056,17 @@ export async function updateInstructorEvent(
 
 	if (mergedStart.getTime() >= mergedEnd.getTime()) {
 		throw AppError.badRequest('startTime must be before endTime');
+	}
+
+	if (
+		current.courseId !== null &&
+		mergedType === EventType.THEORY &&
+		(body.instructorId !== undefined || body.type !== undefined)
+	) {
+		await assertCourseEligibleForInstructorEvent(
+			mergedInstructorId,
+			current.courseId,
+		);
 	}
 
 	if (mergedType === EventType.DRIVE) {

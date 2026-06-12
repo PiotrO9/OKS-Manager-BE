@@ -7,6 +7,10 @@ alwaysApply: true
 
 **`Lesson`** (zasób `/lessons`) to **pojedyncza lekcja praktyczna** (jazda): w jednym rekordzie jest **jeden kursant** i **jeden instruktor** — układ **1:1** w danym przedziale czasu (z przypisanym pojazdem). To nie jest zajęcie grupowe; teoria / bloki grupowe są modelem **`InstructorEvent`** (`POST /events`, `type: THEORY` itd.).
 
+## ReguĹ‚a kwalifikacji instruktora
+
+`POST /lessons` oraz `PATCH /lessons/:id` przy zmianie `instructorId` sprawdzajÄ…, czy instruktor ma `qualifiedCourseTypes` zawierajÄ…ce `Course.courseTypeId` kursu lekcji. Brak uprawnienia zwraca **400** `Instructor is not qualified for this course category`.
+
 Montowanie w `src/server.ts`:
 
 - **`GET /lessons/:id`** — odczyt pojedynczej lekcji (`Lesson`); MANAGER lub ADMIN z dostępem do OSK kursu (jak przy POST/PATCH)

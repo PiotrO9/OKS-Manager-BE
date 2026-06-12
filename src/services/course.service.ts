@@ -1,11 +1,13 @@
 import {
 	Role,
 	type Course,
+	type CourseType,
 	type CourseKind,
 	type CourseParticipantStatus,
 	type DrivingSchool,
 } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
+import { assertInstructorQualifiedForCourseType } from '../lib/instructorCourseQualification';
 import { getPrisma } from '../lib/prisma';
 import type {
 	CreateCourseBody,
@@ -31,6 +33,7 @@ export type CreatedCourseDto = {
 	id: string;
 	name: string;
 	category: string;
+	courseType: CourseTypeDto;
 	kind: CourseKind;
 	totalHours: number;
 	capacity: number | null;
@@ -42,11 +45,32 @@ export type CreatedCourseDto = {
 	createdAt: Date;
 };
 
-function toDto(row: Course): CreatedCourseDto {
+export type CourseTypeDto = {
+	id: string;
+	code: string;
+	name: string;
+};
+
+type CourseWithType = Course & {
+	courseType: Pick<CourseType, 'id' | 'code' | 'name'>;
+};
+
+function toCourseTypeDto(
+	row: Pick<CourseType, 'id' | 'code' | 'name'>,
+): CourseTypeDto {
+	return {
+		id: row.id,
+		code: row.code,
+		name: row.name,
+	};
+}
+
+function toDto(row: CourseWithType): CreatedCourseDto {
 	return {
 		id: row.id,
 		name: row.name,
 		category: row.category,
+		courseType: toCourseTypeDto(row.courseType),
 		kind: row.kind,
 		totalHours: row.totalHours,
 		capacity: row.capacity,
@@ -57,6 +81,22 @@ function toDto(row: Course): CreatedCourseDto {
 		status: row.status,
 		createdAt: row.createdAt,
 	};
+}
+
+async function resolveCourseTypeByCategory(
+	category: string,
+): Promise<CourseTypeDto> {
+	const code = category.trim();
+	const courseType = await prisma.courseType.findUnique({
+		where: { code },
+		select: { id: true, code: true, name: true },
+	});
+
+	if (!courseType) {
+		throw AppError.badRequest('Invalid course category');
+	}
+
+	return toCourseTypeDto(courseType);
 }
 
 async function createCourseForUser(
@@ -95,6 +135,15 @@ async function createCourseForUser(
 		throw AppError.badRequest('Course kind is not enabled for this school');
 	}
 
+	const courseType = await resolveCourseTypeByCategory(body.category);
+
+	if (body.instructorId) {
+		await assertInstructorQualifiedForCourseType(
+			body.instructorId,
+			courseType.id,
+		);
+	}
+
 	const capacity =
 		body.kind === 'THEORY_GROUP' ? (body.capacity ?? null) : null;
 
@@ -112,12 +161,16 @@ async function createCourseForUser(
 		data: {
 			schoolId: body.schoolId,
 			name: body.name,
-			category: body.category,
+			category: courseType.code,
+			courseTypeId: courseType.id,
 			kind: body.kind,
 			totalHours: body.totalHours,
 			capacity,
 			...theoryDates,
 			instructorId: body.instructorId ?? null,
+		},
+		include: {
+			courseType: { select: { id: true, code: true, name: true } },
 		},
 	});
 
@@ -133,6 +186,7 @@ export type CourseListItemDto = {
 	id: string;
 	name: string;
 	category: string;
+	courseType: CourseTypeDto;
 	type: CourseKind;
 	totalHours: number;
 	instructor: CourseListInstructorDto | null;
@@ -160,6 +214,9 @@ async function listCoursesForSchool(
 		},
 		orderBy: { createdAt: 'desc' },
 		include: {
+			courseType: {
+				select: { id: true, code: true, name: true },
+			},
 			instructor: {
 				include: {
 					user: {
@@ -178,6 +235,7 @@ async function listCoursesForSchool(
 		id: row.id,
 		name: row.name,
 		category: row.category,
+		courseType: toCourseTypeDto(row.courseType),
 		type: row.kind,
 		totalHours: row.totalHours,
 		instructor: row.instructor
@@ -226,6 +284,7 @@ export type CourseDetailDto = {
 	schoolId: string;
 	name: string;
 	category: string;
+	courseType: CourseTypeDto;
 	type: CourseKind;
 	totalHours: number;
 	capacity: number | null;
@@ -239,6 +298,9 @@ async function getCourseDetailForOwner(
 	const row = await prisma.course.findUnique({
 		where: { id: courseId },
 		include: {
+			courseType: {
+				select: { id: true, code: true, name: true },
+			},
 			instructor: {
 				include: {
 					user: {
@@ -266,6 +328,7 @@ async function getCourseDetailForOwner(
 		schoolId: row.schoolId,
 		name: row.name,
 		category: row.category,
+		courseType: toCourseTypeDto(row.courseType),
 		type: row.kind,
 		totalHours: row.totalHours,
 		capacity: row.capacity,
@@ -338,6 +401,10 @@ async function patchCourseInstructorForOwner(
 					'instructor does not belong to this school',
 				);
 			}
+			await assertInstructorQualifiedForCourseType(
+				nextInstructorId,
+				row.courseTypeId,
+			);
 		}
 		data.instructorId = nextInstructorId ?? null;
 	}

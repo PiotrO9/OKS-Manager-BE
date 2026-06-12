@@ -18,6 +18,8 @@ Szczegóły sesji: [auth.md](./auth.md).
 
 ## Trasy
 
+`GET /instructors?schoolId=` zwraca przy kaĹĽdym instruktorze takĹĽe `qualifiedCourseTypes: [{ id, code, name }]`, aby frontend mĂłgĹ‚ filtrowaÄ‡ wybĂłr instruktora po kategorii kursu bez wykonywania N requestĂłw po szczegĂłĹ‚y profili.
+
 | Metoda | Ścieżka | Opis |
 |--------|---------|------|
 | GET | `/instructors?schoolId=<uuid>` | Lista instruktorów przypisanych do szkoły (tylko aktywni `User`). Dostęp: właściciel OSK lub ADMIN. |

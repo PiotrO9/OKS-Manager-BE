@@ -54,6 +54,7 @@ export type InstructorListItem = {
 	firstName: string;
 	lastName: string;
 	email: string;
+	qualifiedCourseTypes: InstructorQualifiedCourseType[];
 };
 
 export type InstructorDetail = {
@@ -100,6 +101,10 @@ export async function listInstructorsBySchoolForUser(
 			instructor: {
 				select: {
 					id: true,
+					qualifiedCourseTypes: {
+						select: qualifiedCourseTypesSelect,
+						orderBy: { code: 'asc' },
+					},
 					user: {
 						select: {
 							firstName: true,
@@ -122,6 +127,9 @@ export async function listInstructorsBySchoolForUser(
 		firstName: row.instructor.user.firstName,
 		lastName: row.instructor.user.lastName,
 		email: row.instructor.user.email,
+		qualifiedCourseTypes: mapQualifiedCourseTypes(
+			row.instructor.qualifiedCourseTypes,
+		),
 	}));
 
 	return { instructors };

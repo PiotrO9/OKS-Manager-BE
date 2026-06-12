@@ -11,6 +11,10 @@ Montowanie w `src/server.ts`:
 - **`/lessons`** — tworzenie lekcji (`Lesson`) — zob. [lessons-api.md](./lessons-api.md)
 - **`/schedule`** — **lekcje** (`Lesson`) oraz **eventy instruktora** (`InstructorEvent`) w zadanym zakresie dat, scalone i posortowane po `startTime` (terminarz osobisty lub podgląd przez MANAGER/ADMIN)
 
+## ReguĹ‚a kwalifikacji instruktora
+
+`POST /events` dla `type=THEORY` z `courseId` oraz `PATCH /events/:id` przy zmianie instruktora/typu dla eventu THEORY powiÄ…zanego z kursem sprawdzajÄ…, czy instruktor ma `qualifiedCourseTypes` zawierajÄ…ce `Course.courseTypeId`. Brak uprawnienia zwraca **400** `Instructor is not qualified for this course category`.
+
 Implementacja:
 
 | Obszar | Pliki |

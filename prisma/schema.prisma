@@ -270,6 +270,7 @@ model CourseType {
 
   schoolSettingsOffered SchoolSettings[]      @relation("SchoolSettingsOfferedCourseTypes")
   qualifiedInstructors InstructorProfile[] @relation("InstructorQualifiedCourseTypes")
+  courses Course[]
 
   @@map("course_types")
 }
@@ -279,6 +280,7 @@ model Course {
   schoolId        String     @map("school_id") @db.Uuid
   name            String     @map("name")
   category        String     @map("category")
+  courseTypeId    String     @map("course_type_id") @db.Uuid
   kind            CourseKind @map("kind")
   totalHours      Int        @map("total_hours")
   capacity        Int?       @map("capacity")
@@ -290,12 +292,14 @@ model Course {
   deletedAt       DateTime?  @map("deleted_at")
 
   school           DrivingSchool       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  courseType       CourseType          @relation(fields: [courseTypeId], references: [id])
   instructor       InstructorProfile?  @relation("CourseAssignedInstructor", fields: [instructorId], references: [id], onDelete: SetNull)
   participants     CourseParticipant[]
   paymentPlans     PaymentPlan[]
   lessons          Lesson[]
   instructorEvents InstructorEvent[]
 
+  @@index([courseTypeId], name: "idx_courses_course_type_id")
   @@map("courses")
 }
 

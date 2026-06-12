@@ -1,5 +1,6 @@
 import { LessonStatus, Role } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
+import { filterInstructorIdsQualifiedForCourseType } from '../lib/instructorCourseQualification';
 import { getPrisma } from '../lib/prisma';
 import type { SchoolAvailabilitySlotsQuery } from '../schemas/school-availability.schemas';
 import { generateSlotsInternal } from './instructor-availability.service';
@@ -231,7 +232,7 @@ export async function listSchoolAvailabilitySlots(
 				schoolId: school.id,
 				deletedAt: null,
 			},
-			select: { instructorId: true },
+			select: { instructorId: true, courseTypeId: true },
 		});
 
 		if (!course) {
@@ -256,6 +257,10 @@ export async function listSchoolAvailabilitySlots(
 				(id) => id === course.instructorId,
 			);
 		}
+		instructorIds = await filterInstructorIdsQualifiedForCourseType(
+			instructorIds,
+			course.courseTypeId,
+		);
 	}
 
 	const excludeMyLessons =

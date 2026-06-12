@@ -1,5 +1,6 @@
 import { EventType, LessonStatus, LessonType, Role } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
+import { assertInstructorQualifiedForCourseType } from '../lib/instructorCourseQualification';
 import { validateVehicleForInstructor } from '../lib/vehicle.helpers';
 import { getPrisma } from '../lib/prisma';
 import type {
@@ -136,6 +137,7 @@ export async function bookLesson(
 			id: true,
 			schoolId: true,
 			instructorId: true,
+			courseTypeId: true,
 			kind: true,
 			totalHours: true,
 		},
@@ -221,6 +223,11 @@ export async function bookLesson(
 			'instructor does not match course assigned instructor',
 		);
 	}
+
+	await assertInstructorQualifiedForCourseType(
+		body.instructorId,
+		course.courseTypeId,
+	);
 
 	const row = await prisma.$transaction(async (tx) => {
 		await assertInstructorTimeWindowAvailable(
@@ -454,6 +461,7 @@ export async function updateLesson(
 					id: true,
 					schoolId: true,
 					instructorId: true,
+					courseTypeId: true,
 					kind: true,
 					totalHours: true,
 				},
@@ -533,6 +541,13 @@ export async function updateLesson(
 	if (course.instructorId != null && course.instructorId !== instructorId) {
 		throw AppError.badRequest(
 			'instructor does not match course assigned instructor',
+		);
+	}
+
+	if (instructorChanged) {
+		await assertInstructorQualifiedForCourseType(
+			instructorId,
+			course.courseTypeId,
 		);
 	}
 

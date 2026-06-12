@@ -388,7 +388,7 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		summary:
 			'Agregowana lista slotów dostępności instruktorów szkoły (ADMIN, MANAGER, INSTRUCTOR, STUDENT)',
 		description:
-			'Parametr lessonType jest zarezerwowany (MVP bez wpływu na wynik). excludeMyLessons domyślnie true dla STUDENT.',
+			'Parametr lessonType jest zarezerwowany (MVP bez wpływu na wynik). excludeMyLessons domyślnie true dla STUDENT. Jeśli podano courseId, wynik obejmuje tylko instruktorów z uprawnieniem do kategorii Course.courseTypeId.',
 		security: [{ bearerAuth: [] }],
 		request: {
 			params: drivingSchoolIdParamsSchema,
@@ -894,6 +894,8 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		path: '/courses',
 		tags: ['Courses'],
 		summary: 'Utworzenie kursu (MANAGER)',
+		description:
+			'Pole category jest kodem CourseType. Jeśli podano instructorId, instruktor musi należeć do OSK i mieć uprawnienie do kategorii kursu.',
 		security: [{ bearerAuth: [] }],
 		request: {
 			body: {
@@ -912,6 +914,8 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		path: '/courses/{id}',
 		tags: ['Courses'],
 		summary: 'Aktualizacja kursu (MANAGER)',
+		description:
+			'Zmiana instructorId wymaga, aby instruktor należał do OSK i miał uprawnienie do Course.courseTypeId.',
 		security: [{ bearerAuth: [] }],
 		request: {
 			params: courseIdParamsSchema,
@@ -932,6 +936,8 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		path: '/lessons',
 		tags: ['Lessons'],
 		summary: 'Rezerwacja lekcji (MANAGER+)',
+		description:
+			'Tworzy jazdę praktyczną. Instruktor musi mieć uprawnienie do kategorii kursu (`Course.courseTypeId`).',
 		security: [{ bearerAuth: [] }],
 		request: {
 			body: {
@@ -1001,7 +1007,7 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		tags: ['Events'],
 		summary: 'Tworzenie wydarzenia instruktora (MANAGER)',
 		description:
-			'Dla THEORY opcjonalne `courseId` wiąże event z kursem; uczestników (`event_participants`) trzeba dodać osobno przez POST/PUT `/events/{id}/students` — przy tworzeniu lista jest pusta.',
+			'Dla THEORY opcjonalne `courseId` wiąże event z kursem; instruktor musi mieć uprawnienie do kategorii tego kursu. Uczestników (`event_participants`) trzeba dodać osobno przez POST/PUT `/events/{id}/students` — przy tworzeniu lista jest pusta.',
 		security: [{ bearerAuth: [] }],
 		request: {
 			body: {
@@ -1045,7 +1051,7 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		tags: ['Events'],
 		summary: 'Edycja wydarzenia instruktora (MANAGER)',
 		description:
-			'Częściowy update (PATCH). Przy zmianie czasu lub instruktora: walidacja dostępności i kolizji; edytowany event jest wykluczany z nakładania na siebie; przy istniejących uczestnikach — brak kolizji ich grafiku z nowym oknem. Szczegóły: context/events-schedule-api.md',
+			'Częściowy update (PATCH). Przy zmianie czasu lub instruktora: walidacja dostępności i kolizji; edytowany event jest wykluczany z nakładania na siebie; przy istniejących uczestnikach — brak kolizji ich grafiku z nowym oknem. Jeśli event THEORY ma courseId i zmienia się instruktor lub typ, instruktor musi mieć uprawnienie do kategorii kursu. Szczegóły: context/events-schedule-api.md',
 		security: [{ bearerAuth: [] }],
 		request: {
 			params: eventIdParamsSchema,

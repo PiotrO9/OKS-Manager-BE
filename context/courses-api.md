@@ -17,6 +17,13 @@ Implementacja: `src/routes/courses.routes.ts`, `src/controllers/courses.controll
 - Dozwolone wartości `kind` przy **tworzeniu** kursu muszą być zawarte w `SchoolSettings.enabledCourseKinds` danej szkoły (zob. [driving-schools-api.md](./driving-schools-api.md)). Dopóki nie ma rekordu `school_settings` lub lista kinds jest pusta, `POST /courses` zwraca **400**. Wyłączenie typu w ustawieniach OSK **nie** zmienia istniejących kursów — blokuje tylko nowe `POST /courses` z tym `kind`.
 - Kategoria w polu **`category`** to nadal dowolny string w API; lista **`offeredCourseTypes`** w ustawieniach OSK służy pod przyszłą walidację / front (np. select); pełna spójność z `CourseType` przy `POST /courses` może być dodana później (`courseTypeId`).
 
+## ReguĹ‚a `CourseType` i uprawnieĹ„ instruktora
+
+- `Course.category` pozostaje publicznym kodem kategorii w API, ale backend rozwiÄ…zuje go do istniejÄ…cego `CourseType.code` i zapisuje wymagane `Course.courseTypeId`.
+- Odpowiedzi kursĂłw mogÄ… zawieraÄ‡ dodatkowe `courseType: { id, code, name }`; `category` nie jest usuwane.
+- `POST /courses` z `instructorId` oraz `PATCH /courses/:id` zmieniajÄ…cy `instructorId` wymagajÄ…, aby instruktor byĹ‚ w OSK kursu i miaĹ‚ `qualifiedCourseTypes` zawierajÄ…ce `Course.courseTypeId`.
+- Brak uprawnienia instruktora zwraca **400** `Instructor is not qualified for this course category`.
+
 ## Uwierzytelnianie i autoryzacja
 
 - Nagłówek **`Authorization: Bearer <access_token>`** (jak przy `GET /auth/me`).
