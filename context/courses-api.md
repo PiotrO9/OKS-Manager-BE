@@ -79,7 +79,7 @@ Zapis: dla `PRACTICAL` / `EXTRA` pole `capacity` w DB jest **null**; daty teorii
 
 ## GET `/me/courses` — odpowiedź (200)
 
-`data.courses`: tablica elementów: `id`, `name`, `status`. `status` pochodzi z `course_participants.status` (`ACTIVE` / `FINISHED`). Dla roli innej niż **STUDENT** oraz dla kursanta bez kursów zwracane jest `[]`. Kursy z `courses.deleted_at` ustawionym nie są zwracane.
+`data.courses`: tablica elementów: `id`, `name`, `status`, `progress`. `status` pochodzi z `course_participants.status` (`ACTIVE` / `FINISHED`). `progress` to liczba całkowita 0-100 liczona dynamicznie dla kursanta i kursu: dla kursów `PRACTICAL` / `EXTRA` suma minut lekcji `PRACTICE` ze statusem `COMPLETED` i `deleted_at IS NULL` dzielona przez `courses.total_hours * 60`, zaokrąglona i ograniczona do zakresu 0-100. Lekcje `SCHEDULED`, `CANCELLED`, soft-delete oraz inne typy lekcji nie są wliczane. Dla `THEORY_GROUP` MVP zwraca `progress: 0`. Dla roli innej niż **STUDENT** oraz dla kursanta bez kursów zwracane jest `[]`. Kursy z `courses.deleted_at` ustawionym nie są zwracane.
 
 ## GET szczegółów — odpowiedź (200)
 

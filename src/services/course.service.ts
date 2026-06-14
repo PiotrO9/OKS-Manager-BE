@@ -1,8 +1,10 @@
 import {
+	CourseKind,
+	LessonStatus,
+	LessonType,
 	Role,
 	type Course,
 	type CourseType,
-	type CourseKind,
 	type CourseParticipantStatus,
 	type DrivingSchool,
 } from '@prisma/client';
@@ -196,7 +198,112 @@ export type CurrentUserCourseDto = {
 	id: string;
 	name: string;
 	status: CourseParticipantStatus;
+	progress: number;
 };
+
+type CurrentUserCourseRow = {
+	studentId: string;
+	status: CourseParticipantStatus;
+	course: {
+		id: string;
+		name: string;
+		kind: CourseKind;
+		totalHours: number;
+	};
+};
+
+type LessonTimeRange = {
+	courseId: string;
+	startTime: Date;
+	endTime: Date;
+};
+
+function clampProgress(value: number): number {
+	if (!Number.isFinite(value)) {
+		return 0;
+	}
+
+	return Math.max(0, Math.min(100, value));
+}
+
+function lessonDurationMinutes(
+	row: Pick<LessonTimeRange, 'startTime' | 'endTime'>,
+): number {
+	return Math.round(
+		(row.endTime.getTime() - row.startTime.getTime()) / 60_000,
+	);
+}
+
+function calculateCourseProgress(
+	kind: CourseKind,
+	totalHours: number,
+	completedMinutes: number,
+): number {
+	if (kind !== CourseKind.PRACTICAL && kind !== CourseKind.EXTRA) {
+		return 0;
+	}
+
+	const requiredMinutes = totalHours * 60;
+	if (requiredMinutes <= 0 || completedMinutes <= 0) {
+		return 0;
+	}
+
+	return clampProgress(Math.round((completedMinutes / requiredMinutes) * 100));
+}
+
+function groupCompletedMinutesByCourse(
+	rows: LessonTimeRange[],
+): Map<string, number> {
+	const minutesByCourse = new Map<string, number>();
+
+	for (const row of rows) {
+		const minutes = lessonDurationMinutes(row);
+		if (minutes <= 0) {
+			continue;
+		}
+
+		minutesByCourse.set(
+			row.courseId,
+			(minutesByCourse.get(row.courseId) ?? 0) + minutes,
+		);
+	}
+
+	return minutesByCourse;
+}
+
+async function getCompletedDrivingMinutesByCourse(
+	rows: CurrentUserCourseRow[],
+): Promise<Map<string, number>> {
+	const practicalCourseIds = rows
+		.filter(
+			(row) =>
+				row.course.kind === CourseKind.PRACTICAL ||
+				row.course.kind === CourseKind.EXTRA,
+		)
+		.map((row) => row.course.id);
+
+	if (practicalCourseIds.length === 0) {
+		return new Map();
+	}
+
+	const studentIds = Array.from(new Set(rows.map((row) => row.studentId)));
+	const lessons = await prisma.lesson.findMany({
+		where: {
+			courseId: { in: practicalCourseIds },
+			studentId: { in: studentIds },
+			status: LessonStatus.COMPLETED,
+			lessonType: LessonType.PRACTICE,
+			deletedAt: null,
+		},
+		select: {
+			courseId: true,
+			startTime: true,
+			endTime: true,
+		},
+	});
+
+	return groupCompletedMinutesByCourse(lessons);
+}
 
 async function listCoursesForSchool(
 	userId: string,
@@ -262,20 +369,31 @@ async function listCoursesForCurrentUser(
 		},
 		orderBy: { createdAt: 'asc' },
 		select: {
+			studentId: true,
 			status: true,
 			course: {
 				select: {
 					id: true,
 					name: true,
+					kind: true,
+					totalHours: true,
 				},
 			},
 		},
-	});
+	}) as CurrentUserCourseRow[];
+
+	const completedMinutesByCourse =
+		await getCompletedDrivingMinutesByCourse(rows);
 
 	return rows.map((row) => ({
 		id: row.course.id,
 		name: row.course.name,
 		status: row.status,
+		progress: calculateCourseProgress(
+			row.course.kind,
+			row.course.totalHours,
+			completedMinutesByCourse.get(row.course.id) ?? 0,
+		),
 	}));
 }
 

@@ -233,6 +233,8 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		path: '/me/courses',
 		tags: ['Courses'],
 		summary: 'Kursy aktualnego użytkownika (STUDENT)',
+		description:
+			'Zwraca kursy kursanta z polem progress 0-100. Progress jest liczony dynamicznie z ukończonych lekcji PRACTICE dla kursów PRACTICAL/EXTRA; THEORY_GROUP zwraca 0 w MVP.',
 		security: [{ bearerAuth: [] }],
 		responses: stdBearerResponses({
 			200: okDataUnknown('Lista kursów aktualnego użytkownika'),
