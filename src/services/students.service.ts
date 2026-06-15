@@ -1,6 +1,7 @@
 import {
 	CourseParticipantStatus,
 	EventType,
+	LessonStatus,
 	LessonType,
 	Prisma,
 	Role,
@@ -375,6 +376,16 @@ export type StudentDetailDto = {
 	courses: StudentCourseDto[];
 };
 
+export type StudentProcessStatusStepDto = {
+	name: string;
+	completed: boolean;
+	description: string;
+};
+
+export type StudentProcessStatusDto = {
+	steps: StudentProcessStatusStepDto[];
+};
+
 export type StudentListItemDto = {
 	id: string;
 	userId: string;
@@ -430,6 +441,110 @@ async function assertActorCanListStudentsForSchool(
 	}
 
 	throw AppError.forbidden('Forbidden');
+}
+
+function hasText(value: string | null | undefined): boolean {
+	return typeof value === 'string' && value.trim().length > 0;
+}
+
+function buildStudentProcessStatusSteps(input: {
+	hasBasicData: boolean;
+	hasPkkNumber: boolean;
+	hasCourseAssignment: boolean;
+	hasScheduledLesson: boolean;
+}): StudentProcessStatusStepDto[] {
+	return [
+		{
+			name: 'Dane kursanta',
+			completed: input.hasBasicData,
+			description:
+				'Uzupełnij podstawowe dane kursanta i upewnij się, że konto jest aktywne.',
+		},
+		{
+			name: 'Numer PKK',
+			completed: input.hasPkkNumber,
+			description: 'Dodaj numer PKK kursanta.',
+		},
+		{
+			name: 'Przypisanie do kursu',
+			completed: input.hasCourseAssignment,
+			description: 'Przypisz kursanta do kursu w tej OSK.',
+		},
+		{
+			name: 'Zaplanowanie jazd',
+			completed: input.hasScheduledLesson,
+			description: 'Zaplanuj co najmniej jedną nieanulowaną jazdę.',
+		},
+	];
+}
+
+export async function getStudentProcessStatus(
+	actorId: string,
+	actorRole: Role,
+	studentUserId: string,
+	schoolId: string,
+): Promise<StudentProcessStatusDto> {
+	if (actorRole === Role.STUDENT && actorId !== studentUserId) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	if (actorRole !== Role.STUDENT) {
+		await assertActorCanListStudentsForSchool(actorId, actorRole, schoolId);
+	}
+
+	const student = await prisma.studentProfile.findFirst({
+		where: {
+			userId: studentUserId,
+			user: { deletedAt: null },
+			studentSchools: {
+				some: { schoolId, school: { deletedAt: null } },
+			},
+		},
+		select: {
+			id: true,
+			pkkNumber: true,
+			user: {
+				select: {
+					firstName: true,
+					lastName: true,
+					email: true,
+					isActive: true,
+				},
+			},
+			courseParticipants: {
+				where: { course: { schoolId, deletedAt: null } },
+				select: { id: true },
+				take: 1,
+			},
+		},
+	});
+
+	if (!student) {
+		throw AppError.notFound('Student not found');
+	}
+
+	const scheduledLesson = await prisma.lesson.findFirst({
+		where: {
+			studentId: student.id,
+			deletedAt: null,
+			status: { not: LessonStatus.CANCELLED },
+			course: { schoolId, deletedAt: null },
+		},
+		select: { id: true },
+	});
+
+	return {
+		steps: buildStudentProcessStatusSteps({
+			hasBasicData:
+				student.user.isActive &&
+				hasText(student.user.firstName) &&
+				hasText(student.user.lastName) &&
+				hasText(student.user.email),
+			hasPkkNumber: hasText(student.pkkNumber),
+			hasCourseAssignment: student.courseParticipants.length > 0,
+			hasScheduledLesson: scheduledLesson !== null,
+		}),
+	};
 }
 
 export async function getStudentDetail(

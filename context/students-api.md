@@ -5,6 +5,46 @@ alwaysApply: true
 
 # Studenci — API
 
+## GET `/students/:userId/process-status`
+
+Dynamiczna checklista procesu kursanta dla konkretnej OSK.
+
+**Middleware:** `authMiddleware`, `requireMinRole('STUDENT')`.
+
+**Parametry:**
+
+| Parametr | Wymagane | Uwagi |
+|----------|----------|-------|
+| `:userId` | tak | `users.id` kursanta, jak w pozostałych trasach `/students/:userId/*`. |
+| `schoolId` | tak | UUID OSK; kursant musi mieć aktywne przypisanie w `student_schools`. |
+
+**Autoryzacja:**
+
+- `STUDENT`: tylko własny `userId`.
+- `INSTRUCTOR` / `MANAGER`: te same reguły dostępu do OSK co `GET /students/:userId`.
+- `ADMIN`: dostęp bez sprawdzania właścicielstwa OSK, z filtrowaniem po `schoolId`.
+
+**Sukces (200):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "steps": [
+      {
+        "name": "Dane kursanta",
+        "completed": true,
+        "description": "Uzupełnij podstawowe dane kursanta i upewnij się, że konto jest aktywne."
+      }
+    ]
+  }
+}
+```
+
+Kroki v1: `Dane kursanta`, `Numer PKK`, `Przypisanie do kursu`, `Zaplanowanie jazd`. Płatności są celowo pominięte w v1, bo obecny model wiąże płatności z kursem, a nie z konkretnym kursantem.
+
+**Błędy typowe:** `400` dla nieprawidłowego `userId` / `schoolId`, `403` dla braku dostępu, `404 Student not found` gdy kursant nie istnieje albo nie jest przypisany do podanej OSK.
+
 Montowanie w `src/server.ts` pod prefiksem **`/students`**.
 
 Implementacja: `src/routes/students.routes.ts`, `src/controllers/students.controller.ts`, `src/services/students.service.ts`, walidacja w `src/lib/validation/uuid.ts` m.in.: `listStudentsQuerySchema`, `studentDetailParamsSchema`, `studentDetailQuerySchema`, **`studentEventsQuerySchema`**, **`patchStudentBodySchema`**, **`studentCourseParamsSchema`**, **`patchCourseParticipantStatusBodySchema`** (`courseParticipantStatusSchema`).

@@ -97,6 +97,12 @@ export const studentDetailQuerySchema = z.object({
 
 export type StudentDetailQuery = z.infer<typeof studentDetailQuerySchema>;
 
+export const studentProcessStatusQuerySchema = studentDetailQuerySchema;
+
+export type StudentProcessStatusQuery = z.infer<
+	typeof studentProcessStatusQuerySchema
+>;
+
 const STUDENT_EVENTS_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const studentEventsQuerySchema = z

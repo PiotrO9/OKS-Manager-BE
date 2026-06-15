@@ -23,6 +23,7 @@ import {
 	studentDetailParamsSchema,
 	studentDetailQuerySchema,
 	studentEventsQuerySchema,
+	studentProcessStatusQuerySchema,
 	studentUserIdParamsSchema,
 	uuidSchema,
 } from '../lib/validation/uuid';
@@ -643,6 +644,23 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		},
 		responses: stdBearerResponses({
 			200: okDataUnknown('Lista eventów (data.events)'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'get',
+		path: '/students/{userId}/process-status',
+		tags: ['Students'],
+		summary: 'Status procesu kursanta (checklista onboardingu)',
+		description:
+			'Zwraca dynamicznie wyliczona liste krokow procesu kursanta dla podanej OSK. Platnosci pomijamy w v1, bo obecny model nie przypisuje platnosci do konkretnego kursanta.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: studentDetailParamsSchema,
+			query: studentProcessStatusQuerySchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('Checklista krokow procesu kursanta'),
 		}),
 	});
 
