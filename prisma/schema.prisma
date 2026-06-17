@@ -482,5 +482,7 @@ model LessonRating {
   student    StudentProfile    @relation("StudentLessonRatings", fields: [studentId], references: [id])
   instructor InstructorProfile @relation("InstructorLessonRatings", fields: [instructorId], references: [id])
 
+  @@index([instructorId, createdAt], name: "idx_lesson_ratings_instructor_id_created_at")
+  @@index([studentId, createdAt], name: "idx_lesson_ratings_student_id_created_at")
   @@map("lesson_ratings")
 }
