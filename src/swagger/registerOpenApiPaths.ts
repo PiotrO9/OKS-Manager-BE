@@ -41,6 +41,7 @@ import {
 } from '../schemas/event.schemas';
 import {
 	bookLessonBodySchema,
+	bookOwnLessonBodySchema,
 	cancelLessonBodySchema,
 	createLessonRatingBodySchema,
 	lessonRatingParamsSchema,
@@ -994,6 +995,32 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		responses: stdBearerResponses({
 			201: okDataUnknown('Utworzona lekcja (data.lesson)'),
 			409: clientError('Konflikt czasu, grafiku lub pojazdu'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'post',
+		path: '/lessons/me',
+		tags: ['Lessons'],
+		summary: 'Samodzielna rezerwacja jazdy praktycznej (STUDENT)',
+		description:
+			'Tworzy Lesson PRACTICE dla zalogowanego kursanta. Backend bierze kursanta z tokenu, nie przyjmuje studentId/vehicleId/lessonType i automatycznie dobiera dostepny pojazd.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			body: {
+				content: {
+					'application/json': {
+						schema: bookOwnLessonBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			201: okDataUnknown('Utworzona lekcja (data.lesson)'),
+			400: clientError('Bledne dane lub kurs niekwalifikowany'),
+			403: clientError('Kurs nie nalezy do zalogowanego kursanta'),
+			404: clientError('Kurs lub instruktor nie istnieje'),
+			409: clientError('Konflikt czasu, limitu godzin albo pojazdu'),
 		}),
 	});
 

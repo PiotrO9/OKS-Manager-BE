@@ -196,16 +196,20 @@ export type CourseListItemDto = {
 
 export type CurrentUserCourseDto = {
 	id: string;
+	schoolId: string;
 	name: string;
 	status: CourseParticipantStatus;
+	type: CourseKind;
+	totalHours: number;
 	progress: number;
 };
 
 type CurrentUserCourseRow = {
 	studentId: string;
 	status: CourseParticipantStatus;
-	course: {
+		course: {
 		id: string;
+		schoolId: string;
 		name: string;
 		kind: CourseKind;
 		totalHours: number;
@@ -374,6 +378,7 @@ async function listCoursesForCurrentUser(
 			course: {
 				select: {
 					id: true,
+					schoolId: true,
 					name: true,
 					kind: true,
 					totalHours: true,
@@ -387,8 +392,11 @@ async function listCoursesForCurrentUser(
 
 	return rows.map((row) => ({
 		id: row.course.id,
+		schoolId: row.course.schoolId,
 		name: row.course.name,
 		status: row.status,
+		type: row.course.kind,
+		totalHours: row.course.totalHours,
 		progress: calculateCourseProgress(
 			row.course.kind,
 			row.course.totalHours,

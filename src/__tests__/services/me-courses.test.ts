@@ -25,6 +25,7 @@ vi.mock('../../lib/prisma', () => ({
 
 const userId = '11111111-1111-1111-1111-111111111111';
 const studentId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+const schoolId = '99999999-9999-4999-8999-999999999999';
 
 function lessonTimeRange(
 	courseId: string,
@@ -51,6 +52,7 @@ describe('courseService.listCoursesForCurrentUser', () => {
 				status: CourseParticipantStatus.ACTIVE,
 				course: {
 					id: '22222222-2222-2222-2222-222222222222',
+					schoolId,
 					name: 'Kurs B',
 					kind: CourseKind.PRACTICAL,
 					totalHours: 30,
@@ -61,6 +63,7 @@ describe('courseService.listCoursesForCurrentUser', () => {
 				status: CourseParticipantStatus.FINISHED,
 				course: {
 					id: '33333333-3333-3333-3333-333333333333',
+					schoolId,
 					name: 'Kurs A',
 					kind: CourseKind.THEORY_GROUP,
 					totalHours: 30,
@@ -73,14 +76,20 @@ describe('courseService.listCoursesForCurrentUser', () => {
 		).resolves.toEqual([
 			{
 				id: '22222222-2222-2222-2222-222222222222',
+				schoolId,
 				name: 'Kurs B',
 				status: CourseParticipantStatus.ACTIVE,
+				type: CourseKind.PRACTICAL,
+				totalHours: 30,
 				progress: 0,
 			},
 			{
 				id: '33333333-3333-3333-3333-333333333333',
+				schoolId,
 				name: 'Kurs A',
 				status: CourseParticipantStatus.FINISHED,
+				type: CourseKind.THEORY_GROUP,
+				totalHours: 30,
 				progress: 0,
 			},
 		]);
@@ -113,6 +122,7 @@ describe('courseService.listCoursesForCurrentUser', () => {
 				course: {
 					select: {
 						id: true,
+						schoolId: true,
 						name: true,
 						kind: true,
 						totalHours: true,
@@ -130,6 +140,7 @@ describe('courseService.listCoursesForCurrentUser', () => {
 				status: CourseParticipantStatus.ACTIVE,
 				course: {
 					id: courseId,
+					schoolId,
 					name: 'Kurs B',
 					kind: CourseKind.PRACTICAL,
 					totalHours: 4,
@@ -149,8 +160,11 @@ describe('courseService.listCoursesForCurrentUser', () => {
 		).resolves.toEqual([
 			{
 				id: courseId,
+				schoolId,
 				name: 'Kurs B',
 				status: CourseParticipantStatus.ACTIVE,
+				type: CourseKind.PRACTICAL,
+				totalHours: 4,
 				progress: 50,
 			},
 		]);
@@ -164,6 +178,7 @@ describe('courseService.listCoursesForCurrentUser', () => {
 				status: CourseParticipantStatus.ACTIVE,
 				course: {
 					id: courseId,
+					schoolId,
 					name: 'Kurs B',
 					kind: CourseKind.EXTRA,
 					totalHours: 1,
@@ -183,8 +198,11 @@ describe('courseService.listCoursesForCurrentUser', () => {
 		).resolves.toEqual([
 			{
 				id: courseId,
+				schoolId,
 				name: 'Kurs B',
 				status: CourseParticipantStatus.ACTIVE,
+				type: CourseKind.EXTRA,
+				totalHours: 1,
 				progress: 100,
 			},
 		]);
@@ -197,6 +215,7 @@ describe('courseService.listCoursesForCurrentUser', () => {
 				status: CourseParticipantStatus.ACTIVE,
 				course: {
 					id: '33333333-3333-3333-3333-333333333333',
+					schoolId,
 					name: 'Teoria B',
 					kind: CourseKind.THEORY_GROUP,
 					totalHours: 30,
@@ -209,8 +228,11 @@ describe('courseService.listCoursesForCurrentUser', () => {
 		).resolves.toEqual([
 			{
 				id: '33333333-3333-3333-3333-333333333333',
+				schoolId,
 				name: 'Teoria B',
 				status: CourseParticipantStatus.ACTIVE,
+				type: CourseKind.THEORY_GROUP,
+				totalHours: 30,
 				progress: 0,
 			},
 		]);
@@ -226,6 +248,7 @@ describe('courseService.listCoursesForCurrentUser', () => {
 				status: CourseParticipantStatus.ACTIVE,
 				course: {
 					id: courseId,
+					schoolId,
 					name: 'Kurs B',
 					kind: CourseKind.PRACTICAL,
 					totalHours: 30,

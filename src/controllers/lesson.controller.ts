@@ -6,6 +6,7 @@ import { lessonIdParamsSchema } from '../lib/validation/uuid';
 import {
 	lessonRatingParamsSchema,
 	parseBookLessonBody,
+	parseBookOwnLessonBody,
 	parseCreateLessonRatingBody,
 	parsePatchLessonBody,
 	type UpdateLessonBody,
@@ -16,6 +17,7 @@ import {
 } from '../services/lesson-rating.service';
 import {
 	bookLesson,
+	bookOwnLesson,
 	cancelLesson,
 	getLessonById,
 	updateLesson,
@@ -42,6 +44,17 @@ async function postLessonHandler(req: Request, res: Response) {
 	}
 
 	const data = await bookLesson(user, parsed.data);
+	return sendJsonSuccess(res, data, 201);
+}
+
+async function postOwnLessonHandler(req: Request, res: Response) {
+	const user = requireUser(req);
+	const parsed = parseBookOwnLessonBody(req.body);
+	if (!parsed.ok) {
+		throw AppError.badRequest(parsed.error);
+	}
+
+	const data = await bookOwnLesson(user, parsed.data);
 	return sendJsonSuccess(res, data, 201);
 }
 
@@ -114,5 +127,6 @@ export {
 	getLessonRatingHandler,
 	patchLessonHandler,
 	postLessonHandler,
+	postOwnLessonHandler,
 	postLessonRatingHandler,
 };

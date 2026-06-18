@@ -37,6 +37,39 @@ export function parseBookLessonBody(
 	return { ok: true, data: parsed.data };
 }
 
+export const bookOwnLessonBodySchema = z
+	.object({
+		courseId: z.string().regex(UUID_PARAM_RE, 'Invalid courseId'),
+		instructorId: z.string().regex(UUID_PARAM_RE, 'Invalid instructorId'),
+		startTime: z.string().datetime(),
+		endTime: z.string().datetime(),
+	})
+	.strict()
+	.superRefine((data, ctx) => {
+		const start = new Date(data.startTime);
+		const end = new Date(data.endTime);
+		if (start.getTime() >= end.getTime()) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: 'startTime must be before endTime',
+				path: ['startTime'],
+			});
+		}
+	});
+
+export type BookOwnLessonBody = z.infer<typeof bookOwnLessonBodySchema>;
+
+export function parseBookOwnLessonBody(
+	body: unknown,
+): { ok: true; data: BookOwnLessonBody } | { ok: false; error: string } {
+	const parsed = bookOwnLessonBodySchema.safeParse(body);
+	if (!parsed.success) {
+		const message = parsed.error.issues[0]?.message ?? 'Invalid body';
+		return { ok: false, error: message };
+	}
+	return { ok: true, data: parsed.data };
+}
+
 export const lessonRatingParamsSchema = z.object({
 	lessonId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid lesson id'),
 });

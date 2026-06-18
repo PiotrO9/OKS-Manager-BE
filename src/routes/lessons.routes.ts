@@ -4,6 +4,7 @@ import {
 	getLessonRatingHandler,
 	patchLessonHandler,
 	postLessonHandler,
+	postOwnLessonHandler,
 	postLessonRatingHandler,
 } from '../controllers/lesson.controller';
 import { asyncHandler } from '../lib/http/asyncHandler';
@@ -21,6 +22,13 @@ function createLessonsRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		asyncHandler(postLessonHandler),
+	);
+
+	router.post(
+		'/me',
+		authMiddleware,
+		requireRole('STUDENT'),
+		asyncHandler(postOwnLessonHandler),
 	);
 
 	router.post(
