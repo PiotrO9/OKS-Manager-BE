@@ -3,9 +3,14 @@ import {
 	getLessonHandler,
 	patchLessonHandler,
 	postLessonHandler,
+	postLessonRatingHandler,
 } from '../controllers/lesson.controller';
 import { asyncHandler } from '../lib/http/asyncHandler';
-import { authMiddleware, requireMinRole } from '../middleware/auth.middleware';
+import {
+	authMiddleware,
+	requireMinRole,
+	requireRole,
+} from '../middleware/auth.middleware';
 
 function createLessonsRouter() {
 	const router = Router();
@@ -15,6 +20,13 @@ function createLessonsRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		asyncHandler(postLessonHandler),
+	);
+
+	router.post(
+		'/:lessonId/rating',
+		authMiddleware,
+		requireRole('STUDENT'),
+		asyncHandler(postLessonRatingHandler),
 	);
 
 	router.get(

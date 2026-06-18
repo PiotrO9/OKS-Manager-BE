@@ -42,7 +42,13 @@ import {
 import {
 	bookLessonBodySchema,
 	cancelLessonBodySchema,
+	createLessonRatingBodySchema,
+	lessonRatingParamsSchema,
 } from '../schemas/lesson.schemas';
+import {
+	instructorLessonRatingsQuerySchema,
+	listLessonRatingsQuerySchema,
+} from '../schemas/lesson-rating.schemas';
 import {
 	createDrivingSchoolBodySchema,
 	setDefaultVehicleBodySchema,
@@ -424,6 +430,23 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		request: { params: instructorIdParamsSchema },
 		responses: stdBearerResponses({
 			200: okDataUnknown('Instruktor'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'get',
+		path: '/instructors/{id}/ratings',
+		tags: ['Ratings'],
+		summary: 'Opinie o lekcjach konkretnego instruktora (MANAGER+)',
+		description:
+			'Zwraca opinie z LessonRating dla zakończonych lekcji praktycznych instruktora w wybranej OSK oraz summary: averageRating i totalCount.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: instructorIdParamsSchema,
+			query: instructorLessonRatingsQuerySchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('Lista opinii instruktora + summary'),
 		}),
 	});
 
@@ -988,6 +1011,62 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		responses: stdBearerResponses({
 			200: okDataUnknown('Lekcja (data.lesson)'),
 			404: clientError('Lekcja nie znaleziona'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'post',
+		path: '/lessons/{lessonId}/rating',
+		tags: ['Lessons'],
+		summary: 'Dodanie opinii po lekcji praktycznej (STUDENT)',
+		description:
+			'Tworzy `LessonRating` dla zakoĹ„czonej lekcji praktycznej zalogowanego kursanta. Backend bierze `studentId` i `instructorId` z lekcji, nie z requestu.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: lessonRatingParamsSchema,
+			body: {
+				content: {
+					'application/json': {
+						schema: createLessonRatingBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			201: okDataUnknown('Utworzona opinia (data.rating)'),
+			400: clientError('BĹ‚Ä™dne dane lub lekcja niekwalifikowana'),
+			403: clientError('Lekcja nie naleĹĽy do zalogowanego kursanta'),
+			404: clientError('Lekcja nie znaleziona'),
+			409: clientError('Opinia dla lekcji juĹĽ istnieje'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'get',
+		path: '/ratings',
+		tags: ['Ratings'],
+		summary: 'Lista opinii o lekcjach w OSK (MANAGER+)',
+		description:
+			'Wewnętrzny widok managerski oparty o LessonRating. Obsługuje filtrowanie po szkole, instruktorze, okresie oraz zakresie dat.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			query: listLessonRatingsQuerySchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('Lista opinii + summary'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'get',
+		path: '/ratings/me',
+		tags: ['Ratings'],
+		summary: 'Lista opinii o własnych lekcjach (INSTRUCTOR)',
+		description:
+			'Instruktor widzi opinie o swoich zakończonych lekcjach praktycznych. Odpowiedź nie zawiera danych kursanta.',
+		security: [{ bearerAuth: [] }],
+		responses: stdBearerResponses({
+			200: okDataUnknown('Lista opinii instruktora'),
 		}),
 	});
 

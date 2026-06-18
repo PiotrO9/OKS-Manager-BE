@@ -37,6 +37,44 @@ export function parseBookLessonBody(
 	return { ok: true, data: parsed.data };
 }
 
+export const lessonRatingParamsSchema = z.object({
+	lessonId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid lesson id'),
+});
+
+export const createLessonRatingBodySchema = z
+	.object({
+		rating: z.number().int().min(1).max(5),
+		comment: z
+			.preprocess((val) => {
+				if (val === undefined || val === null) {
+					return null;
+				}
+				if (typeof val !== 'string') {
+					return val;
+				}
+				const trimmed = val.trim();
+				return trimmed.length > 0 ? trimmed : null;
+			}, z.string().max(5000, 'comment must not exceed 5000 characters').nullable())
+			.optional()
+			.default(null),
+	})
+	.strict();
+
+export type CreateLessonRatingBody = z.infer<
+	typeof createLessonRatingBodySchema
+>;
+
+export function parseCreateLessonRatingBody(
+	body: unknown,
+): { ok: true; data: CreateLessonRatingBody } | { ok: false; error: string } {
+	const parsed = createLessonRatingBodySchema.safeParse(body);
+	if (!parsed.success) {
+		const message = parsed.error.issues[0]?.message ?? 'Invalid body';
+		return { ok: false, error: message };
+	}
+	return { ok: true, data: parsed.data };
+}
+
 export const cancelLessonBodySchema = z
 	.object({
 		status: z.literal('CANCELLED'),

@@ -6,6 +6,7 @@ import {
 	listInstructorsBySchool,
 	patchInstructor,
 } from '../controllers/instructors.controller';
+import { listInstructorLessonRatingsHandler as listInstructorRatings } from '../controllers/lesson-rating.controller';
 import { asyncHandler } from '../lib/http/asyncHandler';
 import { authMiddleware, requireMinRole } from '../middleware/auth.middleware';
 import { createInstructorAvailabilityRouter } from './instructor-availability.routes';
@@ -24,6 +25,12 @@ function createInstructorsRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		asyncHandler(getInstructorById),
+	);
+	router.get(
+		'/:id/ratings',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(listInstructorRatings),
 	);
 	router.post(
 		'/:id/schools',

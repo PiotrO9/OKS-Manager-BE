@@ -24,6 +24,12 @@ export type ScheduleLessonItemDto = {
 	instructor?: { id: string; firstName: string; lastName: string };
 	student?: { id: string; firstName: string; lastName: string };
 	vehicle?: { id: string; name: string; registrationNumber: string };
+	rating?: {
+		id: string;
+		rating: number;
+		comment: string | null;
+		createdAt: string;
+	} | null;
 };
 
 export type ScheduleInstructorEventItemDto = {
@@ -69,6 +75,12 @@ type LessonRow = {
 		id: string;
 		name: string;
 		registrationNumber: string;
+	} | null;
+	lessonRating: {
+		id: string;
+		rating: number;
+		comment: string | null;
+		createdAt: Date;
 	} | null;
 };
 
@@ -136,6 +148,9 @@ const lessonInclude = {
 	vehicle: {
 		select: { id: true, name: true, registrationNumber: true },
 	},
+	lessonRating: {
+		select: { id: true, rating: true, comment: true, createdAt: true },
+	},
 };
 
 const eventInclude = {
@@ -175,7 +190,11 @@ function mergeScheduleItems(
 
 function mapLesson(
 	row: LessonRow,
-	opts: { includeInstructor: boolean; includeStudent: boolean },
+	opts: {
+		includeInstructor: boolean;
+		includeStudent: boolean;
+		includeRating?: boolean;
+	},
 ): ScheduleLessonItemDto {
 	const item: ScheduleLessonItemDto = {
 		kind: 'lesson',
@@ -205,6 +224,16 @@ function mapLesson(
 			name: row.vehicle.name,
 			registrationNumber: row.vehicle.registrationNumber,
 		};
+	}
+	if (opts.includeRating) {
+		item.rating = row.lessonRating
+			? {
+					id: row.lessonRating.id,
+					rating: row.lessonRating.rating,
+					comment: row.lessonRating.comment,
+					createdAt: row.lessonRating.createdAt.toISOString(),
+				}
+			: null;
 	}
 	return item;
 }
@@ -352,6 +381,7 @@ export async function getMySchedule(
 			mapLesson(r as LessonRow, {
 				includeInstructor: true,
 				includeStudent: false,
+				includeRating: true,
 			}),
 		);
 		const eventItems = eventRows.map((r) =>

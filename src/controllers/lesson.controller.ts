@@ -4,10 +4,13 @@ import { AppError } from '../lib/http/AppError';
 import { requireUser } from '../lib/http/requireUser';
 import { lessonIdParamsSchema } from '../lib/validation/uuid';
 import {
+	lessonRatingParamsSchema,
 	parseBookLessonBody,
+	parseCreateLessonRatingBody,
 	parsePatchLessonBody,
 	type UpdateLessonBody,
 } from '../schemas/lesson.schemas';
+import { createLessonRating } from '../services/lesson-rating.service';
 import {
 	bookLesson,
 	cancelLesson,
@@ -39,6 +42,27 @@ async function postLessonHandler(req: Request, res: Response) {
 	return sendJsonSuccess(res, data, 201);
 }
 
+async function postLessonRatingHandler(req: Request, res: Response) {
+	const user = requireUser(req);
+	const paramsParsed = lessonRatingParamsSchema.safeParse(req.params);
+	if (!paramsParsed.success) {
+		throw AppError.badRequest(
+			paramsParsed.error.issues[0]?.message ?? 'Invalid params',
+		);
+	}
+	const parsed = parseCreateLessonRatingBody(req.body);
+	if (!parsed.ok) {
+		throw AppError.badRequest(parsed.error);
+	}
+
+	const data = await createLessonRating(
+		user,
+		paramsParsed.data.lessonId,
+		parsed.data,
+	);
+	return sendJsonSuccess(res, data, 201);
+}
+
 async function patchLessonHandler(req: Request, res: Response) {
 	const user = requireUser(req);
 	const paramsParsed = lessonIdParamsSchema.safeParse(req.params);
@@ -66,4 +90,9 @@ async function patchLessonHandler(req: Request, res: Response) {
 	return sendJsonSuccess(res, data, 200);
 }
 
-export { getLessonHandler, patchLessonHandler, postLessonHandler };
+export {
+	getLessonHandler,
+	patchLessonHandler,
+	postLessonHandler,
+	postLessonRatingHandler,
+};
