@@ -107,6 +107,45 @@ export async function createLessonRating(
 	}
 }
 
+export async function getLessonRatingForStudent(
+	actor: Actor,
+	lessonId: string,
+): Promise<{ rating: LessonRatingDto | null }> {
+	if (actor.role !== Role.STUDENT) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	const lesson = await prisma.lesson.findFirst({
+		where: { id: lessonId, deletedAt: null },
+		select: {
+			id: true,
+			lessonType: true,
+			studentProfile: {
+				select: { userId: true },
+			},
+			lessonRating: true,
+		},
+	});
+
+	if (!lesson) {
+		throw AppError.notFound('Lesson not found');
+	}
+
+	if (lesson.studentProfile.userId !== actor.id) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	if (lesson.lessonType !== LessonType.PRACTICE) {
+		throw AppError.badRequest('Only practice lessons can be rated');
+	}
+
+	return {
+		rating: lesson.lessonRating
+			? mapLessonRatingToDto(lesson.lessonRating)
+			: null,
+	};
+}
+
 export type LessonRatingPersonDto = {
 	id: string;
 	userId: string;

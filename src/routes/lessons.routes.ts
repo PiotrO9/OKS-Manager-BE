@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
 	getLessonHandler,
+	getLessonRatingHandler,
 	patchLessonHandler,
 	postLessonHandler,
 	postLessonRatingHandler,
@@ -27,6 +28,13 @@ function createLessonsRouter() {
 		authMiddleware,
 		requireRole('STUDENT'),
 		asyncHandler(postLessonRatingHandler),
+	);
+
+	router.get(
+		'/:lessonId/rating',
+		authMiddleware,
+		requireRole('STUDENT'),
+		asyncHandler(getLessonRatingHandler),
 	);
 
 	router.get(

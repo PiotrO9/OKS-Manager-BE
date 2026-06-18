@@ -1015,6 +1015,25 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 	});
 
 	registry.registerPath({
+		method: 'get',
+		path: '/lessons/{lessonId}/rating',
+		tags: ['Lessons'],
+		summary: 'Pobranie opinii kursanta dla konkretnej lekcji (STUDENT)',
+		description:
+			'Zwraca `LessonRating` dla lekcji praktycznej zalogowanego kursanta albo `data.rating: null`, gdy opinia nie istnieje.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: lessonRatingParamsSchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('Opinia lekcji albo null (data.rating)'),
+			400: clientError('Lekcja nie jest jazda praktyczna'),
+			403: clientError('Lekcja nie nalezy do zalogowanego kursanta'),
+			404: clientError('Lekcja nie znaleziona'),
+		}),
+	});
+
+	registry.registerPath({
 		method: 'post',
 		path: '/lessons/{lessonId}/rating',
 		tags: ['Lessons'],

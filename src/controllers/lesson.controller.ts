@@ -10,7 +10,10 @@ import {
 	parsePatchLessonBody,
 	type UpdateLessonBody,
 } from '../schemas/lesson.schemas';
-import { createLessonRating } from '../services/lesson-rating.service';
+import {
+	createLessonRating,
+	getLessonRatingForStudent,
+} from '../services/lesson-rating.service';
 import {
 	bookLesson,
 	cancelLesson,
@@ -63,6 +66,22 @@ async function postLessonRatingHandler(req: Request, res: Response) {
 	return sendJsonSuccess(res, data, 201);
 }
 
+async function getLessonRatingHandler(req: Request, res: Response) {
+	const user = requireUser(req);
+	const paramsParsed = lessonRatingParamsSchema.safeParse(req.params);
+	if (!paramsParsed.success) {
+		throw AppError.badRequest(
+			paramsParsed.error.issues[0]?.message ?? 'Invalid params',
+		);
+	}
+
+	const data = await getLessonRatingForStudent(
+		user,
+		paramsParsed.data.lessonId,
+	);
+	return sendJsonSuccess(res, data, 200);
+}
+
 async function patchLessonHandler(req: Request, res: Response) {
 	const user = requireUser(req);
 	const paramsParsed = lessonIdParamsSchema.safeParse(req.params);
@@ -92,6 +111,7 @@ async function patchLessonHandler(req: Request, res: Response) {
 
 export {
 	getLessonHandler,
+	getLessonRatingHandler,
 	patchLessonHandler,
 	postLessonHandler,
 	postLessonRatingHandler,

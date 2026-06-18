@@ -8,6 +8,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	createLessonRating,
+	getLessonRatingForStudent,
 	listLessonRatingsForManager,
 	listOwnLessonRatingsForInstructor,
 } from '../../services/lesson-rating.service';
@@ -82,6 +83,39 @@ function mockCreatedRating(overrides: Partial<LessonRating> = {}) {
 	};
 	prismaMock.lessonRating.create.mockResolvedValue(row);
 	return row;
+}
+
+function mockReadRating(overrides: Partial<LessonRating> = {}): LessonRating {
+	return {
+		id: '55555555-5555-4555-8555-555555555555',
+		lessonId,
+		studentId: studentProfileId,
+		instructorId: instructorProfileId,
+		rating: 4,
+		comment: 'Spokojna jazda',
+		createdAt: new Date('2026-06-18T10:00:00.000Z'),
+		...overrides,
+	};
+}
+
+function mockLessonForRatingRead(
+	overrides: {
+		userId?: string;
+		lessonType?: LessonType;
+		rating?: LessonRating | null;
+	} = {},
+) {
+	prismaMock.lesson.findFirst.mockResolvedValue({
+		id: lessonId,
+		lessonType: overrides.lessonType ?? LessonType.PRACTICE,
+		studentProfile: {
+			userId: overrides.userId ?? actor.id,
+		},
+		lessonRating:
+			overrides.rating === undefined
+				? mockReadRating()
+				: overrides.rating,
+	});
 }
 
 function mockRatingListRow(overrides: Partial<LessonRating> = {}) {
@@ -275,6 +309,96 @@ describe('createLessonRating', () => {
 			statusCode: 409,
 			message: 'Lesson rating already exists',
 		});
+	});
+});
+
+describe('getLessonRatingForStudent', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockLessonForRatingRead();
+	});
+
+	it('returns the rating for the authenticated student lesson', async () => {
+		await expect(
+			getLessonRatingForStudent(actor, lessonId),
+		).resolves.toEqual({
+			rating: {
+				id: '55555555-5555-4555-8555-555555555555',
+				lessonId,
+				instructorId: instructorProfileId,
+				rating: 4,
+				comment: 'Spokojna jazda',
+				createdAt: '2026-06-18T10:00:00.000Z',
+			},
+		});
+
+		expect(prismaMock.lesson.findFirst).toHaveBeenCalledWith({
+			where: { id: lessonId, deletedAt: null },
+			select: {
+				id: true,
+				lessonType: true,
+				studentProfile: {
+					select: { userId: true },
+				},
+				lessonRating: true,
+			},
+		});
+	});
+
+	it('returns null when the lesson has no rating', async () => {
+		mockLessonForRatingRead({ rating: null });
+
+		await expect(
+			getLessonRatingForStudent(actor, lessonId),
+		).resolves.toEqual({
+			rating: null,
+		});
+	});
+
+	it('throws 404 when the lesson does not exist', async () => {
+		prismaMock.lesson.findFirst.mockResolvedValue(null);
+
+		await expect(
+			getLessonRatingForStudent(actor, lessonId),
+		).rejects.toMatchObject({
+			statusCode: 404,
+			message: 'Lesson not found',
+		});
+	});
+
+	it('throws 403 when the lesson belongs to a different student', async () => {
+		mockLessonForRatingRead({
+			userId: '99999999-9999-4999-8999-999999999999',
+		});
+
+		await expect(
+			getLessonRatingForStudent(actor, lessonId),
+		).rejects.toMatchObject({
+			statusCode: 403,
+			message: 'Forbidden',
+		});
+	});
+
+	it('throws 400 when the lesson is not a practice lesson', async () => {
+		mockLessonForRatingRead({ lessonType: LessonType.THEORY });
+
+		await expect(
+			getLessonRatingForStudent(actor, lessonId),
+		).rejects.toMatchObject({
+			statusCode: 400,
+			message: 'Only practice lessons can be rated',
+		});
+	});
+
+	it('throws 403 for non-student actors', async () => {
+		await expect(
+			getLessonRatingForStudent(managerActor, lessonId),
+		).rejects.toMatchObject({
+			statusCode: 403,
+			message: 'Forbidden',
+		});
+
+		expect(prismaMock.lesson.findFirst).not.toHaveBeenCalled();
 	});
 });
 
