@@ -19,6 +19,7 @@ import {
 	bookLesson,
 	bookOwnLesson,
 	cancelLesson,
+	cancelOwnLesson,
 	getLessonById,
 	updateLesson,
 } from '../services/lesson.service';
@@ -56,6 +57,19 @@ async function postOwnLessonHandler(req: Request, res: Response) {
 
 	const data = await bookOwnLesson(user, parsed.data);
 	return sendJsonSuccess(res, data, 201);
+}
+
+async function cancelOwnLessonHandler(req: Request, res: Response) {
+	const user = requireUser(req);
+	const paramsParsed = lessonRatingParamsSchema.safeParse(req.params);
+	if (!paramsParsed.success) {
+		throw AppError.badRequest(
+			paramsParsed.error.issues[0]?.message ?? 'Invalid params',
+		);
+	}
+
+	const data = await cancelOwnLesson(user, paramsParsed.data.lessonId);
+	return sendJsonSuccess(res, data, 200);
 }
 
 async function postLessonRatingHandler(req: Request, res: Response) {
@@ -123,6 +137,7 @@ async function patchLessonHandler(req: Request, res: Response) {
 }
 
 export {
+	cancelOwnLessonHandler,
 	getLessonHandler,
 	getLessonRatingHandler,
 	patchLessonHandler,

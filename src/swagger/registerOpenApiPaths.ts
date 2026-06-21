@@ -1042,6 +1042,29 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 	});
 
 	registry.registerPath({
+		method: 'patch',
+		path: '/lessons/{lessonId}/cancel',
+		tags: ['Lessons'],
+		summary: 'Anulowanie wlasnej jazdy praktycznej (STUDENT)',
+		description:
+			'Ustawia status CANCELLED dla zaplanowanej lekcji praktycznej zalogowanego kursanta. Backend bierze kursanta z tokenu i nie przyjmuje body.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: lessonRatingParamsSchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown(
+				'Zaktualizowana lekcja (data.lesson, status CANCELLED)',
+			),
+			400: clientError(
+				'Lekcja nie jest jazda praktyczna albo nie mozna jej anulowac',
+			),
+			403: clientError('Lekcja nie nalezy do zalogowanego kursanta'),
+			404: clientError('Lekcja nie znaleziona'),
+		}),
+	});
+
+	registry.registerPath({
 		method: 'get',
 		path: '/lessons/{lessonId}/rating',
 		tags: ['Lessons'],

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+	cancelOwnLessonHandler,
 	getLessonHandler,
 	getLessonRatingHandler,
 	patchLessonHandler,
@@ -29,6 +30,13 @@ function createLessonsRouter() {
 		authMiddleware,
 		requireRole('STUDENT'),
 		asyncHandler(postOwnLessonHandler),
+	);
+
+	router.patch(
+		'/:lessonId/cancel',
+		authMiddleware,
+		requireRole('STUDENT'),
+		asyncHandler(cancelOwnLessonHandler),
 	);
 
 	router.post(
