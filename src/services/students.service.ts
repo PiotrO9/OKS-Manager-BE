@@ -3,6 +3,7 @@ import {
 	EventType,
 	LessonStatus,
 	LessonType,
+	PaymentStatus,
 	Prisma,
 	Role,
 } from '@prisma/client';
@@ -16,6 +17,7 @@ import {
 import type {
 	ListStudentsQuery,
 	StudentEventsQuery,
+	StudentPaymentsQuery,
 } from '../lib/validation/uuid';
 import type { StudentInstructorEventListItemDto } from './event.service';
 import {
@@ -386,6 +388,25 @@ export type StudentProcessStatusDto = {
 	steps: StudentProcessStatusStepDto[];
 };
 
+export type StudentPaymentStatus = 'PAID' | 'UNPAID';
+
+export type StudentPaymentItemDto = {
+	id: string;
+	courseId: string;
+	courseName: string;
+	paymentPlanId: string;
+	amount: string;
+	currency: string;
+	status: StudentPaymentStatus;
+	date: string | null;
+	dueDate: string | null;
+	paidAt: string | null;
+};
+
+export type StudentPaymentsDto = {
+	payments: StudentPaymentItemDto[];
+};
+
 export type StudentListItemDto = {
 	id: string;
 	userId: string;
@@ -476,6 +497,142 @@ function buildStudentProcessStatusSteps(input: {
 			description: 'Zaplanuj co najmniej jedną nieanulowaną jazdę.',
 		},
 	];
+}
+
+function toIsoOrNull(value: Date | null | undefined): string | null {
+	return value instanceof Date ? value.toISOString() : null;
+}
+
+function mapPaymentStatus(status: PaymentStatus): StudentPaymentStatus {
+	return status === PaymentStatus.PAID ? 'PAID' : 'UNPAID';
+}
+
+function paymentSortTime(payment: {
+	paidAt: Date | null;
+	dueDate: Date | null;
+	createdAt: Date;
+}): number {
+	return (payment.paidAt ?? payment.dueDate ?? payment.createdAt).getTime();
+}
+
+export async function listPaymentsForCurrentUser(
+	actorId: string,
+	actorRole: Role,
+): Promise<StudentPaymentsDto> {
+	if (actorRole !== Role.STUDENT) {
+		return { payments: [] };
+	}
+
+	return listStudentPayments(actorId, actorRole, actorId, {});
+}
+
+export async function listStudentPayments(
+	actorId: string,
+	actorRole: Role,
+	studentUserId: string,
+	query: StudentPaymentsQuery,
+): Promise<StudentPaymentsDto> {
+	if (actorRole === Role.STUDENT && actorId !== studentUserId) {
+		throw AppError.forbidden('Forbidden');
+	}
+
+	if (actorRole !== Role.STUDENT && !query.schoolId) {
+		throw AppError.badRequest('schoolId is required');
+	}
+
+	if (actorRole !== Role.STUDENT) {
+		await assertActorCanListStudentsForSchool(
+			actorId,
+			actorRole,
+			query.schoolId!,
+		);
+	}
+
+	const studentWhere: Prisma.StudentProfileWhereInput = {
+		userId: studentUserId,
+		user: { deletedAt: null },
+	};
+
+	if (query.schoolId) {
+		studentWhere.studentSchools = {
+			some: {
+				schoolId: query.schoolId,
+				school: { deletedAt: null },
+			},
+		};
+	}
+
+	const student = await prisma.studentProfile.findFirst({
+		where: studentWhere,
+		select: { id: true },
+	});
+
+	if (!student) {
+		throw AppError.notFound('Student not found');
+	}
+
+	const rows = await prisma.courseParticipant.findMany({
+		where: {
+			studentId: student.id,
+			course: {
+				deletedAt: null,
+				...(query.schoolId ? { schoolId: query.schoolId } : {}),
+			},
+		},
+		select: {
+			course: {
+				select: {
+					id: true,
+					name: true,
+					paymentPlans: {
+						select: {
+							id: true,
+							currency: true,
+							payments: {
+								select: {
+									id: true,
+									amount: true,
+									dueDate: true,
+									paidAt: true,
+									status: true,
+									createdAt: true,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	});
+
+	const payments = rows.flatMap((row) =>
+		row.course.paymentPlans.flatMap((plan) =>
+			plan.payments.map((payment) => {
+				const date =
+					payment.paidAt ?? payment.dueDate ?? payment.createdAt;
+
+				return {
+					id: payment.id,
+					courseId: row.course.id,
+					courseName: row.course.name,
+					paymentPlanId: plan.id,
+					amount: payment.amount.toString(),
+					currency: plan.currency,
+					status: mapPaymentStatus(payment.status),
+					date: toIsoOrNull(date),
+					dueDate: toIsoOrNull(payment.dueDate),
+					paidAt: toIsoOrNull(payment.paidAt),
+					_sortTime: paymentSortTime(payment),
+				};
+			}),
+		),
+	);
+
+	payments.sort((a, b) => b._sortTime - a._sortTime);
+
+	return {
+		payments: payments.map(({ _sortTime, ...payment }) => payment),
+	};
 }
 
 export async function getStudentProcessStatus(

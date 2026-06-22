@@ -23,6 +23,7 @@ import {
 	studentDetailParamsSchema,
 	studentDetailQuerySchema,
 	studentEventsQuerySchema,
+	studentPaymentsQuerySchema,
 	studentProcessStatusQuerySchema,
 	studentUserIdParamsSchema,
 	uuidSchema,
@@ -288,6 +289,19 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		security: [{ bearerAuth: [] }],
 		responses: stdBearerResponses({
 			200: okDataUnknown('Lista kursów aktualnego użytkownika'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'get',
+		path: '/me/payments',
+		tags: ['Students'],
+		summary: 'OpĹ‚aty aktualnego kursanta (STUDENT)',
+		description:
+			'Zwraca pĹ‚atnoĹ›ci wyprowadzone z planĂłw pĹ‚atnoĹ›ci kursĂłw, do ktĂłrych zapisany jest aktualny kursant. Role inne niĹĽ STUDENT dostajÄ… pustÄ… listÄ™.',
+		security: [{ bearerAuth: [] }],
+		responses: stdBearerResponses({
+			200: okDataUnknown('Lista opĹ‚at aktualnego kursanta'),
 		}),
 	});
 
@@ -727,6 +741,23 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		},
 		responses: stdBearerResponses({
 			200: okDataUnknown('Checklista krokow procesu kursanta'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'get',
+		path: '/students/{userId}/payments',
+		tags: ['Students'],
+		summary: 'Historia opĹ‚at kursanta',
+		description:
+			'Zwraca opĹ‚aty kursanta wyprowadzone z CourseParticipant -> Course -> PaymentPlan -> Payment. Dla INSTRUCTOR/MANAGER/ADMIN query schoolId jest wymagane i zawÄ™ĹĽa wynik do tej OSK; dla STUDENT dozwolony jest tylko wĹ‚asny userId.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: studentDetailParamsSchema,
+			query: studentPaymentsQuerySchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('Lista opĹ‚at kursanta'),
 		}),
 	});
 

@@ -103,6 +103,17 @@ export type StudentProcessStatusQuery = z.infer<
 	typeof studentProcessStatusQuerySchema
 >;
 
+export const studentPaymentsQuerySchema = z.object({
+	schoolId: zodPreprocessQueryFirst(
+		z.preprocess(
+			(val) => (val === '' || val === null ? undefined : val),
+			z.string().regex(UUID_PARAM_RE, 'Invalid schoolId').optional(),
+		),
+	).optional(),
+});
+
+export type StudentPaymentsQuery = z.infer<typeof studentPaymentsQuerySchema>;
+
 const STUDENT_EVENTS_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const studentEventsQuerySchema = z

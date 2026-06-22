@@ -15,6 +15,7 @@ import {
 	studentDetailParamsSchema,
 	studentDetailQuerySchema,
 	studentEventsQuerySchema,
+	studentPaymentsQuerySchema,
 	studentProcessStatusQuerySchema,
 	studentUserIdParamsSchema,
 } from '../lib/validation/uuid';
@@ -23,6 +24,7 @@ import {
 	getStudentDetail as fetchStudentDetail,
 	getStudentProcessStatus as fetchStudentProcessStatus,
 	listStudentInstructorEvents,
+	listStudentPayments as fetchStudentPayments,
 	listStudentsForSchool,
 	patchCourseParticipantStatusForStaff,
 	patchStudentForStaff,
@@ -113,6 +115,31 @@ async function getStudentProcessStatus(req: Request, res: Response) {
 		user.role,
 		paramsParsed.data.userId,
 		queryParsed.data.schoolId,
+	);
+	return sendJsonSuccess(res, data);
+}
+
+async function getStudentPayments(req: Request, res: Response) {
+	const user = requireUser(req);
+
+	const paramsParsed = studentDetailParamsSchema.safeParse(req.params);
+	if (!paramsParsed.success) {
+		const message =
+			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
+		throw AppError.badRequest(message);
+	}
+
+	const queryParsed = studentPaymentsQuerySchema.safeParse(req.query);
+	if (!queryParsed.success) {
+		const message = queryParsed.error.issues[0]?.message ?? 'Invalid query';
+		throw AppError.badRequest(message);
+	}
+
+	const data = await fetchStudentPayments(
+		user.id,
+		user.role,
+		paramsParsed.data.userId,
+		queryParsed.data,
 	);
 	return sendJsonSuccess(res, data);
 }
@@ -337,6 +364,7 @@ export {
 	assignStudentToCourse,
 	getStudentDetail,
 	getStudentEvents,
+	getStudentPayments,
 	getStudentProcessStatus,
 	listStudents,
 	patchCourseParticipantStatus,

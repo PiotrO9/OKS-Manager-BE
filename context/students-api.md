@@ -1,5 +1,5 @@
 ---
-description: "API — kursanci (/students): lista z paginacją i filtrem kursu, szczegóły z kursami, notatki (`notes`), statusem uczestnictwa (enum ACTIVE/FINISHED), przypisanie OSK, PKK, wpis na kurs, PATCH statusu uczestnictwa — role, kody odpowiedzi"
+description: 'API — kursanci (/students): lista z paginacją i filtrem kursu, szczegóły z kursami, notatki (`notes`), statusem uczestnictwa (enum ACTIVE/FINISHED), przypisanie OSK, PKK, wpis na kurs, PATCH statusu uczestnictwa — role, kody odpowiedzi'
 alwaysApply: true
 ---
 
@@ -13,10 +13,10 @@ Dynamiczna checklista procesu kursanta dla konkretnej OSK.
 
 **Parametry:**
 
-| Parametr | Wymagane | Uwagi |
-|----------|----------|-------|
-| `:userId` | tak | `users.id` kursanta, jak w pozostałych trasach `/students/:userId/*`. |
-| `schoolId` | tak | UUID OSK; kursant musi mieć aktywne przypisanie w `student_schools`. |
+| Parametr   | Wymagane | Uwagi                                                                 |
+| ---------- | -------- | --------------------------------------------------------------------- |
+| `:userId`  | tak      | `users.id` kursanta, jak w pozostałych trasach `/students/:userId/*`. |
+| `schoolId` | tak      | UUID OSK; kursant musi mieć aktywne przypisanie w `student_schools`.  |
 
 **Autoryzacja:**
 
@@ -28,16 +28,16 @@ Dynamiczna checklista procesu kursanta dla konkretnej OSK.
 
 ```json
 {
-  "success": true,
-  "data": {
-    "steps": [
-      {
-        "name": "Dane kursanta",
-        "completed": true,
-        "description": "Uzupełnij podstawowe dane kursanta i upewnij się, że konto jest aktywne."
-      }
-    ]
-  }
+	"success": true,
+	"data": {
+		"steps": [
+			{
+				"name": "Dane kursanta",
+				"completed": true,
+				"description": "Uzupełnij podstawowe dane kursanta i upewnij się, że konto jest aktywne."
+			}
+		]
+	}
 }
 ```
 
@@ -59,16 +59,17 @@ Szczegóły sesji: [auth.md](./auth.md).
 
 ## Trasy
 
-| Metoda | Ścieżka | Middleware (skrót) | Opis |
-|--------|---------|--------------------|------|
-| GET | `/students` | `authMiddleware`, `requireMinRole('INSTRUCTOR')` | Paginowana lista kursantów w OSK; opcjonalnie filtr po kursie. |
-| GET | `/students/:userId` | `authMiddleware`, `requireMinRole('STUDENT')` | Szczegóły kursanta (`users.id` w ścieżce) z **`notes`**, listą kursów w OSK i `status` z **`course_participants`**. |
-| GET | `/students/:userId/events` | `authMiddleware`, `requireMinRole('STUDENT')` | Aktywne **`InstructorEvent`**, do których kursant jest przypisany (`event_participants`); query: **`schoolId`** opcjonalne (gdy kursant ma jedną OSK — wybierana automatycznie; przy wielu — wymagane), opcjonalnie **`dateFrom`** + **`dateTo`** (`YYYY-MM-DD`, overlap jak harmonogram); odpowiedź **`data.events`**. |
-| PATCH | `/students/:userId` | `requireMinRole('INSTRUCTOR')` | Aktualizacja **`student_profiles.notes`** (body z polem **`notes`**) — reguły jak przy PKK — [auth.md](./auth.md). |
-| PATCH | `/students/:userId/driving-school` | `requireMinRole('MANAGER')` | Przypisanie / zmiana OSK — [auth.md](./auth.md). |
-| PATCH | `/students/:userId/pkk` | `requireMinRole('INSTRUCTOR')` | PKK — [auth.md](./auth.md). |
-| POST | `/students/:userId/courses` | `requireMinRole('INSTRUCTOR')` | Uczestnictwo w kursie (`course_participants`); domyślny **`status`** = **`ACTIVE`**. |
-| PATCH | `/students/:userId/courses/:courseId/status` | `requireMinRole('INSTRUCTOR')` | Ręczna zmiana **`course_participants.status`** (`ACTIVE` \| `FINISHED`); reguły OSK jak przy POST na kurs. |
+| Metoda | Ścieżka                                      | Middleware (skrót)                               | Opis                                                                                                                                                                                                                                                                                                                    |
+| ------ | -------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/students`                                  | `authMiddleware`, `requireMinRole('INSTRUCTOR')` | Paginowana lista kursantów w OSK; opcjonalnie filtr po kursie.                                                                                                                                                                                                                                                          |
+| GET    | `/students/:userId`                          | `authMiddleware`, `requireMinRole('STUDENT')`    | Szczegóły kursanta (`users.id` w ścieżce) z **`notes`**, listą kursów w OSK i `status` z **`course_participants`**.                                                                                                                                                                                                     |
+| GET    | `/students/:userId/events`                   | `authMiddleware`, `requireMinRole('STUDENT')`    | Aktywne **`InstructorEvent`**, do których kursant jest przypisany (`event_participants`); query: **`schoolId`** opcjonalne (gdy kursant ma jedną OSK — wybierana automatycznie; przy wielu — wymagane), opcjonalnie **`dateFrom`** + **`dateTo`** (`YYYY-MM-DD`, overlap jak harmonogram); odpowiedź **`data.events`**. |
+| GET    | `/students/:userId/payments`                 | `authMiddleware`, `requireMinRole('STUDENT')`    | Historia opłat kursanta wyprowadzona z `CourseParticipant -> Course -> PaymentPlan -> Payment`; dla staffu query **`schoolId`** wymagane, odpowiedź **`data.payments`**.                                                                                                                                                |
+| PATCH  | `/students/:userId`                          | `requireMinRole('INSTRUCTOR')`                   | Aktualizacja **`student_profiles.notes`** (body z polem **`notes`**) — reguły jak przy PKK — [auth.md](./auth.md).                                                                                                                                                                                                      |
+| PATCH  | `/students/:userId/driving-school`           | `requireMinRole('MANAGER')`                      | Przypisanie / zmiana OSK — [auth.md](./auth.md).                                                                                                                                                                                                                                                                        |
+| PATCH  | `/students/:userId/pkk`                      | `requireMinRole('INSTRUCTOR')`                   | PKK — [auth.md](./auth.md).                                                                                                                                                                                                                                                                                             |
+| POST   | `/students/:userId/courses`                  | `requireMinRole('INSTRUCTOR')`                   | Uczestnictwo w kursie (`course_participants`); domyślny **`status`** = **`ACTIVE`**.                                                                                                                                                                                                                                    |
+| PATCH  | `/students/:userId/courses/:courseId/status` | `requireMinRole('INSTRUCTOR')`                   | Ręczna zmiana **`course_participants.status`** (`ACTIVE` \| `FINISHED`); reguły OSK jak przy POST na kurs.                                                                                                                                                                                                              |
 
 ---
 
@@ -82,12 +83,12 @@ Szczegóły sesji: [auth.md](./auth.md).
 
 ## GET `/students` — query
 
-| Parametr | Wymagane | Domyślnie | Uwagi |
-|----------|----------|-----------|--------|
-| `schoolId` | tak | — | UUID aktywnej OSK (`driving_schools.deleted_at IS NULL`). |
-| `page` | nie | `1` | Liczba całkowita ≥ 1. |
-| `limit` | nie | `20` | Liczba całkowita 1–100 (powyżej → **400**). |
-| `courseId` | nie | — | UUID kursu; jeśli podane, tylko kursanci z wpisem w **`course_participants`** dla tego kursu. Kurs musi należeć do **tej samej** `schoolId` i mieć `deletedAt` null — inaczej **404** `Course not found`. |
+| Parametr   | Wymagane | Domyślnie | Uwagi                                                                                                                                                                                                     |
+| ---------- | -------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schoolId` | tak      | —         | UUID aktywnej OSK (`driving_schools.deleted_at IS NULL`).                                                                                                                                                 |
+| `page`     | nie      | `1`       | Liczba całkowita ≥ 1.                                                                                                                                                                                     |
+| `limit`    | nie      | `20`      | Liczba całkowita 1–100 (powyżej → **400**).                                                                                                                                                               |
+| `courseId` | nie      | —         | UUID kursu; jeśli podane, tylko kursanci z wpisem w **`course_participants`** dla tego kursu. Kurs musi należeć do **tej samej** `schoolId` i mieć `deletedAt` null — inaczej **404** `Course not found`. |
 
 Powtórzony klucz w query jest jak w innych endpointach: pierwsza wartość (preprocess w Zod).
 
@@ -110,25 +111,25 @@ Powtórzony klucz w query jest jak w innych endpointach: pierwsza wartość (pre
 
 ```json
 {
-  "success": true,
-  "data": {
-    "data": [
-      {
-        "id": "<student_profile_id>",
-        "userId": "<users.id>",
-        "firstName": "...",
-        "lastName": "...",
-        "email": "...",
-        "phone": null,
-        "pkkNumber": null,
-        "isActive": true,
-        "createdAt": "<ISO>"
-      }
-    ],
-    "total": 0,
-    "page": 1,
-    "limit": 20
-  }
+	"success": true,
+	"data": {
+		"data": [
+			{
+				"id": "<student_profile_id>",
+				"userId": "<users.id>",
+				"firstName": "...",
+				"lastName": "...",
+				"email": "...",
+				"phone": null,
+				"pkkNumber": null,
+				"isActive": true,
+				"createdAt": "<ISO>"
+			}
+		],
+		"total": 0,
+		"page": 1,
+		"limit": 20
+	}
 }
 ```
 
@@ -140,11 +141,55 @@ Brak osobnego N+1 dla kursów: lista nie dołącza wszystkich kursów kursanta (
 
 ## GET `/students/:userId` — query
 
-| Parametr | Wymagane | Uwagi |
-|----------|----------|--------|
-| `schoolId` | tak | UUID OSK; kursant musi mieć **`student_schools`** dla tej szkoły (aktywna, `deleted_at` null). |
+| Parametr   | Wymagane | Uwagi                                                                                          |
+| ---------- | -------- | ---------------------------------------------------------------------------------------------- |
+| `schoolId` | tak      | UUID OSK; kursant musi mieć **`student_schools`** dla tej szkoły (aktywna, `deleted_at` null). |
 
 **`:userId`** — `users.id` kursanta (ten sam identyfikator co w innych trasach `/students/:userId/*`).
+
+## GET `/students/:userId/payments`
+
+Zwraca listę opłat kursanta wraz ze statusem płatności. Obecny model bazy nie przypina płatności bezpośrednio do kursanta, więc MVP wyprowadza je z kursów, na które kursant jest zapisany:
+
+`CourseParticipant.studentId -> Course -> PaymentPlan -> Payment`
+
+**Autoryzacja i scoping:**
+
+- `STUDENT`: może pobrać tylko własny `userId`; `schoolId` jest opcjonalne.
+- `INSTRUCTOR` / `MANAGER` / `ADMIN`: `schoolId` jest wymagane.
+- `MANAGER`: tylko OSK, której jest właścicielem.
+- `INSTRUCTOR`: tylko OSK, do której ma przypisanie w `instructor_schools`.
+- `ADMIN`: dowolna aktywna OSK.
+
+**Response 200:**
+
+```json
+{
+	"success": true,
+	"data": {
+		"payments": [
+			{
+				"id": "payment-id",
+				"courseId": "course-id",
+				"courseName": "Kurs B",
+				"paymentPlanId": "payment-plan-id",
+				"amount": "1200.00",
+				"currency": "PLN",
+				"status": "UNPAID",
+				"date": "2026-06-20T00:00:00.000Z",
+				"dueDate": "2026-06-20T00:00:00.000Z",
+				"paidAt": null
+			}
+		]
+	}
+}
+```
+
+Status `PaymentStatus.PAID` mapuje się na `PAID`, pozostałe statusy (`PENDING`, `FAILED`) na `UNPAID`. Lista jest sortowana malejąco po `paidAt ?? dueDate ?? createdAt`.
+
+## GET `/me/payments`
+
+Skrót dla własnych opłat aktualnie zalogowanego kursanta. Dla ról innych niż `STUDENT` zwraca `{ payments: [] }`, zgodnie z zachowaniem `/me/courses`.
 
 ## Autoryzacja (szczegóły)
 
@@ -164,24 +209,24 @@ Pole **`status`** w każdym elemencie `courses[]` pochodzi z **`course_participa
 
 ```json
 {
-  "success": true,
-  "data": {
-    "id": "<student_profile_id>",
-    "userId": "<users.id>",
-    "firstName": "...",
-    "lastName": "...",
-    "email": "...",
-    "pkkNumber": null,
-    "notes": null,
-    "courses": [
-      {
-        "id": "<course_id>",
-        "name": "...",
-        "category": "...",
-        "status": "ACTIVE"
-      }
-    ]
-  }
+	"success": true,
+	"data": {
+		"id": "<student_profile_id>",
+		"userId": "<users.id>",
+		"firstName": "...",
+		"lastName": "...",
+		"email": "...",
+		"pkkNumber": null,
+		"notes": null,
+		"courses": [
+			{
+				"id": "<course_id>",
+				"name": "...",
+				"category": "...",
+				"status": "ACTIVE"
+			}
+		]
+	}
 }
 ```
 
@@ -199,11 +244,11 @@ Pole **`status`** w każdym elemencie `courses[]` pochodzi z **`course_participa
 
 ```json
 {
-  "success": true,
-  "data": {
-    "userId": "<users.id>",
-    "notes": null
-  }
+	"success": true,
+	"data": {
+		"userId": "<users.id>",
+		"notes": null
+	}
 }
 ```
 
@@ -223,43 +268,43 @@ Ta sama logika co przy **`POST /students/:userId/courses`**: kurs istnieje i nie
 
 ```json
 {
-  "success": true,
-  "data": {
-    "participant": {
-      "id": "<course_participants.id>",
-      "courseId": "<courses.id>",
-      "studentId": "<student_profiles.id>",
-      "status": "FINISHED"
-    }
-  }
+	"success": true,
+	"data": {
+		"participant": {
+			"id": "<course_participants.id>",
+			"courseId": "<courses.id>",
+			"studentId": "<student_profiles.id>",
+			"status": "FINISHED"
+		}
+	}
 }
 ```
 
 ## Błędy (PATCH status — typowe)
 
-| Kod | Sytuacja |
-|-----|----------|
-| **400** | Nieprawidłowy `:userId`, `:courseId` lub body (`status` poza dozwolonym zbiorem). |
-| **401** | Brak lub nieważny Bearer. |
+| Kod     | Sytuacja                                                                                           |
+| ------- | -------------------------------------------------------------------------------------------------- |
+| **400** | Nieprawidłowy `:userId`, `:courseId` lub body (`status` poza dozwolonym zbiorem).                  |
+| **401** | Brak lub nieważny Bearer.                                                                          |
 | **403** | **`ADMIN`**; brak uprawnień do OSK kursu; kursant nie przypisany do szkoły kursu; wyłączone konto. |
-| **404** | Brak użytkownika / nie-kursant; brak kursu; brak uczestnictwa w kursie. |
+| **404** | Brak użytkownika / nie-kursant; brak kursu; brak uczestnictwa w kursie.                            |
 
 ## Błędy (szczegóły — typowe)
 
-| Kod | Sytuacja |
-|-----|----------|
-| **400** | Brak / nieprawidłowe `schoolId`, nieprawidłowy `:userId`. |
-| **401** | Brak lub nieważny Bearer. |
+| Kod     | Sytuacja                                                                         |
+| ------- | -------------------------------------------------------------------------------- |
+| **400** | Brak / nieprawidłowe `schoolId`, nieprawidłowy `:userId`.                        |
+| **401** | Brak lub nieważny Bearer.                                                        |
 | **403** | Kursant próbuje czytać cudze dane; brak uprawnień do OSK (manager / instruktor). |
-| **404** | Kursant nie istnieje w kontekście podanej OSK (patrz logika powyżej). |
+| **404** | Kursant nie istnieje w kontekście podanej OSK (patrz logika powyżej).            |
 
 ## Błędy — GET `/students` lista (typowe)
 
-| Kod | Sytuacja |
-|-----|----------|
-| **400** | Brak / nieprawidłowe `schoolId`, nieprawidłowy `courseId`, `limit` > 100, itp. |
-| **401** | Brak lub nieważny Bearer. |
-| **403** | Brak uprawnień do podanej OSK (manager / instruktor). |
+| Kod     | Sytuacja                                                                                     |
+| ------- | -------------------------------------------------------------------------------------------- |
+| **400** | Brak / nieprawidłowe `schoolId`, nieprawidłowy `courseId`, `limit` > 100, itp.               |
+| **401** | Brak lub nieważny Bearer.                                                                    |
+| **403** | Brak uprawnień do podanej OSK (manager / instruktor).                                        |
 | **404** | Podano `courseId`, ale kurs nie istnieje, jest soft-delete lub nie należy do tej `schoolId`. |
 
 Powiązanie z kursami (lista kursów w OSK): [courses-api.md](./courses-api.md).

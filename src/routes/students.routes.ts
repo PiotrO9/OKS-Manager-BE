@@ -3,6 +3,7 @@ import {
 	assignStudentToCourse,
 	getStudentDetail,
 	getStudentEvents,
+	getStudentPayments,
 	getStudentProcessStatus,
 	listStudents,
 	patchCourseParticipantStatus,
@@ -35,6 +36,13 @@ function createStudentsRouter() {
 		authMiddleware,
 		requireMinRole('STUDENT'),
 		asyncHandler(getStudentProcessStatus),
+	);
+
+	router.get(
+		'/:userId/payments',
+		authMiddleware,
+		requireMinRole('STUDENT'),
+		asyncHandler(getStudentPayments),
 	);
 
 	router.get(
