@@ -576,6 +576,8 @@ Lista pozycji terminarza zalogowanego użytkownika w zakresie dat: **lekcje** or
 
 ### Query
 
+Przy wariancie `studentId` wymagany jest takĹĽe `schoolId`; wynik jest wtedy ograniczony do lekcji z kursĂłw tej OSK i eventĂłw kursanta powiÄ…zanych z kursami tej OSK.
+
 | Parametr | Wymagane | Opis |
 |----------|----------|------|
 | `dateFrom` | tak | `YYYY-MM-DD` (UTC — interpretacja zakresu jak w serwisie) |

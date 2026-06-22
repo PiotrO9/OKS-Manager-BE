@@ -294,6 +294,24 @@ function mapInstructorEvent(
 	return item;
 }
 
+async function assertActorCanReadSchoolSchedule(
+	actor: { id: string; role: Role },
+	schoolId: string,
+): Promise<void> {
+	if (actor.role === Role.ADMIN) {
+		return;
+	}
+
+	const school = await prisma.drivingSchool.findFirst({
+		where: { id: schoolId, ownerId: actor.id, deletedAt: null },
+		select: { id: true },
+	});
+
+	if (!school) {
+		throw AppError.forbidden('Forbidden');
+	}
+}
+
 export async function getMySchedule(
 	actor: { id: string; role: Role },
 	query: ScheduleMeQuery,
@@ -440,9 +458,16 @@ export async function getScheduleForTarget(
 		return { items: mergeScheduleItems(lessonItems, eventItems) };
 	}
 
+	const schoolId = query.schoolId!;
+	await assertActorCanReadSchoolSchedule(actor, schoolId);
+
 	const [rows, eventRows] = await Promise.all([
 		prisma.lesson.findMany({
-			where: { ...where, studentId: query.studentId! },
+			where: {
+				...where,
+				studentId: query.studentId!,
+				course: { schoolId, deletedAt: null },
+			},
 			include: lessonInclude,
 			orderBy: { startTime: 'asc' },
 		}),
@@ -451,6 +476,7 @@ export async function getScheduleForTarget(
 				...eventWhere,
 				isActive: true,
 				participants: { some: { studentId: query.studentId! } },
+				course: { is: { schoolId, deletedAt: null } },
 			},
 			include: eventInclude,
 			orderBy: { startTime: 'asc' },

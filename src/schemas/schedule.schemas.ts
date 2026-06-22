@@ -38,6 +38,7 @@ export const scheduleQuerySchema = z
 			.string()
 			.regex(UUID_PARAM_RE, 'Invalid studentId')
 			.optional(),
+		schoolId: z.string().regex(UUID_PARAM_RE, 'Invalid schoolId').optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.dateFrom > data.dateTo) {
@@ -54,6 +55,13 @@ export const scheduleQuerySchema = z
 				code: z.ZodIssueCode.custom,
 				message: 'Provide exactly one of instructorId or studentId',
 				path: ['instructorId'],
+			});
+		}
+		if (hasS && data.schoolId === undefined) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: 'schoolId is required when filtering by studentId',
+				path: ['schoolId'],
 			});
 		}
 	});
