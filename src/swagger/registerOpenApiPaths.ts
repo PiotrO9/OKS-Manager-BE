@@ -90,6 +90,35 @@ const registerBodySchema = z
 	})
 	.describe('Szczegóły: context/auth.md — zależności pól od roli');
 
+const authMeUserSchema = z.object({
+	id: uuidSchema,
+	name: z.string(),
+	firstName: z.string(),
+	lastName: z.string(),
+	email: z.string().email(),
+	phone: z.string().nullable(),
+	avatarUrl: z.string().nullable(),
+	bio: z.string().nullable(),
+	profileUpdatedAt: z.date().nullable(),
+	role: z.string(),
+	drivingSchools: z
+		.array(
+			z.object({
+				id: uuidSchema,
+				name: z.string(),
+				city: z.string().nullable(),
+				address: z.string().nullable(),
+			}),
+		)
+		.optional(),
+	defaultOskId: uuidSchema.nullable().optional(),
+	pkkNumber: z
+		.string()
+		.nullable()
+		.optional()
+		.describe('Available for STUDENT; PKK number or null.'),
+});
+
 function okDataUnknown(description: string) {
 	return {
 		description,
@@ -232,7 +261,20 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 		summary: 'Bieżący użytkownik',
 		security: [{ bearerAuth: [] }],
 		responses: stdBearerResponses({
-			200: okDataUnknown('Profil i kontekst OSK'),
+			200: {
+				description:
+					'Profil i kontekst OSK. Dla STUDENT user.pkkNumber zawiera numer PKK lub null.',
+				content: {
+					'application/json': {
+						schema: z.object({
+							success: z.literal(true),
+							data: z.object({
+								user: authMeUserSchema,
+							}),
+						}),
+					},
+				},
+			},
 		}),
 	});
 

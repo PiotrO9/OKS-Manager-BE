@@ -835,7 +835,7 @@ function buildMeUserPayload(user: AuthRequestUser) {
 	};
 }
 
-async function buildMeResponsePayload(user: AuthRequestUser) {
+export async function buildMeResponsePayload(user: AuthRequestUser) {
 	const context = await loadDrivingSchoolContextForMe(user.id, user.role);
 	const base = {
 		...buildMeUserPayload(user),
