@@ -364,7 +364,7 @@ export async function computeAvailability(
 		select: { isDayOff: true, startTime: true, endTime: true },
 	});
 
-	let baseWindow: TimeWindow | null = null;
+	let baseWindow: TimeWindow;
 
 	if (exception) {
 		if (exception.isDayOff) return { available: false, reason: 'day_off' };
@@ -520,7 +520,7 @@ export async function computeDayWindows(
 		select: { isDayOff: true, startTime: true, endTime: true },
 	});
 
-	let baseWindow: TimeWindow | null = null;
+	let baseWindow: TimeWindow;
 
 	if (exception) {
 		if (exception.isDayOff) return null;

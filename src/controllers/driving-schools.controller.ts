@@ -455,9 +455,12 @@ async function getDefaultDrivingSchool(req: Request, res: Response) {
 		defSettings === null
 			? null
 			: (() => {
-					const { offeredCourseTypes: _rel, ...rest } = defSettings;
-					return rest;
-				})();
+				const rest = { ...defSettings };
+				delete (
+					rest as Partial<typeof defSettings>
+				).offeredCourseTypes;
+				return rest;
+			})();
 
 	return sendJsonSuccess(res, {
 		...defRest,
