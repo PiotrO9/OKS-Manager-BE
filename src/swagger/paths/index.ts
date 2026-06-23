@@ -1,0 +1,1 @@
+export { registerOpenApiPaths } from './implementation';

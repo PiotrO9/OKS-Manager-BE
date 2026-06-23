@@ -5,6 +5,7 @@ import { getPrisma } from '../lib/prisma';
 import { getSupabaseAdminClient } from '../lib/supabaseAdmin';
 import {
 	ALLOWED_STANDARD_IMAGE_MIMES,
+	assertStandardImageMagicBytes,
 	extractPublicStorageObjectPath,
 	fileExtensionFromMime,
 	removeStorageObjectBestEffort,
@@ -134,6 +135,13 @@ async function uploadAvatarForUser(
 	if (!ALLOWED_STANDARD_IMAGE_MIMES.has(file.mimetype)) {
 		throw AppError.badRequest(
 			'file must be image/jpeg, image/png, or image/webp',
+		);
+	}
+	try {
+		assertStandardImageMagicBytes(file);
+	} catch {
+		throw AppError.badRequest(
+			'file content must match image/jpeg, image/png, or image/webp',
 		);
 	}
 

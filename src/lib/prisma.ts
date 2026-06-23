@@ -2,14 +2,12 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
 declare global {
-	// eslint-disable-next-line no-var
 	var __oskManagerPrisma: PrismaClient | undefined;
 }
 
 function createPrismaClient(): PrismaClient {
 	const connectionString = process.env.DATABASE_URL || '';
 	if (!connectionString && process.env.NODE_ENV !== 'test') {
-		// eslint-disable-next-line no-console
 		console.warn(
 			'Warning: DATABASE_URL is not set - Prisma client may fail to connect',
 		);
