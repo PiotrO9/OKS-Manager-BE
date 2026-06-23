@@ -38,86 +38,86 @@ export async function loadDrivingSchoolContextForMe(
 	role: Role,
 ): Promise<MeDrivingSchoolContext> {
 	switch (role) {
-		case Role.ADMIN:
-			return { drivingSchools: [], defaultOskId: null };
+	case Role.ADMIN:
+		return { drivingSchools: [], defaultOskId: null };
 
-		case Role.MANAGER: {
-			const [schools, defaultOskId] = await Promise.all([
-				prisma.drivingSchool.findMany({
-					where: activeSchoolClause({ ownerId: userId }),
-					select: { id: true, name: true, city: true, address: true },
-					orderBy: { createdAt: 'asc' },
-				}),
-				getResolvedDefaultOskIdForOwner(userId),
-			]);
+	case Role.MANAGER: {
+		const [schools, defaultOskId] = await Promise.all([
+			prisma.drivingSchool.findMany({
+				where: activeSchoolClause({ ownerId: userId }),
+				select: { id: true, name: true, city: true, address: true },
+				orderBy: { createdAt: 'asc' },
+			}),
+			getResolvedDefaultOskIdForOwner(userId),
+		]);
 
-			return {
-				drivingSchools: schools.map((s) => toMeDrivingSchoolDto(s)),
-				defaultOskId,
-			};
-		}
+		return {
+			drivingSchools: schools.map((s) => toMeDrivingSchoolDto(s)),
+			defaultOskId,
+		};
+	}
 
-		case Role.STUDENT: {
-			const profile = await prisma.studentProfile.findUnique({
-				where: { userId },
-				select: {
-					studentSchools: {
-						select: {
-							school: {
-								select: {
-									id: true,
-									name: true,
-									city: true,
-									address: true,
-									deletedAt: true,
-								},
+	case Role.STUDENT: {
+		const profile = await prisma.studentProfile.findUnique({
+			where: { userId },
+			select: {
+				studentSchools: {
+					select: {
+						school: {
+							select: {
+								id: true,
+								name: true,
+								city: true,
+								address: true,
+								deletedAt: true,
 							},
 						},
 					},
 				},
-			});
+			},
+		});
 
-			const drivingSchools =
+		const drivingSchools =
 				profile?.studentSchools
 					.map((row) => row.school)
 					.filter((s) => s.deletedAt === null)
 					.map((s) => toMeDrivingSchoolDto(s)) ?? [];
 
-			return { drivingSchools, defaultOskId: null };
-		}
+		return { drivingSchools, defaultOskId: null };
+	}
 
-		case Role.INSTRUCTOR: {
-			const profile = await prisma.instructorProfile.findUnique({
-				where: { userId },
-				select: {
-					instructorSchools: {
-						select: {
-							school: {
-								select: {
-									id: true,
-									name: true,
-									city: true,
-									address: true,
-									deletedAt: true,
-								},
+	case Role.INSTRUCTOR: {
+		const profile = await prisma.instructorProfile.findUnique({
+			where: { userId },
+			select: {
+				instructorSchools: {
+					select: {
+						school: {
+							select: {
+								id: true,
+								name: true,
+								city: true,
+								address: true,
+								deletedAt: true,
 							},
 						},
 					},
 				},
-			});
+			},
+		});
 
-			const drivingSchools =
+		const drivingSchools =
 				profile?.instructorSchools
 					.map((row) => row.school)
 					.filter((s) => s.deletedAt === null)
 					.map((s) => toMeDrivingSchoolDto(s)) ?? [];
 
-			return { drivingSchools, defaultOskId: null };
-		}
+		return { drivingSchools, defaultOskId: null };
+	}
 
-		default: {
-			const _exhaustive: never = role;
-			return _exhaustive;
-		}
+	default: {
+		const _exhaustive: never = role;
+		return _exhaustive;
+	}
 	}
 }

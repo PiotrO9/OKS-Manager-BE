@@ -25,7 +25,7 @@ export const errorRequestHandler: ErrorRequestHandler = (
 		return;
 	}
 
-	// eslint-disable-next-line no-console
+	 
 	console.error('Unhandled error', err);
 	sendJsonError(res, 'Internal server error', 500);
 };

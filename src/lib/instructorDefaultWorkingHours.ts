@@ -45,7 +45,7 @@ export function buildInstructorWorkingHoursDefaultRows(
 		return fallbackWeekdayRows();
 	}
 
-	let days = daysOfWeekFromWorkingMask(settings.workingDaysMask);
+	const days = daysOfWeekFromWorkingMask(settings.workingDaysMask);
 	if (days.length === 0) {
 		return fallbackWeekdayRows();
 	}

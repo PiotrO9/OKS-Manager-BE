@@ -23,9 +23,9 @@ async function listVehiclesBySchool(req: Request, res: Response) {
 	const timeRange =
 		parsed.data.startTime && parsed.data.endTime
 			? {
-					start: new Date(parsed.data.startTime),
-					end: new Date(parsed.data.endTime),
-				}
+				start: new Date(parsed.data.startTime),
+				end: new Date(parsed.data.endTime),
+			}
 			: undefined;
 
 	const data = await vehicleService.listVehiclesBySchoolForUser(

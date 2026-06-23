@@ -154,9 +154,9 @@ async function createCourseForUser(
 		body.theoryStartDate &&
 		body.theoryEndDate
 			? {
-					theoryStartDate: body.theoryStartDate,
-					theoryEndDate: body.theoryEndDate,
-				}
+				theoryStartDate: body.theoryStartDate,
+				theoryEndDate: body.theoryEndDate,
+			}
 			: { theoryStartDate: null, theoryEndDate: null };
 
 	const created = await prisma.course.create({
@@ -351,9 +351,9 @@ async function listCoursesForSchool(
 		totalHours: row.totalHours,
 		instructor: row.instructor
 			? {
-					id: row.instructor.user.id,
-					name: `${row.instructor.user.firstName} ${row.instructor.user.lastName}`.trim(),
-				}
+				id: row.instructor.user.id,
+				name: `${row.instructor.user.firstName} ${row.instructor.user.lastName}`.trim(),
+			}
 			: null,
 	}));
 }
@@ -460,9 +460,9 @@ async function getCourseDetailForOwner(
 		capacity: row.capacity,
 		instructor: row.instructor
 			? {
-					id: row.instructor.user.id,
-					name: `${row.instructor.user.firstName} ${row.instructor.user.lastName}`.trim(),
-				}
+				id: row.instructor.user.id,
+				name: `${row.instructor.user.firstName} ${row.instructor.user.lastName}`.trim(),
+			}
 			: null,
 	};
 }

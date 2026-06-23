@@ -228,11 +228,11 @@ function mapLesson(
 	if (opts.includeRating) {
 		item.rating = row.lessonRating
 			? {
-					id: row.lessonRating.id,
-					rating: row.lessonRating.rating,
-					comment: row.lessonRating.comment,
-					createdAt: row.lessonRating.createdAt.toISOString(),
-				}
+				id: row.lessonRating.id,
+				rating: row.lessonRating.rating,
+				comment: row.lessonRating.comment,
+				createdAt: row.lessonRating.createdAt.toISOString(),
+			}
 			: null;
 	}
 	return item;

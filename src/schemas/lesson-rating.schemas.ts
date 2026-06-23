@@ -29,46 +29,46 @@ export const lessonRatingsPeriodSchema = z.enum([
 ]);
 
 const lessonRatingsBaseQuerySchema = z.object({
-		schoolId: zodPreprocessQueryFirst(
-			z
-				.string({ required_error: 'schoolId is required' })
-				.trim()
-				.min(1, 'schoolId is required')
-				.regex(UUID_PARAM_RE, 'Invalid schoolId'),
-		),
-		instructorId: optionalUuidQueryValue('Invalid instructorId'),
-		period: zodPreprocessQueryFirst(
-			lessonRatingsPeriodSchema.default('latest'),
-		),
-		dateFrom: optionalDateQueryValue,
-		dateTo: optionalDateQueryValue,
-		limit: zodPreprocessQueryFirst(
-			z.coerce.number().int().min(1).max(100).default(50),
-		),
-	});
+	schoolId: zodPreprocessQueryFirst(
+		z
+			.string({ required_error: 'schoolId is required' })
+			.trim()
+			.min(1, 'schoolId is required')
+			.regex(UUID_PARAM_RE, 'Invalid schoolId'),
+	),
+	instructorId: optionalUuidQueryValue('Invalid instructorId'),
+	period: zodPreprocessQueryFirst(
+		lessonRatingsPeriodSchema.default('latest'),
+	),
+	dateFrom: optionalDateQueryValue,
+	dateTo: optionalDateQueryValue,
+	limit: zodPreprocessQueryFirst(
+		z.coerce.number().int().min(1).max(100).default(50),
+	),
+});
 
 function refineDateRange(
 	data: { dateFrom?: string; dateTo?: string },
 	ctx: z.RefinementCtx,
 ) {
-		const hasFrom = data.dateFrom !== undefined;
-		const hasTo = data.dateTo !== undefined;
-		if (hasFrom !== hasTo) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message:
+	const hasFrom = data.dateFrom !== undefined;
+	const hasTo = data.dateTo !== undefined;
+	if (hasFrom !== hasTo) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			message:
 					'Both dateFrom and dateTo are required when filtering by date range',
-				path: hasFrom ? ['dateTo'] : ['dateFrom'],
-			});
-			return;
-		}
-		if (hasFrom && data.dateFrom! > data.dateTo!) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: 'dateFrom must be on or before dateTo',
-				path: ['dateFrom'],
-			});
-		}
+			path: hasFrom ? ['dateTo'] : ['dateFrom'],
+		});
+		return;
+	}
+	if (hasFrom && data.dateFrom! > data.dateTo!) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			message: 'dateFrom must be on or before dateTo',
+			path: ['dateFrom'],
+		});
+	}
 }
 
 export const listLessonRatingsQuerySchema =

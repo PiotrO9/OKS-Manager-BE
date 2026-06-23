@@ -101,41 +101,41 @@ async function loadSchoolAndAssertSlotAccess(
 	}
 
 	switch (actor.role) {
-		case Role.ADMIN:
-			break;
-		case Role.MANAGER:
-			if (school.ownerId !== actor.id) {
-				throw AppError.forbidden('Forbidden');
-			}
-			break;
-		case Role.STUDENT: {
-			const link = await prisma.studentSchool.findFirst({
-				where: {
-					schoolId: school.id,
-					student: { userId: actor.id },
-				},
-				select: { id: true },
-			});
-			if (!link) {
-				throw AppError.forbidden('Forbidden');
-			}
-			break;
-		}
-		case Role.INSTRUCTOR: {
-			const link = await prisma.instructorSchool.findFirst({
-				where: {
-					schoolId: school.id,
-					instructor: { userId: actor.id },
-				},
-				select: { id: true },
-			});
-			if (!link) {
-				throw AppError.forbidden('Forbidden');
-			}
-			break;
-		}
-		default:
+	case Role.ADMIN:
+		break;
+	case Role.MANAGER:
+		if (school.ownerId !== actor.id) {
 			throw AppError.forbidden('Forbidden');
+		}
+		break;
+	case Role.STUDENT: {
+		const link = await prisma.studentSchool.findFirst({
+			where: {
+				schoolId: school.id,
+				student: { userId: actor.id },
+			},
+			select: { id: true },
+		});
+		if (!link) {
+			throw AppError.forbidden('Forbidden');
+		}
+		break;
+	}
+	case Role.INSTRUCTOR: {
+		const link = await prisma.instructorSchool.findFirst({
+			where: {
+				schoolId: school.id,
+				instructor: { userId: actor.id },
+			},
+			select: { id: true },
+		});
+		if (!link) {
+			throw AppError.forbidden('Forbidden');
+		}
+		break;
+	}
+	default:
+		throw AppError.forbidden('Forbidden');
 	}
 
 	const slotDurationMinutes = school.settings?.slotDurationMinutes ?? 60;
