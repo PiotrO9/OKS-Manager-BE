@@ -1,0 +1,1 @@
+﻿export { listTheoryEventEligibleStudents } from './implementationCore';
