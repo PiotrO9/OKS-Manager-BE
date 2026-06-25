@@ -12,6 +12,7 @@ import { createStudentsRouter } from './routes/students.routes';
 import { createVehiclesRouter } from './routes/vehicles.routes';
 import { createCoursesRouter } from './routes/courses.routes';
 import { createCourseTypesRouter } from './routes/course-types.routes';
+import { createDevRouter } from './routes/dev.routes';
 import { createEventsRouter } from './routes/events.routes';
 import { createLessonsRouter } from './routes/lessons.routes';
 import { createLessonRatingsRouter } from './routes/lesson-ratings.routes';
@@ -53,6 +54,9 @@ function createApp() {
 	app.use('/ratings', createLessonRatingsRouter());
 	app.use('/me', createMeRouter());
 	app.use('/schedule', createScheduleRouter());
+	if (process.env.NODE_ENV !== 'production') {
+		app.use('/dev', createDevRouter());
+	}
 
 	app.get('/test', async (req, res) => {
 		return sendJsonSuccess(res, {
