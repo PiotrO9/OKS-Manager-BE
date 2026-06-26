@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { sendJsonSuccess } from '../lib/apiResponse';
-import { AppError } from '../lib/http/AppError';
 import { requireUser } from '../lib/http/requireUser';
 import { instructorIdParamsSchema } from '../lib/validation/uuid';
 import {
@@ -12,17 +11,17 @@ import {
 	listLessonRatingsForManager,
 	listOwnLessonRatingsForInstructor,
 } from '../services/lesson-rating.service';
+import { parseRequestPart } from './requestParsing';
 
 async function listLessonRatingsHandler(req: Request, res: Response) {
 	const user = requireUser(req);
-	const parsed = listLessonRatingsQuerySchema.safeParse(req.query);
-	if (!parsed.success) {
-		throw AppError.badRequest(
-			parsed.error.issues[0]?.message ?? 'Invalid query',
-		);
-	}
+	const query = parseRequestPart(
+		listLessonRatingsQuerySchema,
+		req.query,
+		'query',
+	);
 
-	const data = await listLessonRatingsForManager(user, parsed.data);
+	const data = await listLessonRatingsForManager(user, query);
 	return sendJsonSuccess(res, data, 200);
 }
 
@@ -31,23 +30,21 @@ async function listInstructorLessonRatingsHandler(
 	res: Response,
 ) {
 	const user = requireUser(req);
-	const paramsParsed = instructorIdParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		throw AppError.badRequest(
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params',
-		);
-	}
-	const queryParsed = instructorLessonRatingsQuerySchema.safeParse(req.query);
-	if (!queryParsed.success) {
-		throw AppError.badRequest(
-			queryParsed.error.issues[0]?.message ?? 'Invalid query',
-		);
-	}
+	const params = parseRequestPart(
+		instructorIdParamsSchema,
+		req.params,
+		'params',
+	);
+	const query = parseRequestPart(
+		instructorLessonRatingsQuerySchema,
+		req.query,
+		'query',
+	);
 
 	const data = await listInstructorLessonRatingsForManager(
 		user,
-		paramsParsed.data.id,
-		queryParsed.data,
+		params.id,
+		query,
 	);
 	return sendJsonSuccess(res, data, 200);
 }

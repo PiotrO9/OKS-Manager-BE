@@ -40,6 +40,7 @@ Polityki i stałe reguły (np. kto może kogo rejestrować): **`lib/`** (np. `re
 
 ## Powiązane konteksty
 
+- Wzorzec refactoru modulow/fasad: [backend-refactor-structure.md](./backend-refactor-structure.md)
 - API i koperty odpowiedzi: [api-guidelines.md](./api-guidelines.md)
 - OpenAPI / Swagger: [openapi-swagger.md](./openapi-swagger.md)
 - Auth (w tym profil, avatar, `/auth/profile`): [auth.md](./auth.md)

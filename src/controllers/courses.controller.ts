@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { sendJsonSuccess } from '../lib/apiResponse';
-import { AppError } from '../lib/http/AppError';
 import { requireUser } from '../lib/http/requireUser';
 import {
 	courseIdParamsSchema,
@@ -11,65 +10,47 @@ import {
 	parsePatchCourseBody,
 } from '../schemas/course.schemas';
 import { courseService } from '../services/course.service';
+import { parseBodyWithParser, parseRequestPart } from './requestParsing';
 
 async function listCourses(req: Request, res: Response) {
 	const user = requireUser(req);
-	const parsed = schoolIdQuerySchema.safeParse(req.query);
-	if (!parsed.success) {
-		const message = parsed.error.issues[0]?.message ?? 'Invalid query';
-		throw AppError.badRequest(message);
-	}
+	const query = parseRequestPart(schoolIdQuerySchema, req.query, 'query');
 
 	const courses = await courseService.listCoursesForSchool(
 		user.id,
-		parsed.data.schoolId,
+		query.schoolId,
 	);
 	return sendJsonSuccess(res, { courses });
 }
 
 async function createCourse(req: Request, res: Response) {
 	const user = requireUser(req);
-	const parsed = parseCreateCourseBody(req.body);
-	if (!parsed.ok) {
-		throw AppError.badRequest(parsed.error);
-	}
+	const body = parseBodyWithParser(parseCreateCourseBody, req.body);
 
-	const data = await courseService.createCourseForUser(user.id, parsed.data);
+	const data = await courseService.createCourseForUser(user.id, body);
 	return sendJsonSuccess(res, data);
 }
 
 async function getCourseById(req: Request, res: Response) {
 	const user = requireUser(req);
-	const parsed = courseIdParamsSchema.safeParse(req.params);
-	if (!parsed.success) {
-		const message = parsed.error.issues[0]?.message ?? 'Invalid id';
-		throw AppError.badRequest(message);
-	}
+	const params = parseRequestPart(courseIdParamsSchema, req.params, 'params');
 
 	const course = await courseService.getCourseDetailForOwner(
 		user.id,
-		parsed.data.id,
+		params.id,
 	);
 	return sendJsonSuccess(res, { course });
 }
 
 async function patchCourse(req: Request, res: Response) {
 	const user = requireUser(req);
-	const paramsParsed = courseIdParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		const message = paramsParsed.error.issues[0]?.message ?? 'Invalid id';
-		throw AppError.badRequest(message);
-	}
-
-	const bodyParsed = parsePatchCourseBody(req.body);
-	if (!bodyParsed.ok) {
-		throw AppError.badRequest(bodyParsed.error);
-	}
+	const params = parseRequestPart(courseIdParamsSchema, req.params, 'params');
+	const body = parseBodyWithParser(parsePatchCourseBody, req.body);
 
 	const course = await courseService.patchCourseInstructorForOwner(
 		user.id,
-		paramsParsed.data.id,
-		bodyParsed.data,
+		params.id,
+		body,
 	);
 	return sendJsonSuccess(res, { course });
 }

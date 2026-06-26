@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { sendJsonSuccess } from '../lib/apiResponse';
-import { AppError } from '../lib/http/AppError';
 import { requireUser } from '../lib/http/requireUser';
 import { lessonIdParamsSchema } from '../lib/validation/uuid';
 import {
@@ -23,114 +22,89 @@ import {
 	getLessonById,
 	updateLesson,
 } from '../services/lesson.service';
+import { parseBodyWithParser, parseRequestPart } from './requestParsing';
 
 async function getLessonHandler(req: Request, res: Response) {
 	const user = requireUser(req);
-	const paramsParsed = lessonIdParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		throw AppError.badRequest(
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params',
-		);
-	}
+	const params = parseRequestPart(lessonIdParamsSchema, req.params, 'params');
 
-	const data = await getLessonById(user, paramsParsed.data.id);
+	const data = await getLessonById(user, params.id);
 	return sendJsonSuccess(res, data, 200);
 }
 
 async function postLessonHandler(req: Request, res: Response) {
 	const user = requireUser(req);
-	const parsed = parseBookLessonBody(req.body);
-	if (!parsed.ok) {
-		throw AppError.badRequest(parsed.error);
-	}
+	const body = parseBodyWithParser(parseBookLessonBody, req.body);
 
-	const data = await bookLesson(user, parsed.data);
+	const data = await bookLesson(user, body);
 	return sendJsonSuccess(res, data, 201);
 }
 
 async function postOwnLessonHandler(req: Request, res: Response) {
 	const user = requireUser(req);
-	const parsed = parseBookOwnLessonBody(req.body);
-	if (!parsed.ok) {
-		throw AppError.badRequest(parsed.error);
-	}
+	const body = parseBodyWithParser(parseBookOwnLessonBody, req.body);
 
-	const data = await bookOwnLesson(user, parsed.data);
+	const data = await bookOwnLesson(user, body);
 	return sendJsonSuccess(res, data, 201);
 }
 
 async function cancelOwnLessonHandler(req: Request, res: Response) {
 	const user = requireUser(req);
-	const paramsParsed = lessonRatingParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		throw AppError.badRequest(
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params',
-		);
-	}
+	const params = parseRequestPart(
+		lessonRatingParamsSchema,
+		req.params,
+		'params',
+	);
 
-	const data = await cancelOwnLesson(user, paramsParsed.data.lessonId);
+	const data = await cancelOwnLesson(user, params.lessonId);
 	return sendJsonSuccess(res, data, 200);
 }
 
 async function postLessonRatingHandler(req: Request, res: Response) {
 	const user = requireUser(req);
-	const paramsParsed = lessonRatingParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		throw AppError.badRequest(
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params',
-		);
-	}
-	const parsed = parseCreateLessonRatingBody(req.body);
-	if (!parsed.ok) {
-		throw AppError.badRequest(parsed.error);
-	}
+	const params = parseRequestPart(
+		lessonRatingParamsSchema,
+		req.params,
+		'params',
+	);
+	const body = parseBodyWithParser(parseCreateLessonRatingBody, req.body);
 
 	const data = await createLessonRating(
 		user,
-		paramsParsed.data.lessonId,
-		parsed.data,
+		params.lessonId,
+		body,
 	);
 	return sendJsonSuccess(res, data, 201);
 }
 
 async function getLessonRatingHandler(req: Request, res: Response) {
 	const user = requireUser(req);
-	const paramsParsed = lessonRatingParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		throw AppError.badRequest(
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params',
-		);
-	}
+	const params = parseRequestPart(
+		lessonRatingParamsSchema,
+		req.params,
+		'params',
+	);
 
 	const data = await getLessonRatingForStudent(
 		user,
-		paramsParsed.data.lessonId,
+		params.lessonId,
 	);
 	return sendJsonSuccess(res, data, 200);
 }
 
 async function patchLessonHandler(req: Request, res: Response) {
 	const user = requireUser(req);
-	const paramsParsed = lessonIdParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		throw AppError.badRequest(
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params',
-		);
-	}
-	const parsed = parsePatchLessonBody(req.body);
-	if (!parsed.ok) {
-		throw AppError.badRequest(parsed.error);
-	}
+	const params = parseRequestPart(lessonIdParamsSchema, req.params, 'params');
+	const patchBody = parseBodyWithParser(parsePatchLessonBody, req.body);
 
-	const patchBody = parsed.data;
 	if ('status' in patchBody && patchBody.status === 'CANCELLED') {
-		const data = await cancelLesson(user, paramsParsed.data.id);
+		const data = await cancelLesson(user, params.id);
 		return sendJsonSuccess(res, data, 200);
 	}
 
 	const data = await updateLesson(
 		user,
-		paramsParsed.data.id,
+		params.id,
 		patchBody as UpdateLessonBody,
 	);
 	return sendJsonSuccess(res, data, 200);

@@ -1,17 +1,13 @@
-import { CourseParticipantStatus, Prisma, Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 import {
 	assertActorCanAssignStudentToSchoolForAdminOrManager,
 	attachStudentToSchoolReplaceInTx,
 } from '../../lib/studentSchoolRegistration';
-import {
-	assertActorCanListStudentsForSchool,
-	assertActorCanPatchStudentPkk,
-} from './access';
+import { assertActorCanPatchStudentPkk } from './access';
 import type {
 	AssignStudentDrivingSchoolResult,
-	PatchCourseParticipantStatusResult,
 	PatchStudentPkkResult,
 	PatchStudentResult,
 } from './types';
@@ -168,97 +164,4 @@ export async function patchStudentForStaff(
 	});
 
 	return { userId: studentUserId, notes: updated.notes };
-}
-
-export async function patchCourseParticipantStatusForStaff(
-	actorId: string,
-	actorRole: Role,
-	studentUserId: string,
-	courseId: string,
-	status: CourseParticipantStatus,
-): Promise<PatchCourseParticipantStatusResult> {
-	if (actorRole === Role.ADMIN) {
-		throw AppError.forbidden('Forbidden');
-	}
-
-	const studentUser = await prisma.user.findUnique({
-		where: { id: studentUserId },
-		select: {
-			id: true,
-			role: true,
-			deletedAt: true,
-			isActive: true,
-			studentProfile: { select: { id: true } },
-		},
-	});
-
-	if (!studentUser || studentUser.deletedAt !== null) {
-		throw AppError.notFound('User not found');
-	}
-
-	if (!studentUser.isActive) {
-		throw AppError.forbidden('Account is disabled');
-	}
-
-	if (studentUser.role !== Role.STUDENT || !studentUser.studentProfile) {
-		throw AppError.badRequest('User is not a student');
-	}
-
-	const studentProfileId = studentUser.studentProfile.id;
-
-	const course = await prisma.course.findFirst({
-		where: { id: courseId, deletedAt: null },
-		select: { id: true, schoolId: true },
-	});
-
-	if (!course) {
-		throw AppError.notFound('Course not found');
-	}
-
-	const studentInSchool = await prisma.studentSchool.findFirst({
-		where: {
-			student: { userId: studentUserId },
-			schoolId: course.schoolId,
-			school: { deletedAt: null },
-		},
-	});
-
-	if (!studentInSchool) {
-		throw AppError.forbidden('Forbidden');
-	}
-
-	if (actorRole === Role.MANAGER || actorRole === Role.INSTRUCTOR) {
-		await assertActorCanListStudentsForSchool(
-			actorId,
-			actorRole,
-			course.schoolId,
-		);
-	} else {
-		throw AppError.forbidden('Forbidden');
-	}
-
-	const existing = await prisma.courseParticipant.findFirst({
-		where: { courseId, studentId: studentProfileId },
-		select: { id: true },
-	});
-
-	if (!existing) {
-		throw AppError.notFound('Student is not enrolled in this course');
-	}
-
-	return prisma.courseParticipant.update({
-		where: {
-			uq_course_participants_course_id_student_id: {
-				courseId,
-				studentId: studentProfileId,
-			},
-		},
-		data: { status },
-		select: {
-			id: true,
-			courseId: true,
-			studentId: true,
-			status: true,
-		},
-	});
 }

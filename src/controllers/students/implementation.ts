@@ -1,9 +1,6 @@
 import { Request, Response } from 'express';
-import { Prisma, Role } from '@prisma/client';
 import { sendJsonSuccess } from '../../lib/apiResponse';
-import { AppError } from '../../lib/http/AppError';
 import { requireUser } from '../../lib/http/requireUser';
-import { getPrisma } from '../../lib/prisma';
 import {
 	assignStudentDrivingSchoolBodySchema,
 	assignStudentToCourseBodySchema,
@@ -21,6 +18,7 @@ import {
 } from '../../lib/validation/uuid';
 import {
 	assignStudentDrivingSchoolForAdminOrManager,
+	assignStudentToCourseForStaff,
 	getStudentDetail as fetchStudentDetail,
 	getStudentProcessStatus as fetchStudentProcessStatus,
 	listStudentInstructorEvents,
@@ -30,41 +28,34 @@ import {
 	patchStudentForStaff,
 	patchStudentPkkForStaff,
 } from '../../services/students.service';
-
-const prisma = getPrisma();
+import { parseRequestPart } from '../requestParsing';
 
 async function listStudents(req: Request, res: Response) {
 	const user = requireUser(req);
-	const parsed = listStudentsQuerySchema.safeParse(req.query);
-	if (!parsed.success) {
-		const message = parsed.error.issues[0]?.message ?? 'Invalid query';
-		throw AppError.badRequest(message);
-	}
-	const result = await listStudentsForSchool(user.id, user.role, parsed.data);
+	const query = parseRequestPart(listStudentsQuerySchema, req.query, 'query');
+	const result = await listStudentsForSchool(user.id, user.role, query);
 	return sendJsonSuccess(res, result);
 }
 
 async function getStudentDetail(req: Request, res: Response) {
 	const user = requireUser(req);
 
-	const paramsParsed = studentDetailParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		const message =
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
-		throw AppError.badRequest(message);
-	}
-
-	const queryParsed = studentDetailQuerySchema.safeParse(req.query);
-	if (!queryParsed.success) {
-		const message = queryParsed.error.issues[0]?.message ?? 'Invalid query';
-		throw AppError.badRequest(message);
-	}
+	const params = parseRequestPart(
+		studentDetailParamsSchema,
+		req.params,
+		'params',
+	);
+	const query = parseRequestPart(
+		studentDetailQuerySchema,
+		req.query,
+		'query',
+	);
 
 	const data = await fetchStudentDetail(
 		user.id,
 		user.role,
-		paramsParsed.data.userId,
-		queryParsed.data.schoolId,
+		params.userId,
+		query.schoolId,
 	);
 	return sendJsonSuccess(res, data);
 }
@@ -72,24 +63,22 @@ async function getStudentDetail(req: Request, res: Response) {
 async function getStudentEvents(req: Request, res: Response) {
 	const user = requireUser(req);
 
-	const paramsParsed = studentDetailParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		const message =
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
-		throw AppError.badRequest(message);
-	}
-
-	const queryParsed = studentEventsQuerySchema.safeParse(req.query);
-	if (!queryParsed.success) {
-		const message = queryParsed.error.issues[0]?.message ?? 'Invalid query';
-		throw AppError.badRequest(message);
-	}
+	const params = parseRequestPart(
+		studentDetailParamsSchema,
+		req.params,
+		'params',
+	);
+	const query = parseRequestPart(
+		studentEventsQuerySchema,
+		req.query,
+		'query',
+	);
 
 	const data = await listStudentInstructorEvents(
 		user.id,
 		user.role,
-		paramsParsed.data.userId,
-		queryParsed.data,
+		params.userId,
+		query,
 	);
 	return sendJsonSuccess(res, data);
 }
@@ -97,24 +86,22 @@ async function getStudentEvents(req: Request, res: Response) {
 async function getStudentProcessStatus(req: Request, res: Response) {
 	const user = requireUser(req);
 
-	const paramsParsed = studentDetailParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		const message =
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
-		throw AppError.badRequest(message);
-	}
-
-	const queryParsed = studentProcessStatusQuerySchema.safeParse(req.query);
-	if (!queryParsed.success) {
-		const message = queryParsed.error.issues[0]?.message ?? 'Invalid query';
-		throw AppError.badRequest(message);
-	}
+	const params = parseRequestPart(
+		studentDetailParamsSchema,
+		req.params,
+		'params',
+	);
+	const query = parseRequestPart(
+		studentProcessStatusQuerySchema,
+		req.query,
+		'query',
+	);
 
 	const data = await fetchStudentProcessStatus(
 		user.id,
 		user.role,
-		paramsParsed.data.userId,
-		queryParsed.data.schoolId,
+		params.userId,
+		query.schoolId,
 	);
 	return sendJsonSuccess(res, data);
 }
@@ -122,96 +109,80 @@ async function getStudentProcessStatus(req: Request, res: Response) {
 async function getStudentPayments(req: Request, res: Response) {
 	const user = requireUser(req);
 
-	const paramsParsed = studentDetailParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		const message =
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
-		throw AppError.badRequest(message);
-	}
-
-	const queryParsed = studentPaymentsQuerySchema.safeParse(req.query);
-	if (!queryParsed.success) {
-		const message = queryParsed.error.issues[0]?.message ?? 'Invalid query';
-		throw AppError.badRequest(message);
-	}
+	const params = parseRequestPart(
+		studentDetailParamsSchema,
+		req.params,
+		'params',
+	);
+	const query = parseRequestPart(
+		studentPaymentsQuerySchema,
+		req.query,
+		'query',
+	);
 
 	const data = await fetchStudentPayments(
 		user.id,
 		user.role,
-		paramsParsed.data.userId,
-		queryParsed.data,
+		params.userId,
+		query,
 	);
 	return sendJsonSuccess(res, data);
 }
 
 async function patchStudent(req: Request, res: Response) {
 	const user = requireUser(req);
-	const paramsParsed = studentUserIdParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		const message =
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
-		throw AppError.badRequest(message);
-	}
-
-	const bodyParsed = patchStudentBodySchema.safeParse(req.body);
-	if (!bodyParsed.success) {
-		const message = bodyParsed.error.issues[0]?.message ?? 'Invalid body';
-		throw AppError.badRequest(message);
-	}
+	const params = parseRequestPart(
+		studentUserIdParamsSchema,
+		req.params,
+		'params',
+	);
+	const body = parseRequestPart(patchStudentBodySchema, req.body, 'body');
 
 	const data = await patchStudentForStaff(
 		user.id,
 		user.role,
-		paramsParsed.data.userId,
-		{ notes: bodyParsed.data.notes },
+		params.userId,
+		{ notes: body.notes },
 	);
 	return sendJsonSuccess(res, data);
 }
 
 async function patchStudentDrivingSchool(req: Request, res: Response) {
 	const user = requireUser(req);
-	const paramsParsed = studentUserIdParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		const message =
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
-		throw AppError.badRequest(message);
-	}
-
-	const bodyParsed = assignStudentDrivingSchoolBodySchema.safeParse(req.body);
-	if (!bodyParsed.success) {
-		const message = bodyParsed.error.issues[0]?.message ?? 'Invalid body';
-		throw AppError.badRequest(message);
-	}
+	const params = parseRequestPart(
+		studentUserIdParamsSchema,
+		req.params,
+		'params',
+	);
+	const body = parseRequestPart(
+		assignStudentDrivingSchoolBodySchema,
+		req.body,
+		'body',
+	);
 
 	const data = await assignStudentDrivingSchoolForAdminOrManager(
 		user.id,
 		user.role,
-		paramsParsed.data.userId,
-		bodyParsed.data.schoolId,
+		params.userId,
+		body.schoolId,
 	);
 	return sendJsonSuccess(res, data);
 }
 
 async function patchStudentPkk(req: Request, res: Response) {
 	const user = requireUser(req);
-	const paramsParsed = studentUserIdParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		const message =
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
-		throw AppError.badRequest(message);
-	}
-
-	const bodyParsed = patchStudentPkkBodySchema.safeParse(req.body);
-	if (!bodyParsed.success) {
-		const message = bodyParsed.error.issues[0]?.message ?? 'Invalid body';
-		throw AppError.badRequest(message);
-	}
+	const params = parseRequestPart(
+		studentUserIdParamsSchema,
+		req.params,
+		'params',
+	);
+	const body = parseRequestPart(patchStudentPkkBodySchema, req.body, 'body');
 
 	const data = await patchStudentPkkForStaff(
 		user.id,
 		user.role,
-		paramsParsed.data.userId,
-		bodyParsed.data.pkkNumber,
+		params.userId,
+		body.pkkNumber,
 	);
 	return sendJsonSuccess(res, data);
 }
@@ -219,142 +190,47 @@ async function patchStudentPkk(req: Request, res: Response) {
 async function assignStudentToCourse(req: Request, res: Response) {
 	const actor = requireUser(req);
 
-	const paramsParsed = studentUserIdParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		const message =
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
-		throw AppError.badRequest(message);
-	}
+	const { userId } = parseRequestPart(
+		studentUserIdParamsSchema,
+		req.params,
+		'params',
+	);
+	const { courseId } = parseRequestPart(
+		assignStudentToCourseBodySchema,
+		req.body,
+		'body',
+	);
 
-	const bodyParsed = assignStudentToCourseBodySchema.safeParse(req.body);
-	if (!bodyParsed.success) {
-		const message = bodyParsed.error.issues[0]?.message ?? 'Invalid body';
-		throw AppError.badRequest(message);
-	}
+	const participant = await assignStudentToCourseForStaff(
+		actor.id,
+		actor.role,
+		userId,
+		courseId,
+	);
 
-	const { userId } = paramsParsed.data;
-	const { courseId } = bodyParsed.data;
-
-	if (actor.role === Role.ADMIN) {
-		throw AppError.forbidden('Forbidden');
-	}
-
-	const studentUser = await prisma.user.findUnique({
-		where: { id: userId },
-		select: {
-			id: true,
-			role: true,
-			deletedAt: true,
-			isActive: true,
-			studentProfile: { select: { id: true } },
-		},
-	});
-
-	if (!studentUser || studentUser.deletedAt !== null) {
-		throw AppError.notFound('User not found');
-	}
-
-	if (!studentUser.isActive) {
-		throw AppError.forbidden('Account is disabled');
-	}
-
-	if (studentUser.role !== Role.STUDENT || !studentUser.studentProfile) {
-		throw AppError.badRequest('User is not a student');
-	}
-
-	const studentProfileId = studentUser.studentProfile.id;
-
-	const course = await prisma.course.findFirst({
-		where: { id: courseId, deletedAt: null },
-		select: { id: true, schoolId: true },
-	});
-
-	if (!course) {
-		throw AppError.notFound('Course not found');
-	}
-
-	const studentInSchool = await prisma.studentSchool.findFirst({
-		where: {
-			student: { userId },
-			schoolId: course.schoolId,
-			school: { deletedAt: null },
-		},
-	});
-
-	if (!studentInSchool) {
-		throw AppError.forbidden('Forbidden');
-	}
-
-	if (actor.role === Role.MANAGER) {
-		const ownsSchool = await prisma.drivingSchool.findFirst({
-			where: { id: course.schoolId, ownerId: actor.id, deletedAt: null },
-		});
-		if (!ownsSchool) {
-			throw AppError.forbidden('Forbidden');
-		}
-	} else {
-		const instructorInSchool = await prisma.instructorSchool.findFirst({
-			where: {
-				instructor: { userId: actor.id },
-				schoolId: course.schoolId,
-				school: { deletedAt: null },
-			},
-		});
-		if (!instructorInSchool) {
-			throw AppError.forbidden('Forbidden');
-		}
-	}
-
-	const existing = await prisma.courseParticipant.findFirst({
-		where: { courseId, studentId: studentProfileId },
-	});
-
-	if (existing) {
-		throw AppError.conflict('Student is already enrolled in this course');
-	}
-
-	try {
-		const participant = await prisma.courseParticipant.create({
-			data: { courseId, studentId: studentProfileId },
-		});
-		return sendJsonSuccess(res, { participant });
-	} catch (err) {
-		if (
-			err instanceof Prisma.PrismaClientKnownRequestError &&
-			err.code === 'P2002'
-		) {
-			throw AppError.conflict(
-				'Student is already enrolled in this course',
-			);
-		}
-		throw err;
-	}
+	return sendJsonSuccess(res, { participant });
 }
 
 async function patchCourseParticipantStatus(req: Request, res: Response) {
 	const actor = requireUser(req);
 
-	const paramsParsed = studentCourseParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		const message =
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
-		throw AppError.badRequest(message);
-	}
-
-	const bodyParsed = patchCourseParticipantStatusBodySchema.safeParse(
-		req.body,
+	const params = parseRequestPart(
+		studentCourseParamsSchema,
+		req.params,
+		'params',
 	);
-	if (!bodyParsed.success) {
-		const message = bodyParsed.error.issues[0]?.message ?? 'Invalid body';
-		throw AppError.badRequest(message);
-	}
+	const body = parseRequestPart(
+		patchCourseParticipantStatusBodySchema,
+		req.body,
+		'body',
+	);
 
 	const participant = await patchCourseParticipantStatusForStaff(
 		actor.id,
 		actor.role,
-		paramsParsed.data.userId,
-		paramsParsed.data.courseId,
-		bodyParsed.data.status,
+		params.userId,
+		params.courseId,
+		body.status,
 	);
 
 	return sendJsonSuccess(res, { participant });

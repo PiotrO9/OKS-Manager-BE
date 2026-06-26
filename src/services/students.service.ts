@@ -1,10 +1,13 @@
 export * from './students/types';
 export {
 	assignStudentDrivingSchoolForAdminOrManager,
-	patchCourseParticipantStatusForStaff,
 	patchStudentForStaff,
 	patchStudentPkkForStaff,
 } from './students/profileMutations';
+export {
+	assignStudentToCourseForStaff,
+	patchCourseParticipantStatusForStaff,
+} from './students/courseParticipants';
 export {
 	listPaymentsForCurrentUser,
 	listStudentPayments,

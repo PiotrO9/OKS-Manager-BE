@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { sendJsonSuccess } from '../lib/apiResponse';
-import { AppError } from '../lib/http/AppError';
 import { requireUser } from '../lib/http/requireUser';
 import { instructorAdminPatchBodySchema } from '../lib/validation/instructorAdminPatch';
 import {
@@ -15,33 +14,30 @@ import {
 	softDeleteInstructorForManagerOrAdmin,
 	updateInstructorForManagerOrAdmin,
 } from '../services/instructor.service';
+import { parseRequestPart } from './requestParsing';
 
 async function listInstructorsBySchool(req: Request, res: Response) {
 	const user = requireUser(req);
-	const parsed = schoolIdQuerySchema.safeParse(req.query);
-	if (!parsed.success) {
-		const message = parsed.error.issues[0]?.message ?? 'Invalid query';
-		throw AppError.badRequest(message);
-	}
+	const query = parseRequestPart(schoolIdQuerySchema, req.query, 'query');
 
 	const data = await listInstructorsBySchoolForUser(
 		{ id: user.id, role: user.role },
-		parsed.data.schoolId,
+		query.schoolId,
 	);
 	return sendJsonSuccess(res, data);
 }
 
 async function getInstructorById(req: Request, res: Response) {
 	const user = requireUser(req);
-	const parsed = instructorIdParamsSchema.safeParse(req.params);
-	if (!parsed.success) {
-		const message = parsed.error.issues[0]?.message ?? 'Invalid params';
-		throw AppError.badRequest(message);
-	}
+	const params = parseRequestPart(
+		instructorIdParamsSchema,
+		req.params,
+		'params',
+	);
 
 	const data = await getInstructorByIdForUser(
 		{ id: user.id, role: user.role },
-		parsed.data.id,
+		params.id,
 	);
 	return sendJsonSuccess(res, data);
 }
@@ -55,64 +51,57 @@ function normalizePatchBody(raw: unknown): unknown {
 
 async function patchInstructor(req: Request, res: Response) {
 	const user = requireUser(req);
-	const paramsParsed = instructorIdParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		const message =
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
-		throw AppError.badRequest(message);
-	}
-
-	const bodyParsed = instructorAdminPatchBodySchema.safeParse(
-		normalizePatchBody(req.body),
+	const params = parseRequestPart(
+		instructorIdParamsSchema,
+		req.params,
+		'params',
 	);
-	if (!bodyParsed.success) {
-		const message = bodyParsed.error.issues[0]?.message ?? 'Invalid body';
-		throw AppError.badRequest(message);
-	}
+	const body = parseRequestPart(
+		instructorAdminPatchBodySchema,
+		normalizePatchBody(req.body),
+		'body',
+	);
 
 	const data = await updateInstructorForManagerOrAdmin(
 		{ id: user.id, role: user.role },
-		paramsParsed.data.id,
-		bodyParsed.data,
+		params.id,
+		body,
 	);
 	return sendJsonSuccess(res, data);
 }
 
 async function deleteInstructor(req: Request, res: Response) {
 	const user = requireUser(req);
-	const paramsParsed = instructorIdParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		const message =
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
-		throw AppError.badRequest(message);
-	}
+	const params = parseRequestPart(
+		instructorIdParamsSchema,
+		req.params,
+		'params',
+	);
 
 	await softDeleteInstructorForManagerOrAdmin(
 		{ id: user.id, role: user.role },
-		paramsParsed.data.id,
+		params.id,
 	);
 	return res.status(204).send();
 }
 
 async function assignInstructorToSchool(req: Request, res: Response) {
 	const user = requireUser(req);
-	const paramsParsed = instructorIdParamsSchema.safeParse(req.params);
-	if (!paramsParsed.success) {
-		const message =
-			paramsParsed.error.issues[0]?.message ?? 'Invalid params';
-		throw AppError.badRequest(message);
-	}
-
-	const bodyParsed = assignInstructorToSchoolBodySchema.safeParse(req.body);
-	if (!bodyParsed.success) {
-		const message = bodyParsed.error.issues[0]?.message ?? 'Invalid body';
-		throw AppError.badRequest(message);
-	}
+	const params = parseRequestPart(
+		instructorIdParamsSchema,
+		req.params,
+		'params',
+	);
+	const body = parseRequestPart(
+		assignInstructorToSchoolBodySchema,
+		req.body,
+		'body',
+	);
 
 	const data = await assignInstructorToSchoolForManagerOrAdmin(
 		{ id: user.id, role: user.role },
-		paramsParsed.data.id,
-		bodyParsed.data.schoolId,
+		params.id,
+		body.schoolId,
 	);
 	return sendJsonSuccess(res, data, 201);
 }

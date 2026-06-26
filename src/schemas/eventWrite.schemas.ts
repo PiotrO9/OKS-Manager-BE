@@ -1,0 +1,148 @@
+import { EventStatus, EventType } from '@prisma/client';
+import { z } from 'zod';
+import { UUID_PARAM_RE } from '../lib/validation/uuid';
+
+export const createInstructorEventBodySchema = z
+	.object({
+		instructorId: z.string().regex(UUID_PARAM_RE, 'Invalid instructorId'),
+		type: z.nativeEnum(EventType),
+		startTime: z.string().datetime(),
+		endTime: z.string().datetime(),
+		vehicleId: z
+			.string()
+			.regex(UUID_PARAM_RE, 'Invalid vehicleId')
+			.optional(),
+		capacity: z
+			.number()
+			.int('capacity must be an integer')
+			.min(0, 'capacity must be >= 0')
+			.optional(),
+		courseId: z
+			.string()
+			.regex(UUID_PARAM_RE, 'Invalid courseId')
+			.optional(),
+	})
+	.superRefine((data, ctx) => {
+		const start = new Date(data.startTime);
+		const end = new Date(data.endTime);
+		if (start.getTime() >= end.getTime()) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: 'startTime must be before endTime',
+				path: ['startTime'],
+			});
+		}
+		if (data.type === EventType.DRIVE && !data.vehicleId) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: 'vehicleId is required for DRIVE events',
+				path: ['vehicleId'],
+			});
+		}
+		if (data.courseId !== undefined && data.type !== EventType.THEORY) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: 'courseId is only allowed for THEORY events',
+				path: ['courseId'],
+			});
+		}
+	});
+
+export type CreateInstructorEventBody = z.infer<
+	typeof createInstructorEventBodySchema
+>;
+
+export function parseCreateInstructorEventBody(
+	body: unknown,
+):
+	| { ok: true; data: CreateInstructorEventBody }
+	| { ok: false; error: string } {
+	const parsed = createInstructorEventBodySchema.safeParse(body);
+	if (!parsed.success) {
+		return {
+			ok: false,
+			error: parsed.error.issues[0]?.message ?? 'Invalid body',
+		};
+	}
+	return { ok: true, data: parsed.data };
+}
+
+export const patchInstructorEventBodySchema = z
+	.object({
+		instructorId: z
+			.string()
+			.regex(UUID_PARAM_RE, 'Invalid instructorId')
+			.optional(),
+		type: z.nativeEnum(EventType).optional(),
+		status: z.nativeEnum(EventStatus).optional(),
+		startTime: z.string().datetime().optional(),
+		endTime: z.string().datetime().optional(),
+		vehicleId: z
+			.string()
+			.regex(UUID_PARAM_RE, 'Invalid vehicleId')
+			.nullable()
+			.optional(),
+		capacity: z
+			.number()
+			.int('capacity must be an integer')
+			.min(0, 'capacity must be >= 0')
+			.nullable()
+			.optional(),
+	})
+	.superRefine((data, ctx) => {
+		if (data.startTime && data.endTime) {
+			const start = new Date(data.startTime);
+			const end = new Date(data.endTime);
+			if (start.getTime() >= end.getTime()) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: 'startTime must be before endTime',
+					path: ['startTime'],
+				});
+			}
+		}
+	});
+
+export type PatchInstructorEventBody = z.infer<
+	typeof patchInstructorEventBodySchema
+>;
+
+export function parsePatchInstructorEventBody(
+	body: unknown,
+): { ok: true; data: PatchInstructorEventBody } | { ok: false; error: string } {
+	const parsed = patchInstructorEventBodySchema.safeParse(body);
+	if (!parsed.success) {
+		return {
+			ok: false,
+			error: parsed.error.issues[0]?.message ?? 'Invalid body',
+		};
+	}
+	return { ok: true, data: parsed.data };
+}
+
+export const bulkUpdateEventStatusBodySchema = z.object({
+	status: z.nativeEnum(EventStatus),
+	eventIds: z
+		.array(z.string().regex(UUID_PARAM_RE, 'Invalid event id'))
+		.min(1, 'eventIds must not be empty')
+		.max(100, 'eventIds must not exceed 100 entries'),
+});
+
+export type BulkUpdateEventStatusBody = z.infer<
+	typeof bulkUpdateEventStatusBodySchema
+>;
+
+export function parseBulkUpdateEventStatusBody(
+	body: unknown,
+):
+	| { ok: true; data: BulkUpdateEventStatusBody }
+	| { ok: false; error: string } {
+	const parsed = bulkUpdateEventStatusBodySchema.safeParse(body);
+	if (!parsed.success) {
+		return {
+			ok: false,
+			error: parsed.error.issues[0]?.message ?? 'Invalid body',
+		};
+	}
+	return { ok: true, data: parsed.data };
+}

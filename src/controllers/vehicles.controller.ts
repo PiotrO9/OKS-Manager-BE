@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { sendJsonSuccess } from '../lib/apiResponse';
-import { AppError } from '../lib/http/AppError';
 import { requireUser } from '../lib/http/requireUser';
 import {
 	vehicleAvailabilityStatusSchema,
@@ -11,26 +10,23 @@ import {
 	type UploadedPhotoFile,
 	vehicleService,
 } from '../services/vehicle.service';
+import { parseRequestPart } from './requestParsing';
 
 async function listVehiclesBySchool(req: Request, res: Response) {
 	const user = requireUser(req);
-	const parsed = vehicleListQuerySchema.safeParse(req.query);
-	if (!parsed.success) {
-		const message = parsed.error.issues[0]?.message ?? 'Invalid query';
-		throw AppError.badRequest(message);
-	}
+	const query = parseRequestPart(vehicleListQuerySchema, req.query, 'query');
 
 	const timeRange =
-		parsed.data.startTime && parsed.data.endTime
+		query.startTime && query.endTime
 			? {
-				start: new Date(parsed.data.startTime),
-				end: new Date(parsed.data.endTime),
+				start: new Date(query.startTime),
+				end: new Date(query.endTime),
 			}
 			: undefined;
 
 	const data = await vehicleService.listVehiclesBySchoolForUser(
 		user.id,
-		parsed.data.schoolId,
+		query.schoolId,
 		timeRange,
 	);
 	return sendJsonSuccess(res, data);
@@ -38,29 +34,23 @@ async function listVehiclesBySchool(req: Request, res: Response) {
 
 async function getVehicleById(req: Request, res: Response) {
 	const user = requireUser(req);
-	const params = vehicleIdParamsSchema.safeParse(req.params);
-	if (!params.success) {
-		throw AppError.badRequest('Invalid vehicle id');
-	}
+	const params = parseRequestPart(vehicleIdParamsSchema, req.params, 'params');
 
 	const data = await vehicleService.getVehicleByIdForUser(
 		user.id,
-		params.data.id,
+		params.id,
 	);
 	return sendJsonSuccess(res, data);
 }
 
 async function uploadVehiclePhoto(req: Request, res: Response) {
 	const user = requireUser(req);
-	const params = vehicleIdParamsSchema.safeParse(req.params);
-	if (!params.success) {
-		throw AppError.badRequest('Invalid vehicle id');
-	}
+	const params = parseRequestPart(vehicleIdParamsSchema, req.params, 'params');
 
 	const file = (req as Request & { file?: UploadedPhotoFile }).file;
 	const data = await vehicleService.uploadVehiclePhotoForUser(
 		user.id,
-		params.data.id,
+		params.id,
 		file as UploadedPhotoFile,
 	);
 	return sendJsonSuccess(res, data);
@@ -75,15 +65,12 @@ async function upsertVehicle(req: Request, res: Response) {
 
 async function updateVehicle(req: Request, res: Response) {
 	const user = requireUser(req);
-	const params = vehicleIdParamsSchema.safeParse(req.params);
-	if (!params.success) {
-		throw AppError.badRequest('Invalid vehicle id');
-	}
+	const params = parseRequestPart(vehicleIdParamsSchema, req.params, 'params');
 
 	const body = req.body as Record<string, unknown>;
 	const updated = await vehicleService.updateVehicleForUser(
 		user.id,
-		params.data.id,
+		params.id,
 		body,
 	);
 	return sendJsonSuccess(res, updated);
@@ -91,34 +78,28 @@ async function updateVehicle(req: Request, res: Response) {
 
 async function updateVehicleStatus(req: Request, res: Response) {
 	const user = requireUser(req);
-	const params = vehicleIdParamsSchema.safeParse(req.params);
-	if (!params.success) {
-		throw AppError.badRequest('Invalid vehicle id');
-	}
-
-	const parsed = vehicleAvailabilityStatusSchema.safeParse(req.body);
-	if (!parsed.success) {
-		throw AppError.badRequest('status must be ACTIVE or UNAVAILABLE');
-	}
+	const params = parseRequestPart(vehicleIdParamsSchema, req.params, 'params');
+	const body = parseRequestPart(
+		vehicleAvailabilityStatusSchema,
+		req.body,
+		'body',
+	);
 
 	const updated = await vehicleService.updateVehicleStatusForUser(
 		user.id,
-		params.data.id,
-		parsed.data.status,
+		params.id,
+		body.status,
 	);
 	return sendJsonSuccess(res, updated);
 }
 
 async function deleteVehicle(req: Request, res: Response) {
 	const user = requireUser(req);
-	const params = vehicleIdParamsSchema.safeParse(req.params);
-	if (!params.success) {
-		throw AppError.badRequest('Invalid vehicle id');
-	}
+	const params = parseRequestPart(vehicleIdParamsSchema, req.params, 'params');
 
 	const data = await vehicleService.deleteVehicleForUser(
 		user.id,
-		params.data.id,
+		params.id,
 	);
 	return sendJsonSuccess(res, data);
 }

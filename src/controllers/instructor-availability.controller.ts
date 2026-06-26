@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { sendJsonSuccess } from '../lib/apiResponse';
-import { AppError } from '../lib/http/AppError';
 import { requireUser } from '../lib/http/requireUser';
 import {
 	computeQuerySchema,
@@ -22,41 +21,39 @@ import {
 	upsertException,
 	upsertWeeklyDay,
 } from '../services/instructor-availability.service';
+import { parseBodyWithParser, parseRequestPart } from './requestParsing';
 
 // ── Weekly ────────────────────────────────────────────────────────────────────
 
 async function getWeekly(req: Request, res: Response) {
 	const actor = requireUser(req);
 
-	const params = instructorIdParamsSchema.safeParse(req.params);
-	if (!params.success) {
-		throw AppError.badRequest(
-			params.error.issues[0]?.message ?? 'Invalid params',
-		);
-	}
+	const params = parseRequestPart(
+		instructorIdParamsSchema,
+		req.params,
+		'params',
+	);
 
-	const data = await getWeeklyAvailability(actor, params.data.instructorId);
+	const data = await getWeeklyAvailability(actor, params.instructorId);
 	return sendJsonSuccess(res, { weekly: data });
 }
 
 async function putWeeklyDay(req: Request, res: Response) {
 	const actor = requireUser(req);
 
-	const params = dayOfWeekParamsSchema.safeParse(req.params);
-	if (!params.success) {
-		throw AppError.badRequest(
-			params.error.issues[0]?.message ?? 'Invalid params',
-		);
-	}
+	const params = parseRequestPart(
+		dayOfWeekParamsSchema,
+		req.params,
+		'params',
+	);
 
-	const body = parsePutWeeklyBody(req.body);
-	if (!body.ok) throw AppError.badRequest(body.error);
+	const body = parseBodyWithParser(parsePutWeeklyBody, req.body);
 
 	const data = await upsertWeeklyDay(
 		actor,
-		params.data.instructorId,
-		params.data.dayOfWeek,
-		body.data,
+		params.instructorId,
+		params.dayOfWeek,
+		body,
 	);
 	return sendJsonSuccess(res, { entry: data });
 }
@@ -64,17 +61,16 @@ async function putWeeklyDay(req: Request, res: Response) {
 async function deleteWeeklyDayHandler(req: Request, res: Response) {
 	const actor = requireUser(req);
 
-	const params = dayOfWeekParamsSchema.safeParse(req.params);
-	if (!params.success) {
-		throw AppError.badRequest(
-			params.error.issues[0]?.message ?? 'Invalid params',
-		);
-	}
+	const params = parseRequestPart(
+		dayOfWeekParamsSchema,
+		req.params,
+		'params',
+	);
 
 	await deleteWeeklyDay(
 		actor,
-		params.data.instructorId,
-		params.data.dayOfWeek,
+		params.instructorId,
+		params.dayOfWeek,
 	);
 	res.status(204).send();
 }
@@ -84,25 +80,18 @@ async function deleteWeeklyDayHandler(req: Request, res: Response) {
 async function getExceptions(req: Request, res: Response) {
 	const actor = requireUser(req);
 
-	const params = instructorIdParamsSchema.safeParse(req.params);
-	if (!params.success) {
-		throw AppError.badRequest(
-			params.error.issues[0]?.message ?? 'Invalid params',
-		);
-	}
-
-	const query = exceptionsQuerySchema.safeParse(req.query);
-	if (!query.success) {
-		throw AppError.badRequest(
-			query.error.issues[0]?.message ?? 'Invalid query',
-		);
-	}
+	const params = parseRequestPart(
+		instructorIdParamsSchema,
+		req.params,
+		'params',
+	);
+	const query = parseRequestPart(exceptionsQuerySchema, req.query, 'query');
 
 	const data = await listExceptions(
 		actor,
-		params.data.instructorId,
-		query.data.from,
-		query.data.to,
+		params.instructorId,
+		query.from,
+		query.to,
 	);
 	return sendJsonSuccess(res, { exceptions: data });
 }
@@ -110,21 +99,19 @@ async function getExceptions(req: Request, res: Response) {
 async function putExceptionHandler(req: Request, res: Response) {
 	const actor = requireUser(req);
 
-	const params = exceptionDateParamsSchema.safeParse(req.params);
-	if (!params.success) {
-		throw AppError.badRequest(
-			params.error.issues[0]?.message ?? 'Invalid params',
-		);
-	}
+	const params = parseRequestPart(
+		exceptionDateParamsSchema,
+		req.params,
+		'params',
+	);
 
-	const body = parsePutExceptionBody(req.body);
-	if (!body.ok) throw AppError.badRequest(body.error);
+	const body = parseBodyWithParser(parsePutExceptionBody, req.body);
 
 	const data = await upsertException(
 		actor,
-		params.data.instructorId,
-		params.data.date,
-		body.data,
+		params.instructorId,
+		params.date,
+		body,
 	);
 	return sendJsonSuccess(res, { exception: data });
 }
@@ -132,14 +119,13 @@ async function putExceptionHandler(req: Request, res: Response) {
 async function deleteExceptionHandler(req: Request, res: Response) {
 	const actor = requireUser(req);
 
-	const params = exceptionDateParamsSchema.safeParse(req.params);
-	if (!params.success) {
-		throw AppError.badRequest(
-			params.error.issues[0]?.message ?? 'Invalid params',
-		);
-	}
+	const params = parseRequestPart(
+		exceptionDateParamsSchema,
+		req.params,
+		'params',
+	);
 
-	await deleteException(actor, params.data.instructorId, params.data.date);
+	await deleteException(actor, params.instructorId, params.date);
 	res.status(204).send();
 }
 
@@ -148,24 +134,17 @@ async function deleteExceptionHandler(req: Request, res: Response) {
 async function computeAvailabilityHandler(req: Request, res: Response) {
 	const actor = requireUser(req);
 
-	const params = instructorIdParamsSchema.safeParse(req.params);
-	if (!params.success) {
-		throw AppError.badRequest(
-			params.error.issues[0]?.message ?? 'Invalid params',
-		);
-	}
-
-	const query = computeQuerySchema.safeParse(req.query);
-	if (!query.success) {
-		throw AppError.badRequest(
-			query.error.issues[0]?.message ?? 'Invalid query',
-		);
-	}
+	const params = parseRequestPart(
+		instructorIdParamsSchema,
+		req.params,
+		'params',
+	);
+	const query = parseRequestPart(computeQuerySchema, req.query, 'query');
 
 	const data = await computeAvailability(
 		actor,
-		params.data.instructorId,
-		query.data.date,
+		params.instructorId,
+		query.date,
 	);
 	return sendJsonSuccess(res, data);
 }
@@ -175,25 +154,18 @@ async function computeAvailabilityHandler(req: Request, res: Response) {
 async function getSlotsHandler(req: Request, res: Response) {
 	const actor = requireUser(req);
 
-	const params = instructorIdParamsSchema.safeParse(req.params);
-	if (!params.success) {
-		throw AppError.badRequest(
-			params.error.issues[0]?.message ?? 'Invalid params',
-		);
-	}
-
-	const query = slotsQuerySchema.safeParse(req.query);
-	if (!query.success) {
-		throw AppError.badRequest(
-			query.error.issues[0]?.message ?? 'Invalid query',
-		);
-	}
+	const params = parseRequestPart(
+		instructorIdParamsSchema,
+		req.params,
+		'params',
+	);
+	const query = parseRequestPart(slotsQuerySchema, req.query, 'query');
 
 	const data = await generateSlots(
 		actor,
-		params.data.instructorId,
-		query.data.dateFrom,
-		query.data.dateTo,
+		params.instructorId,
+		query.dateFrom,
+		query.dateTo,
 	);
 	return sendJsonSuccess(res, { slots: data });
 }
