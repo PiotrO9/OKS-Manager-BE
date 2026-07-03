@@ -2,6 +2,7 @@ import type { VehicleAvailabilityStatus } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 import { parseUuidParam } from '../../lib/validation/uuid';
+import type { VehicleAvailabilityStatusPayload } from '../../schemas/vehicle.schemas';
 import { getSchoolOwnedByUser, loadVehicleForOwner } from './access';
 import {
 	assertVehicleRegistrationUnique,
@@ -133,16 +134,32 @@ export async function updateVehicleForUser(
 export async function updateVehicleStatusForUser(
 	userId: string,
 	vehicleId: string,
-	status: VehicleAvailabilityStatus,
+	payload: VehicleAvailabilityStatusPayload,
 ): Promise<VehicleResponse> {
 	await loadActiveVehicleForOwnerOrThrow(userId, vehicleId);
 
+	const unavailableUntil =
+		payload.status === 'UNAVAILABLE'
+			? parseUnavailableUntilDate(payload.unavailableUntil)
+			: null;
+
 	const updated = await prisma.vehicle.update({
 		where: { id: vehicleId },
-		data: { availabilityStatus: status },
+		data: {
+			availabilityStatus: payload.status as VehicleAvailabilityStatus,
+			unavailableUntil,
+		},
 	});
 
 	return vehicleToResponse(updated);
+}
+
+function parseUnavailableUntilDate(
+	value: string | null | undefined,
+): Date | null {
+	if (!value) return null;
+
+	return new Date(`${value}T00:00:00.000Z`);
 }
 
 export async function deleteVehicleForUser(

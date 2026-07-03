@@ -250,6 +250,7 @@ model Vehicle {
   mileageKm          Int?                      @map("mileage_km")
   note               String?                   @map("note") @db.Text
   availabilityStatus VehicleAvailabilityStatus @default(ACTIVE) @map("availability_status")
+  unavailableUntil   DateTime?                 @map("unavailable_until") @db.Date
   isActive           Boolean                   @default(true) @map("is_active")
   createdAt          DateTime                  @default(now()) @map("created_at")
 

@@ -88,7 +88,7 @@ async function updateVehicleStatus(req: Request, res: Response) {
 	const updated = await vehicleService.updateVehicleStatusForUser(
 		user.id,
 		params.id,
-		body.status,
+		body,
 	);
 	return sendJsonSuccess(res, updated);
 }

@@ -37,6 +37,7 @@ export async function loadVehicleWithSchoolForAccess(
 			mileageKm: true,
 			note: true,
 			availabilityStatus: true,
+			unavailableUntil: true,
 			createdAt: true,
 			school: {
 				select: {

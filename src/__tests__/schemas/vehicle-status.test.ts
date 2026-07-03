@@ -18,6 +18,19 @@ describe('vehicleAvailabilityStatusSchema', () => {
 		expect(parsed.success).toBe(true);
 	});
 
+	it('accepts UNAVAILABLE with an unavailableUntil date', () => {
+		const parsed = vehicleAvailabilityStatusSchema.safeParse({
+			status: 'UNAVAILABLE',
+			unavailableUntil: '2026-07-10',
+		});
+
+		expect(parsed.success).toBe(true);
+		expect(parsed.data).toMatchObject({
+			status: 'UNAVAILABLE',
+			unavailableUntil: '2026-07-10',
+		});
+	});
+
 	it('rejects an unsupported status string', () => {
 		const parsed = vehicleAvailabilityStatusSchema.safeParse({
 			status: 'IN_SERVICE',
@@ -35,6 +48,15 @@ describe('vehicleAvailabilityStatusSchema', () => {
 	it('rejects a non-string status', () => {
 		const parsed = vehicleAvailabilityStatusSchema.safeParse({
 			status: 123,
+		});
+
+		expect(parsed.success).toBe(false);
+	});
+
+	it('rejects an invalid unavailableUntil date', () => {
+		const parsed = vehicleAvailabilityStatusSchema.safeParse({
+			status: 'UNAVAILABLE',
+			unavailableUntil: '2026-02-31',
 		});
 
 		expect(parsed.success).toBe(false);

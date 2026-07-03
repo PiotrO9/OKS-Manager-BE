@@ -6,9 +6,41 @@ import {
 
 export { vehicleIdParamsSchema };
 
+function isDateYmd(value: string): boolean {
+	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+	if (!match) return false;
+
+	const year = Number(match[1]);
+	const month = Number(match[2]);
+	const day = Number(match[3]);
+	const date = new Date(Date.UTC(year, month - 1, day));
+
+	return (
+		date.getUTCFullYear() === year &&
+		date.getUTCMonth() === month - 1 &&
+		date.getUTCDate() === day
+	);
+}
+
+const unavailableUntilSchema = z.preprocess(
+	(value) => (value === '' || value === undefined ? undefined : value),
+	z
+		.string()
+		.refine(isDateYmd, {
+			message: 'unavailableUntil must be a valid YYYY-MM-DD date',
+		})
+		.nullable()
+		.optional(),
+);
+
 export const vehicleAvailabilityStatusSchema = z.object({
 	status: z.enum(['ACTIVE', 'UNAVAILABLE']),
+	unavailableUntil: unavailableUntilSchema,
 });
+
+export type VehicleAvailabilityStatusPayload = z.infer<
+	typeof vehicleAvailabilityStatusSchema
+>;
 
 export const vehicleListQuerySchema = schoolIdQuerySchema
 	.merge(

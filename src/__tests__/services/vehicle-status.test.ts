@@ -22,7 +22,10 @@ const userId = '11111111-1111-1111-1111-111111111111';
 const vehicleId = '22222222-2222-2222-2222-222222222222';
 const schoolId = '33333333-3333-3333-3333-333333333333';
 
-function mockUpdatedVehicle(status: VehicleAvailabilityStatus) {
+function mockUpdatedVehicle(
+	status: VehicleAvailabilityStatus,
+	unavailableUntil: Date | null = null,
+) {
 	prismaMock.vehicle.update.mockResolvedValue({
 		id: vehicleId,
 		schoolId,
@@ -38,6 +41,7 @@ function mockUpdatedVehicle(status: VehicleAvailabilityStatus) {
 		mileageKm: null,
 		note: null,
 		availabilityStatus: status,
+		unavailableUntil,
 		createdAt: new Date('2026-01-01T00:00:00.000Z'),
 	});
 }
@@ -72,22 +76,24 @@ describe('vehicleService.updateVehicleStatusForUser', () => {
 			vehicleService.updateVehicleStatusForUser(
 				userId,
 				vehicleId,
-				VehicleAvailabilityStatus.UNAVAILABLE,
+				{ status: VehicleAvailabilityStatus.UNAVAILABLE },
 			),
 		).resolves.toMatchObject({
 			id: vehicleId,
 			status: VehicleAvailabilityStatus.UNAVAILABLE,
+			unavailableUntil: null,
 		});
 
 		expect(prismaMock.vehicle.update).toHaveBeenCalledWith({
 			where: { id: vehicleId },
 			data: {
 				availabilityStatus: VehicleAvailabilityStatus.UNAVAILABLE,
+				unavailableUntil: null,
 			},
 		});
 	});
 
-	it('treats setting the same status as success', async () => {
+	it('clears unavailableUntil when setting ACTIVE', async () => {
 		mockVehicle();
 		mockOwnedSchool();
 		mockUpdatedVehicle(VehicleAvailabilityStatus.ACTIVE);
@@ -96,16 +102,50 @@ describe('vehicleService.updateVehicleStatusForUser', () => {
 			vehicleService.updateVehicleStatusForUser(
 				userId,
 				vehicleId,
-				VehicleAvailabilityStatus.ACTIVE,
+				{
+					status: VehicleAvailabilityStatus.ACTIVE,
+					unavailableUntil: '2026-07-10',
+				},
 			),
 		).resolves.toMatchObject({
 			id: vehicleId,
 			status: VehicleAvailabilityStatus.ACTIVE,
+			unavailableUntil: null,
 		});
 
 		expect(prismaMock.vehicle.update).toHaveBeenCalledWith({
 			where: { id: vehicleId },
-			data: { availabilityStatus: VehicleAvailabilityStatus.ACTIVE },
+			data: {
+				availabilityStatus: VehicleAvailabilityStatus.ACTIVE,
+				unavailableUntil: null,
+			},
+		});
+	});
+
+	it('stores unavailableUntil for a temporary UNAVAILABLE status', async () => {
+		const unavailableUntil = new Date('2026-07-10T00:00:00.000Z');
+
+		mockVehicle();
+		mockOwnedSchool();
+		mockUpdatedVehicle(VehicleAvailabilityStatus.UNAVAILABLE, unavailableUntil);
+
+		await expect(
+			vehicleService.updateVehicleStatusForUser(userId, vehicleId, {
+				status: VehicleAvailabilityStatus.UNAVAILABLE,
+				unavailableUntil: '2026-07-10',
+			}),
+		).resolves.toMatchObject({
+			id: vehicleId,
+			status: VehicleAvailabilityStatus.UNAVAILABLE,
+			unavailableUntil: '2026-07-10',
+		});
+
+		expect(prismaMock.vehicle.update).toHaveBeenCalledWith({
+			where: { id: vehicleId },
+			data: {
+				availabilityStatus: VehicleAvailabilityStatus.UNAVAILABLE,
+				unavailableUntil,
+			},
 		});
 	});
 
@@ -116,7 +156,7 @@ describe('vehicleService.updateVehicleStatusForUser', () => {
 			vehicleService.updateVehicleStatusForUser(
 				userId,
 				vehicleId,
-				VehicleAvailabilityStatus.ACTIVE,
+				{ status: VehicleAvailabilityStatus.ACTIVE },
 			),
 		).rejects.toMatchObject({
 			statusCode: 404,
@@ -134,7 +174,7 @@ describe('vehicleService.updateVehicleStatusForUser', () => {
 			vehicleService.updateVehicleStatusForUser(
 				userId,
 				vehicleId,
-				VehicleAvailabilityStatus.ACTIVE,
+				{ status: VehicleAvailabilityStatus.ACTIVE },
 			),
 		).rejects.toMatchObject({
 			statusCode: 403,
@@ -152,7 +192,7 @@ describe('vehicleService.updateVehicleStatusForUser', () => {
 			vehicleService.updateVehicleStatusForUser(
 				userId,
 				vehicleId,
-				VehicleAvailabilityStatus.ACTIVE,
+				{ status: VehicleAvailabilityStatus.ACTIVE },
 			),
 		).rejects.toMatchObject({
 			statusCode: 404,

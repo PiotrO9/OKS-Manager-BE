@@ -18,6 +18,7 @@ export type VehicleForAccessRow = {
 	mileageKm: number | null;
 	note: string | null;
 	availabilityStatus: VehicleAvailabilityStatus;
+	unavailableUntil: Date | null;
 	createdAt: Date;
 	school: {
 		ownerId: string;
@@ -26,7 +27,11 @@ export type VehicleForAccessRow = {
 	};
 };
 
-export type VehicleResponse = Omit<Vehicle, 'availabilityStatus'> & {
+export type VehicleResponse = Omit<
+	Vehicle,
+	'availabilityStatus' | 'unavailableUntil'
+> & {
 	status: VehicleAvailabilityStatus;
+	unavailableUntil: string | null;
 	isDefault?: boolean;
 };
