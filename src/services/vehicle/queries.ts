@@ -6,6 +6,10 @@ import {
 	loadVehicleWithSchoolForAccess,
 	userMayAccessVehicleSchool,
 } from './access';
+import {
+	refreshExpiredVehicleUnavailabilities,
+	refreshExpiredVehicleUnavailability,
+} from './availabilityRefresh';
 import { vehicleToResponse } from './mappers';
 import type { VehicleResponse } from './types';
 
@@ -28,9 +32,13 @@ export async function listVehiclesBySchoolForUser(
 		where: { schoolId, isActive: true },
 		orderBy: { createdAt: 'asc' },
 	});
+	const refreshedVehicles = await refreshExpiredVehicleUnavailabilities(
+		prisma,
+		vehicles,
+	);
 
 	const defaultVehicleId = school.defaultVehicleId ?? null;
-	let vehiclesWithDefault = vehicles.map((v) => ({
+	let vehiclesWithDefault = refreshedVehicles.map((v) => ({
 		...v,
 		isDefault: defaultVehicleId !== null && v.id === defaultVehicleId,
 	}));
@@ -98,9 +106,13 @@ export async function getVehicleByIdForUser(
 	}
 
 	const { school, ...vehicle } = loaded.row;
+	const refreshedVehicle = await refreshExpiredVehicleUnavailability(
+		prisma,
+		vehicle,
+	);
 
 	return vehicleToResponse(
-		vehicle,
+		refreshedVehicle,
 		school.defaultVehicleId !== null &&
 			school.defaultVehicleId === vehicle.id,
 	);

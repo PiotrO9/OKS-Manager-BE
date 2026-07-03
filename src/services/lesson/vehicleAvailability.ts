@@ -1,31 +1,15 @@
 import {
-	CourseKind,
-	CourseParticipantStatus,
 	EventType,
 	LessonStatus,
-	LessonType,
 	Prisma,
-	Role,
+	PrismaClient,
 	VehicleAvailabilityStatus,
 } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
-import { assertInstructorQualifiedForCourseType } from '../../lib/instructorCourseQualification';
 import { validateVehicleForInstructor } from '../../lib/vehicle.helpers';
-import { getPrisma } from '../../lib/prisma';
-import type {
-	BookLessonBody,
-	BookOwnLessonBody,
-	UpdateLessonBody,
-} from '../../schemas/lesson.schemas';
-import {
-	assertCourseDrivingPackageHoursAllowNewLesson,
-	assertStudentNoScheduleOverlap,
-} from '../../lib/lesson-scheduling';
-import { assertInstructorTimeWindowAvailable } from '../instructor-availability.service';
+import { refreshExpiredVehicleUnavailabilitiesForSchool } from '../vehicle/availabilityRefresh';
 
-const prisma = getPrisma();
-
-type DbClient = Prisma.TransactionClient | typeof prisma;
+type DbClient = Prisma.TransactionClient | PrismaClient;
 
 export async function vehicleHasBookingConflict(
 	db: DbClient,
@@ -73,6 +57,8 @@ export async function assertVehicleAvailableForBooking(
 	end: Date,
 	options?: { excludeLessonId?: string },
 ): Promise<void> {
+	await refreshExpiredVehicleUnavailabilitiesForSchool(db, courseSchoolId);
+
 	const vehicleInSchool = await db.vehicle.findFirst({
 		where: {
 			id: vehicleId,
@@ -112,6 +98,7 @@ export async function findAvailableVehicleIdForStudentBooking(
 		where: { id: schoolId },
 		select: { defaultVehicleId: true },
 	});
+	await refreshExpiredVehicleUnavailabilitiesForSchool(db, schoolId);
 
 	const candidates = await db.vehicle.findMany({
 		where: {

@@ -46,6 +46,7 @@ const { prismaMock, helperMocks } = vi.hoisted(() => ({
 		vehicle: {
 			findFirst: vi.fn(),
 			findMany: vi.fn(),
+			updateMany: vi.fn(),
 		},
 	},
 }));
@@ -138,6 +139,7 @@ function mockHappyPath() {
 		isActive: true,
 		availabilityStatus: VehicleAvailabilityStatus.ACTIVE,
 	});
+	prismaMock.vehicle.updateMany.mockResolvedValue({ count: 0 });
 	prismaMock.lesson.findFirst.mockResolvedValue(null);
 	prismaMock.instructorEvent.findFirst.mockResolvedValue(null);
 	prismaMock.lesson.create.mockResolvedValue({
@@ -190,6 +192,18 @@ describe('bookOwnLesson', () => {
 				}),
 			}),
 		);
+		expect(prismaMock.vehicle.updateMany).toHaveBeenCalledWith({
+			where: {
+				schoolId,
+				isActive: true,
+				availabilityStatus: VehicleAvailabilityStatus.UNAVAILABLE,
+				unavailableUntil: { lt: expect.any(Date) },
+			},
+			data: {
+				availabilityStatus: VehicleAvailabilityStatus.ACTIVE,
+				unavailableUntil: null,
+			},
+		});
 	});
 
 	it('rejects non-student actors', async () => {
