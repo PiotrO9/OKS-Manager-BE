@@ -16,6 +16,7 @@ import { createDevRouter } from './routes/dev.routes';
 import { createEventsRouter } from './routes/events.routes';
 import { createLessonsRouter } from './routes/lessons.routes';
 import { createLessonRatingsRouter } from './routes/lesson-ratings.routes';
+import { createManagerAttentionRouter } from './routes/manager-attention.routes';
 import { createMeRouter } from './routes/me.routes';
 import { createScheduleRouter } from './routes/schedule.routes';
 import { setupSwagger } from './swagger/setupSwagger';
@@ -52,6 +53,7 @@ function createApp() {
 	app.use('/events', createEventsRouter());
 	app.use('/lessons', createLessonsRouter());
 	app.use('/ratings', createLessonRatingsRouter());
+	app.use('/manager', createManagerAttentionRouter());
 	app.use('/me', createMeRouter());
 	app.use('/schedule', createScheduleRouter());
 	if (process.env.NODE_ENV !== 'production') {
@@ -75,13 +77,11 @@ async function startServer() {
 	const app = createApp();
 	const port = process.env.PORT || 3001;
 	app.listen(port, () => {
-		 
 		console.log(`Server listening on http://localhost:${port}`);
 	});
 }
 
 startServer().catch((err) => {
-	 
 	console.error(err);
 	process.exit(1);
 });
