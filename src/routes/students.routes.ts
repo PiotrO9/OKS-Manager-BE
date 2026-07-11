@@ -1,15 +1,19 @@
 import { Router } from 'express';
 import {
 	assignStudentToCourse,
+	createStudentPayment,
 	getStudentDetail,
 	getStudentEvents,
 	getStudentPayments,
 	getStudentProcessStatus,
 	listStudents,
+	markStudentPaymentPaid,
+	markStudentPaymentUnpaid,
 	patchCourseParticipantStatus,
 	patchStudent,
 	patchStudentDrivingSchool,
 	patchStudentPkk,
+	updateStudentPayment,
 } from '../controllers/students.controller';
 import { asyncHandler } from '../lib/http/asyncHandler';
 import { authMiddleware, requireMinRole } from '../middleware/auth.middleware';
@@ -43,6 +47,34 @@ function createStudentsRouter() {
 		authMiddleware,
 		requireMinRole('STUDENT'),
 		asyncHandler(getStudentPayments),
+	);
+
+	router.post(
+		'/:userId/payments',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(createStudentPayment),
+	);
+
+	router.patch(
+		'/:userId/payments/:paymentId',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(updateStudentPayment),
+	);
+
+	router.patch(
+		'/:userId/payments/:paymentId/mark-paid',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(markStudentPaymentPaid),
+	);
+
+	router.patch(
+		'/:userId/payments/:paymentId/mark-unpaid',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(markStudentPaymentUnpaid),
 	);
 
 	router.get(

@@ -68,10 +68,44 @@ export type StudentPaymentItemDto = {
 	date: string | null;
 	dueDate: string | null;
 	paidAt: string | null;
+	method: string | null;
+};
+
+export type StudentPaymentsSummaryDto = {
+	paidAmount: string;
+	unpaidAmount: string;
+	overdueAmount: string;
+	overdueCount: number;
+	nextDueDate: string | null;
+	currency: string;
 };
 
 export type StudentPaymentsDto = {
 	payments: StudentPaymentItemDto[];
+	summary: StudentPaymentsSummaryDto;
+};
+
+export type CreateStudentPaymentInput = {
+	schoolId: string;
+	paymentPlanId: string;
+	amount: string;
+	dueDate?: string | null;
+	method?: string | null;
+};
+
+export type UpdateStudentPaymentInput = {
+	schoolId: string;
+	dueDate?: string | null;
+	method?: string | null;
+};
+
+export type MarkStudentPaymentPaidInput = {
+	schoolId: string;
+	paidAt?: string | null;
+};
+
+export type MarkStudentPaymentUnpaidInput = {
+	schoolId: string;
 };
 
 export type StudentListItemDto = {

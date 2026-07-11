@@ -9,8 +9,12 @@ export {
 	patchCourseParticipantStatusForStaff,
 } from './students/courseParticipants';
 export {
+	createStudentPaymentForManager,
 	listPaymentsForCurrentUser,
 	listStudentPayments,
+	markStudentPaymentPaidForManager,
+	markStudentPaymentUnpaidForManager,
+	updateStudentPaymentForManager,
 } from './students/payments';
 export { getStudentProcessStatus } from './students/processStatus';
 export { getStudentDetail } from './students/detail';

@@ -37,6 +37,96 @@ export const studentPaymentsQuerySchema = z.object({
 
 export type StudentPaymentsQuery = z.infer<typeof studentPaymentsQuerySchema>;
 
+const studentPaymentDateSchema = z.preprocess(
+	(val) => {
+		if (val === null || val === undefined) {
+			return null;
+		}
+		if (typeof val !== 'string') {
+			return val;
+		}
+		const t = val.trim();
+		return t.length > 0 ? t : null;
+	},
+	z
+		.union([
+			z.null(),
+			z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+		])
+		.optional(),
+);
+
+const studentPaymentMethodSchema = z.preprocess(
+	(val) => {
+		if (val === null || val === undefined) {
+			return null;
+		}
+		if (typeof val !== 'string') {
+			return val;
+		}
+		const t = val.trim();
+		return t.length > 0 ? t : null;
+	},
+	z.union([z.null(), z.string().max(80, 'Method is too long')]).optional(),
+);
+
+const studentPaymentSchoolIdBodySchema = z.object({
+	schoolId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid schoolId'),
+});
+
+export const studentPaymentParamsSchema = z.object({
+	userId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid user id'),
+	paymentId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid payment id'),
+});
+
+export const createStudentPaymentBodySchema =
+	studentPaymentSchoolIdBodySchema.extend({
+		paymentPlanId: z
+			.string()
+			.trim()
+			.regex(UUID_PARAM_RE, 'Invalid paymentPlanId'),
+		amount: z.preprocess(
+			(val) => (typeof val === 'number' ? String(val) : val),
+			z
+				.string()
+				.trim()
+				.regex(/^\d+(\.\d{1,2})?$/, 'Invalid amount')
+				.refine((value) => Number(value) > 0, 'Amount must be positive'),
+		),
+		dueDate: studentPaymentDateSchema,
+		method: studentPaymentMethodSchema,
+	});
+
+export type CreateStudentPaymentBody = z.infer<
+	typeof createStudentPaymentBodySchema
+>;
+
+export const updateStudentPaymentBodySchema =
+	studentPaymentSchoolIdBodySchema.extend({
+		dueDate: studentPaymentDateSchema,
+		method: studentPaymentMethodSchema,
+	});
+
+export type UpdateStudentPaymentBody = z.infer<
+	typeof updateStudentPaymentBodySchema
+>;
+
+export const markStudentPaymentPaidBodySchema =
+	studentPaymentSchoolIdBodySchema.extend({
+		paidAt: studentPaymentDateSchema,
+	});
+
+export type MarkStudentPaymentPaidBody = z.infer<
+	typeof markStudentPaymentPaidBodySchema
+>;
+
+export const markStudentPaymentUnpaidBodySchema =
+	studentPaymentSchoolIdBodySchema;
+
+export type MarkStudentPaymentUnpaidBody = z.infer<
+	typeof markStudentPaymentUnpaidBodySchema
+>;
+
 const STUDENT_EVENTS_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const studentEventsQuerySchema = z
