@@ -1,1 +1,22 @@
-export * from './instructor-availability/implementation';
+export {
+	assertActorCanManageAvailability,
+	assertInstructorTimeWindowAvailable,
+	computeAvailability,
+	computeDayWindows,
+	deleteException,
+	deleteWeeklyDay,
+	generateSlots,
+	generateSlotsInternal,
+	getWeeklyAvailability,
+	listExceptions,
+	resolveActiveInstructorProfile,
+	upsertException,
+	upsertWeeklyDay,
+	type Actor,
+	type AvailabilityDbClient,
+	type AvailabilityWindow,
+	type ComputedAvailability,
+	type ExceptionEntryDto,
+	type SlotDto,
+	type WeeklyEntryDto,
+} from './instructor-availability/implementation';

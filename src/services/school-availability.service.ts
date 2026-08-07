@@ -1,1 +1,6 @@
-export * from './school-availability/implementation';
+export {
+	listSchoolAvailabilitySlots,
+	type Actor,
+	type ListSchoolSlotsResult,
+	type SchoolSlotItemDto,
+} from './school-availability/implementation';

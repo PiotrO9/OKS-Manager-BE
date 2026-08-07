@@ -42,10 +42,10 @@ export async function loadParticipantWriteEvent(
 			type: true,
 			...(options.includeSchedule
 				? {
-						startTime: true,
-						endTime: true,
-						capacity: true,
-					}
+					startTime: true,
+					endTime: true,
+					capacity: true,
+				}
 				: {}),
 		},
 	});

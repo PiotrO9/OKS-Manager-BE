@@ -2,13 +2,11 @@ import {
 	CourseKind,
 	Prisma,
 	VehicleAvailabilityStatus,
-	type InstructorProfile,
-	type StudentProfile,
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { CITIES, COURSE_TYPES } from './constants';
 import { addDays, dateOnly, pick, timeOnly } from './dateHelpers';
-import type { SeedContext, SeedVehicle, UserWithProfiles } from './types';
+import type { SeedContext, SeedVehicle } from './types';
 
 export async function seedReferenceData(
 	tx: Prisma.TransactionClient,

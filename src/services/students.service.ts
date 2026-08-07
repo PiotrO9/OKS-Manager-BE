@@ -1,4 +1,23 @@
-export * from './students/types';
+export type {
+	AssignStudentDrivingSchoolResult,
+	CreateStudentPaymentInput,
+	ListStudentsResult,
+	MarkStudentPaymentPaidInput,
+	MarkStudentPaymentUnpaidInput,
+	PatchCourseParticipantStatusResult,
+	PatchStudentPkkResult,
+	PatchStudentResult,
+	StudentCourseDto,
+	StudentDetailDto,
+	StudentListItemDto,
+	StudentPaymentItemDto,
+	StudentPaymentsDto,
+	StudentPaymentsSummaryDto,
+	StudentPaymentStatus,
+	StudentProcessStatusDto,
+	StudentProcessStatusStepDto,
+	UpdateStudentPaymentInput,
+} from './students/types';
 export {
 	assignStudentDrivingSchoolForAdminOrManager,
 	patchStudentForStaff,

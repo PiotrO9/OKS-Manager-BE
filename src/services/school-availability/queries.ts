@@ -50,10 +50,12 @@ export async function listSchoolAvailabilitySlots(
 	const slotDurationMinutes =
 		query.slotDurationMinutes ?? school.slotDurationMinutes;
 
-	let { instructorIds, metaById } = await loadSchoolInstructorSelection(
+	const instructorSelection = await loadSchoolInstructorSelection(
 		school.id,
 		query.instructorIds,
 	);
+	let { instructorIds } = instructorSelection;
+	const { metaById } = instructorSelection;
 
 	if (query.courseId) {
 		const course = await prisma.course.findFirst({
