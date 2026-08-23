@@ -1,37 +1,8 @@
+import { EventStatus, EventType, LessonType } from '@prisma/client';
 import {
-	CourseParticipantStatus,
-	EventStatus,
-	EventType,
-	LessonStatus,
-	LessonType,
-	Prisma,
-	Role,
-} from '@prisma/client';
-import { AppError } from '../../lib/http/AppError';
-import { assertInstructorQualifiedForCourseType } from '../../lib/instructorCourseQualification';
-import { validateVehicleForInstructor } from '../../lib/vehicle.helpers';
-import { getPrisma } from '../../lib/prisma';
-import type {
-	AssignStudentsBody,
-	BulkUpdateEventStatusBody,
-	CreateInstructorEventBody,
-	ListEventsQuery,
-	PatchInstructorEventBody,
-	ReplaceEventStudentsBody,
-} from '../../schemas/event.schemas';
-import {
-	mapPersonToLessonDetailDto,
 	type LessonPersonDetailDto,
 	type LessonVehicleDetailDto,
 } from '../lesson.service';
-import {
-	assertActorCanManageAvailability,
-	assertInstructorTimeWindowAvailable,
-	computeDayWindows,
-	resolveActiveInstructorProfile,
-} from '../instructor-availability.service';
-
-const prisma = getPrisma();
 
 export type InstructorEventDto = {
 	id: string;

@@ -1,37 +1,16 @@
-import {
-	CourseKind,
-	CourseParticipantStatus,
-	EventType,
-	LessonStatus,
-	LessonType,
-	Prisma,
-	Role,
-	VehicleAvailabilityStatus,
-} from '@prisma/client';
+import { Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
-import { assertInstructorQualifiedForCourseType } from '../../lib/instructorCourseQualification';
-import { validateVehicleForInstructor } from '../../lib/vehicle.helpers';
 import { getPrisma } from '../../lib/prisma';
-import type {
-	BookLessonBody,
-	BookOwnLessonBody,
-	UpdateLessonBody,
-} from '../../schemas/lesson.schemas';
-import {
-	assertCourseDrivingPackageHoursAllowNewLesson,
-	assertStudentNoScheduleOverlap,
-} from '../../lib/lesson-scheduling';
-import { assertInstructorTimeWindowAvailable } from '../instructor-availability.service';
 
 const prisma = getPrisma();
 
+import { assertActorCanBookLessonForCourse } from './bookingRules';
 import {
 	mapLessonRowToDto,
 	mapPersonToLessonDetailDto,
 	mapVehicleToLessonDetailDto,
 	type LessonWithDetailsDto,
 } from './dtoMappers';
-import { assertActorCanBookLessonForCourse } from './bookingRules';
 
 export async function getLessonById(
 	actor: { id: string; role: Role },

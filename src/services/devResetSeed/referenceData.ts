@@ -1,27 +1,22 @@
-import {
-	CourseKind,
-	Prisma,
-	VehicleAvailabilityStatus,
-	type InstructorProfile,
-	type StudentProfile,
-} from '@prisma/client';
+import { CourseKind, Prisma, VehicleAvailabilityStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { CITIES, COURSE_TYPES } from './constants';
 import { addDays, dateOnly, pick, timeOnly } from './dateHelpers';
-import type { SeedContext, SeedVehicle, UserWithProfiles } from './types';
+import type { SeedContext, SeedVehicle } from './types';
 
 export async function seedReferenceData(
 	tx: Prisma.TransactionClient,
 	context: SeedContext,
 ): Promise<SeedContext> {
-	const courseTypeInputs: Prisma.CourseTypeCreateManyInput[] = COURSE_TYPES.map(
-		(input) => ({
+	const courseTypeInputs: Prisma.CourseTypeCreateManyInput[] =
+		COURSE_TYPES.map((input) => ({
 			id: randomUUID(),
 			...input,
-		}),
-	);
+		}));
 	await tx.courseType.createMany({ data: courseTypeInputs });
-	const courseTypes = await tx.courseType.findMany({ orderBy: { code: 'asc' } });
+	const courseTypes = await tx.courseType.findMany({
+		orderBy: { code: 'asc' },
+	});
 
 	const schools = context.managers.map((manager, i) => ({
 		id: randomUUID(),
@@ -59,8 +54,9 @@ export async function seedReferenceData(
 	});
 
 	const offeredCourseRows = schools.flatMap((school) =>
-		courseTypes.map((type) =>
-			Prisma.sql`(${type.id}::uuid, ${school.settingsId}::uuid)`,
+		courseTypes.map(
+			(type) =>
+				Prisma.sql`(${type.id}::uuid, ${school.settingsId}::uuid)`,
 		),
 	);
 	if (offeredCourseRows.length > 0) {
@@ -126,7 +122,9 @@ export async function seedReferenceData(
 	for (let i = 0; i < context.managers.length; i += 1) {
 		const manager = context.managers[i]!;
 		const school = schools[i % schools.length]!;
-		userDefaultOskRows.push(Prisma.sql`(${manager.id}::uuid, ${school.id}::uuid)`);
+		userDefaultOskRows.push(
+			Prisma.sql`(${manager.id}::uuid, ${school.id}::uuid)`,
+		);
 	}
 
 	for (let i = 0; i < context.instructors.length; i += 1) {
