@@ -1,4 +1,8 @@
-import { CourseKind, Prisma, VehicleAvailabilityStatus } from '@prisma/client';
+import {
+	CourseKind,
+	Prisma,
+	VehicleAvailabilityStatus,
+} from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { CITIES, COURSE_TYPES } from './constants';
 import { addDays, dateOnly, pick, timeOnly } from './dateHelpers';

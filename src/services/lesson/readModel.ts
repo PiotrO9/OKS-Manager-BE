@@ -1,9 +1,6 @@
 import { Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
-
-const prisma = getPrisma();
-
 import { assertActorCanBookLessonForCourse } from './bookingRules';
 import {
 	mapLessonRowToDto,
@@ -11,6 +8,8 @@ import {
 	mapVehicleToLessonDetailDto,
 	type LessonWithDetailsDto,
 } from './dtoMappers';
+
+const prisma = getPrisma();
 
 export async function getLessonById(
 	actor: { id: string; role: Role },

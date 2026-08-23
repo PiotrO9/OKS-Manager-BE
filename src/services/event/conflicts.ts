@@ -1,6 +1,6 @@
 import { LessonStatus, Prisma } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
-import { getPrisma } from '../../lib/prisma';
+import type { getPrisma } from '../../lib/prisma';
 
 export async function findStudentProfileIdsWithScheduleConflictsForEventWindow(
 	tx: Prisma.TransactionClient | ReturnType<typeof getPrisma>,

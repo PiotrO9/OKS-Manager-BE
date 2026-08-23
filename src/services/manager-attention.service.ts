@@ -1,4 +1,4 @@
-export * from './manager-attention/implementation';
+export { listManagerAttentionItems } from './manager-attention/implementation';
 export type {
 	ManagerAttentionItemDto,
 	ManagerAttentionItemPriority,

@@ -2,14 +2,13 @@ import { CourseParticipantStatus, EventType, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 import { assertActorCanManageAvailability } from '../instructor-availability.service';
+import { findStudentProfileIdsWithScheduleConflictsForEventWindow } from './conflicts';
+import {
+	type ListTheoryEventEligibleStudentsResult,
+	type TheoryEventEligibleStudentRowDto,
+} from './mappers';
 
 const prisma = getPrisma();
-
-import { findStudentProfileIdsWithScheduleConflictsForEventWindow } from './conflicts';
-import type {
-	ListTheoryEventEligibleStudentsResult,
-	TheoryEventEligibleStudentRowDto,
-} from './mappers';
 
 export async function listTheoryEventEligibleStudents(
 	actor: { id: string; role: Role },

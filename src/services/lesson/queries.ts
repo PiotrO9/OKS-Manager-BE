@@ -1,1 +1,0 @@
-export { getLessonById } from './implementation';
