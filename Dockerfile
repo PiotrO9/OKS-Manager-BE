@@ -2,6 +2,9 @@ FROM node:22.23-bookworm-slim AS build
 
 WORKDIR /app
 
+ARG DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
+ENV DATABASE_URL=$DATABASE_URL
+
 COPY package.json package-lock.json ./
 COPY prisma.config.ts ./
 COPY prisma ./prisma
