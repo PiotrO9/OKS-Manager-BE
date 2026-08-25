@@ -27,11 +27,19 @@ npm install
 npx prisma generate
 ```
 
-4. Wdróż schemę do bazy (szybki sposób):
+4. Utwórz migrację na bazie DEV:
 
 ```bash
-npx prisma db push
+npx prisma migrate dev --name <change-name>
 ```
+
+Na produkcji używaj tylko już utworzonych migracji:
+
+```bash
+npx prisma migrate deploy
+```
+
+Szczegóły procesu są opisane w `docs/DATABASE_WORKFLOW.md`.
 
 5. Uruchom aplikację w trybie deweloperskim:
 
