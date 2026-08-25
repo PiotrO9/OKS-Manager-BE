@@ -6,6 +6,7 @@ dist/
 
 # Runtime
 .env
+.env.old
 
 # Prisma
 @dev.db
