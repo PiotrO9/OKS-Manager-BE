@@ -3,24 +3,12 @@ import { sendJsonSuccess } from '../lib/apiResponse';
 import { AppError } from '../lib/http/AppError';
 import { asyncHandler } from '../lib/http/asyncHandler';
 import { getPrisma } from '../lib/prisma';
+import { authMiddleware, requireRole } from '../middleware/auth.middleware';
 import { resetAndSeedDemoDatabase } from '../services/devResetSeed.service';
 
-function requireManualDevReset(reqSecret: unknown) {
-	if (process.env.NODE_ENV !== 'development') {
-		throw AppError.notFound('Not found');
-	}
-
+function requireResetAndSeedEnabled() {
 	if (process.env.ALLOW_DB_RESET !== 'true') {
 		throw AppError.forbidden('Database reset is disabled');
-	}
-
-	const expectedSecret = process.env.DEV_DB_RESET_SECRET;
-	if (!expectedSecret) {
-		throw AppError.forbidden('DEV_DB_RESET_SECRET is not configured');
-	}
-
-	if (typeof reqSecret !== 'string' || reqSecret !== expectedSecret) {
-		throw AppError.forbidden('Invalid reset secret');
 	}
 }
 
@@ -29,9 +17,11 @@ function createDevRouter() {
 
 	router.post(
 		'/reset-and-seed',
+		authMiddleware,
+		requireRole('ADMIN'),
 		asyncHandler(async (req, res) => {
 			const startedAtMs = Date.now();
-			requireManualDevReset(req.header('x-dev-reset-secret'));
+			requireResetAndSeedEnabled();
 
 			const result = await resetAndSeedDemoDatabase(getPrisma());
 			const finishedAtMs = Date.now();
@@ -53,4 +43,4 @@ function createDevRouter() {
 	return router;
 }
 
-export { createDevRouter };
+export { createDevRouter, requireResetAndSeedEnabled };

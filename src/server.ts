@@ -56,9 +56,7 @@ function createApp() {
 	app.use('/manager', createManagerAttentionRouter());
 	app.use('/me', createMeRouter());
 	app.use('/schedule', createScheduleRouter());
-	if (process.env.NODE_ENV !== 'production') {
-		app.use('/dev', createDevRouter());
-	}
+	app.use('/dev', createDevRouter());
 
 	app.get('/test', async (req, res) => {
 		return sendJsonSuccess(res, {
