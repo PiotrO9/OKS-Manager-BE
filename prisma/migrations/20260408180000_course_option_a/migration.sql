@@ -1,5 +1,9 @@
 -- CreateEnum
-CREATE TYPE "CourseKind" AS ENUM ('THEORY_GROUP', 'PRACTICAL', 'EXTRA');
+DO $$ BEGIN
+  CREATE TYPE "CourseKind" AS ENUM ('THEORY_GROUP', 'PRACTICAL', 'EXTRA');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- AlterTable
 ALTER TABLE "courses" ADD COLUMN "name" TEXT,

@@ -1,3 +1,9 @@
+DO $$ BEGIN
+  CREATE TYPE "CourseKind" AS ENUM ('THEORY_GROUP', 'PRACTICAL', 'EXTRA');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
 -- AlterTable
 ALTER TABLE "school_settings" ADD COLUMN "enabled_course_kinds" "CourseKind"[] NOT NULL DEFAULT ARRAY['THEORY_GROUP', 'PRACTICAL', 'EXTRA']::"CourseKind"[];
 
