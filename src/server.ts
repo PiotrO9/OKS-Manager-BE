@@ -58,6 +58,12 @@ function createApp() {
 	app.use('/schedule', createScheduleRouter());
 	app.use('/dev', createDevRouter());
 
+	app.get('/health', async (req, res) => {
+		return sendJsonSuccess(res, {
+			status: 'ok',
+		});
+	});
+
 	app.get('/test', async (req, res) => {
 		return sendJsonSuccess(res, {
 			message: 'OSK Manager API - test endpoint',
