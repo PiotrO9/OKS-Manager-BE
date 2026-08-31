@@ -1,0 +1,19 @@
+name: Trigger homelab deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  trigger-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger deploy repository workflow
+        run: |
+          curl --fail --silent --show-error -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.DEPLOY_REPO_DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/PiotrO9/OSK-Manager-DEPLOY/actions/workflows/deploy.yml/dispatches \
+            -d '{"ref":"main"}'
