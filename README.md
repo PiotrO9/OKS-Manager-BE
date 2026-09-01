@@ -41,6 +41,10 @@ npx prisma migrate deploy
 
 Szczegóły procesu są opisane w `docs/DATABASE_WORKFLOW.md`.
 
+## Homelab Deployment
+
+Pushes to `main` run the backend CI workflow. When CI passes, it triggers the homelab deployment workflow in the deploy repository.
+
 5. Uruchom aplikację w trybie deweloperskim:
 
 ```bash
