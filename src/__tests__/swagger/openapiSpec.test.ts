@@ -71,6 +71,10 @@ describe('getOpenApiSpec', () => {
 			['get', '/students/{userId}/events'],
 			['get', '/students/{userId}/process-status'],
 			['get', '/students/{userId}/payments'],
+			['post', '/students/{userId}/payments'],
+			['patch', '/students/{userId}/payments/{paymentId}'],
+			['patch', '/students/{userId}/payments/{paymentId}/mark-paid'],
+			['patch', '/students/{userId}/payments/{paymentId}/mark-unpaid'],
 			['get', '/students/{userId}'],
 			['patch', '/students/{userId}'],
 			['patch', '/students/{userId}/driving-school'],
@@ -89,6 +93,8 @@ describe('getOpenApiSpec', () => {
 			['patch', '/courses/{id}'],
 			['post', '/courses'],
 			['get', '/course-types'],
+			['get', '/events'],
+			['patch', '/events/bulk-status'],
 			['get', '/events/{id}'],
 			['patch', '/events/{id}'],
 			['delete', '/events/{id}'],
@@ -107,6 +113,10 @@ describe('getOpenApiSpec', () => {
 			['patch', '/lessons/{id}'],
 			['get', '/ratings'],
 			['get', '/ratings/me'],
+			['get', '/manager/attention-items'],
+			['get', '/schedule/me'],
+			['get', '/schedule'],
+			['post', '/dev/reset-and-seed'],
 		];
 
 		for (const [method, path] of expectedDocumentedRoutes) {

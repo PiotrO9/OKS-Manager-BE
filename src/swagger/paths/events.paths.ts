@@ -1,6 +1,7 @@
 import type { OpenAPIRegistry } from '@asteasolutions/zod-to-openapi';
 import {
 	assignStudentsBodySchema,
+	bulkUpdateEventStatusBodySchema,
 	clientError,
 	createInstructorEventBodySchema,
 	eligibleStudentsQuerySchema,
@@ -18,6 +19,39 @@ import {
 
 export function registerEventPaths(registry: OpenAPIRegistry): void {
 	// ── Events ────────────────────────────────────────────────────────────────
+	registry.registerPath({
+		method: 'get',
+		path: '/events',
+		tags: ['Events'],
+		summary: 'Lista wydarzeń instruktora',
+		description:
+			'Widok wydarzeń z filtrowaniem po zakresie dat i kontekście OSK zgodnie z query parserem kontrolera.',
+		security: [{ bearerAuth: [] }],
+		responses: stdBearerResponses({
+			200: okDataUnknown('Lista wydarzeń'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'patch',
+		path: '/events/bulk-status',
+		tags: ['Events'],
+		summary: 'Zbiorcza zmiana statusu wydarzeń',
+		security: [{ bearerAuth: [] }],
+		request: {
+			body: {
+				content: {
+					'application/json': {
+						schema: bulkUpdateEventStatusBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('Wynik zbiorczej aktualizacji statusów'),
+		}),
+	});
+
 	registry.registerPath({
 		method: 'post',
 		path: '/events',
