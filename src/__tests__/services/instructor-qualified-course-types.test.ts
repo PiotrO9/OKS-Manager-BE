@@ -4,6 +4,7 @@ import {
 	getInstructorByIdForUser,
 	updateInstructorForManagerOrAdmin,
 } from '../../services/instructor.service';
+import type { InstructorQualifiedCourseType } from '../../services/instructor/types';
 
 const { prismaMock } = vi.hoisted(() => ({
 	prismaMock: {
@@ -34,7 +35,7 @@ const courseTypeIdA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const courseTypeIdB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 function instructorProfile(
-	qualifiedCourseTypes = [],
+	qualifiedCourseTypes: InstructorQualifiedCourseType[] = [],
 	ownerId = managerId,
 ) {
 	return {

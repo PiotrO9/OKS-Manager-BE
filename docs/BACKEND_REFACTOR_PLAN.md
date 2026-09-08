@@ -127,7 +127,7 @@ Strumien 4: modularity audit
 ### Stage 2 - checks/toolchain
 
 - [x] Dodac brakujace skrypty `format:check`, `typecheck`,
-  `typecheck:build`, `check`.
+      `typecheck:build`, `check`.
 - [x] Uruchomic `npm run lint`.
 - [x] Uruchomic `npm run format:check`.
 - [x] Uruchomic `npm run typecheck`.
@@ -138,20 +138,20 @@ Strumien 4: modularity audit
 
 Wyniki z 2026-09-07:
 
-| Check | Wynik | Uwagi |
-| --- | --- | --- |
-| `npm run lint` | PASS | ESLint przechodzi. |
-| `npm run format:check` | FAIL | Prettier wskazuje 63 pliki w `src/**/*.ts`. Formatowanie wymaga osobnego Stage 4. |
-| `npm run typecheck` | FAIL | 5 bledow TypeScript w testach: `auth-me.test.ts` oraz `instructor-qualified-course-types.test.ts`. |
-| `npm run typecheck:build` | PASS | Produkcyjny typecheck przez `tsconfig.build.json` przechodzi. |
-| `npm run test` | PASS | 24 pliki testowe, 168 testow. |
-| `npm run build` | PASS | Build produkcyjny przechodzi. |
-| `npm run check` | FAIL | Skrypt dziala, ale zatrzymuje sie na `format:check` przed kolejnymi etapami. |
+| Check                     | Wynik | Uwagi                                                                                              |
+| ------------------------- | ----- | -------------------------------------------------------------------------------------------------- |
+| `npm run lint`            | PASS  | ESLint przechodzi.                                                                                 |
+| `npm run format:check`    | FAIL  | Prettier wskazuje 63 pliki w `src/**/*.ts`. Formatowanie wymaga osobnego Stage 4.                  |
+| `npm run typecheck`       | FAIL  | 5 bledow TypeScript w testach: `auth-me.test.ts` oraz `instructor-qualified-course-types.test.ts`. |
+| `npm run typecheck:build` | PASS  | Produkcyjny typecheck przez `tsconfig.build.json` przechodzi.                                      |
+| `npm run test`            | PASS  | 24 pliki testowe, 168 testow.                                                                      |
+| `npm run build`           | PASS  | Build produkcyjny przechodzi.                                                                      |
+| `npm run check`           | FAIL  | Skrypt dziala, ale zatrzymuje sie na `format:check` przed kolejnymi etapami.                       |
 
 ### Stage 3 - TypeScript w testach
 
-- [ ] Naprawic bledy `npm run typecheck` bez oslabiania konfiguracji.
-- [ ] Zachowac produkcyjny build na zielono.
+- [x] Naprawic bledy `npm run typecheck` bez oslabiania konfiguracji.
+- [x] Zachowac produkcyjny build na zielono.
 
 ### Stage 4 - formatowanie backendu
 
@@ -176,7 +176,7 @@ Wyniki z 2026-09-07:
 - [ ] Rozbic `students/payments` na queries, commands, mappers, rules.
 - [ ] Odchudzic duze kontrolery bez zmiany kontraktu HTTP.
 - [ ] Utrzymac stare importy przez fasady/re-exporty tam, gdzie to zmniejsza
-  ryzyko.
+      ryzyko.
 
 ### Stage 7 - logger
 
