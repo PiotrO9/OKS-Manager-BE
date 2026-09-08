@@ -1,6 +1,7 @@
 import type { ErrorRequestHandler } from 'express';
 import { ZodError } from 'zod';
 import { sendJsonError } from '../apiResponse';
+import { logger } from '../logger';
 import { AppError } from './AppError';
 
 export const errorRequestHandler: ErrorRequestHandler = (
@@ -25,6 +26,6 @@ export const errorRequestHandler: ErrorRequestHandler = (
 		return;
 	}
 
-	console.error('Unhandled error', err);
+	logger.error('Unhandled error', err);
 	sendJsonError(res, 'Internal server error', 500);
 };

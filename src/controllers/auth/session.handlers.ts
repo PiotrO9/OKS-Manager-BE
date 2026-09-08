@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { sendJsonError, sendJsonSuccess } from '../../lib/apiResponse';
+import { logger } from '../../lib/logger';
 import { getPrisma } from '../../lib/prisma';
 import { getSupabaseClient } from '../../lib/supabase';
 import {
@@ -133,14 +134,13 @@ export async function logout(req: Request, res: Response) {
 			if (!error && data.session) {
 				const { error: signOutError } = await supabase.auth.signOut();
 				if (signOutError) {
-					console.error(
-						'logout: supabase signOut failed',
-						signOutError.message,
-					);
+					logger.error('logout: supabase signOut failed', {
+						message: signOutError.message,
+					});
 				}
 			}
 		} catch (err) {
-			console.error('logout: supabase revoke failed', err);
+			logger.error('logout: supabase revoke failed', err);
 		}
 	}
 
