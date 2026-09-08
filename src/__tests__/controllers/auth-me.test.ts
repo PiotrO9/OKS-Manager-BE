@@ -47,6 +47,13 @@ describe('buildMeResponsePayload', () => {
 	it('includes pkkNumber for student users', async () => {
 		const result = await buildMeResponsePayload(authUser(Role.STUDENT));
 
+		expect('pkkNumber' in result).toBe(true);
+		if (!('pkkNumber' in result)) {
+			throw new Error(
+				'Expected student /auth/me payload to include pkkNumber',
+			);
+		}
+
 		expect(result.pkkNumber).toBe('12345678901234567890');
 		expect(prismaMock.studentProfile.findUnique).toHaveBeenCalledWith({
 			where: { userId: '11111111-1111-4111-8111-111111111111' },
