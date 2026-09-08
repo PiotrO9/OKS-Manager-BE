@@ -19,9 +19,9 @@ async function listVehiclesBySchool(req: Request, res: Response) {
 	const timeRange =
 		query.startTime && query.endTime
 			? {
-				start: new Date(query.startTime),
-				end: new Date(query.endTime),
-			}
+					start: new Date(query.startTime),
+					end: new Date(query.endTime),
+				}
 			: undefined;
 
 	const data = await vehicleService.listVehiclesBySchoolForUser(
@@ -34,18 +34,23 @@ async function listVehiclesBySchool(req: Request, res: Response) {
 
 async function getVehicleById(req: Request, res: Response) {
 	const user = requireUser(req);
-	const params = parseRequestPart(vehicleIdParamsSchema, req.params, 'params');
-
-	const data = await vehicleService.getVehicleByIdForUser(
-		user.id,
-		params.id,
+	const params = parseRequestPart(
+		vehicleIdParamsSchema,
+		req.params,
+		'params',
 	);
+
+	const data = await vehicleService.getVehicleByIdForUser(user.id, params.id);
 	return sendJsonSuccess(res, data);
 }
 
 async function uploadVehiclePhoto(req: Request, res: Response) {
 	const user = requireUser(req);
-	const params = parseRequestPart(vehicleIdParamsSchema, req.params, 'params');
+	const params = parseRequestPart(
+		vehicleIdParamsSchema,
+		req.params,
+		'params',
+	);
 
 	const file = (req as Request & { file?: UploadedPhotoFile }).file;
 	const data = await vehicleService.uploadVehiclePhotoForUser(
@@ -65,7 +70,11 @@ async function upsertVehicle(req: Request, res: Response) {
 
 async function updateVehicle(req: Request, res: Response) {
 	const user = requireUser(req);
-	const params = parseRequestPart(vehicleIdParamsSchema, req.params, 'params');
+	const params = parseRequestPart(
+		vehicleIdParamsSchema,
+		req.params,
+		'params',
+	);
 
 	const body = req.body as Record<string, unknown>;
 	const updated = await vehicleService.updateVehicleForUser(
@@ -78,7 +87,11 @@ async function updateVehicle(req: Request, res: Response) {
 
 async function updateVehicleStatus(req: Request, res: Response) {
 	const user = requireUser(req);
-	const params = parseRequestPart(vehicleIdParamsSchema, req.params, 'params');
+	const params = parseRequestPart(
+		vehicleIdParamsSchema,
+		req.params,
+		'params',
+	);
 	const body = parseRequestPart(
 		vehicleAvailabilityStatusSchema,
 		req.body,
@@ -95,12 +108,13 @@ async function updateVehicleStatus(req: Request, res: Response) {
 
 async function deleteVehicle(req: Request, res: Response) {
 	const user = requireUser(req);
-	const params = parseRequestPart(vehicleIdParamsSchema, req.params, 'params');
-
-	const data = await vehicleService.deleteVehicleForUser(
-		user.id,
-		params.id,
+	const params = parseRequestPart(
+		vehicleIdParamsSchema,
+		req.params,
+		'params',
 	);
+
+	const data = await vehicleService.deleteVehicleForUser(user.id, params.id);
 	return sendJsonSuccess(res, data);
 }
 

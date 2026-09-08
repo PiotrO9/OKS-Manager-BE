@@ -1,15 +1,15 @@
 import { z } from 'zod';
-import {
-	UUID_PARAM_RE,
-	zodPreprocessQueryFirst,
-} from '../lib/validation/uuid';
+import { UUID_PARAM_RE, zodPreprocessQueryFirst } from '../lib/validation/uuid';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const optionalDateQueryValue = zodPreprocessQueryFirst(
 	z.preprocess(
 		(val) => (val === '' || val === null ? undefined : val),
-		z.string().regex(DATE_RE, 'date must be in YYYY-MM-DD format').optional(),
+		z
+			.string()
+			.regex(DATE_RE, 'date must be in YYYY-MM-DD format')
+			.optional(),
 	),
 ).optional();
 
@@ -57,7 +57,7 @@ function refineDateRange(
 		ctx.addIssue({
 			code: z.ZodIssueCode.custom,
 			message:
-					'Both dateFrom and dateTo are required when filtering by date range',
+				'Both dateFrom and dateTo are required when filtering by date range',
 			path: hasFrom ? ['dateTo'] : ['dateFrom'],
 		});
 		return;
@@ -74,10 +74,9 @@ function refineDateRange(
 export const listLessonRatingsQuerySchema =
 	lessonRatingsBaseQuerySchema.superRefine(refineDateRange);
 
-export const instructorLessonRatingsQuerySchema =
-	lessonRatingsBaseQuerySchema
-		.omit({ instructorId: true })
-		.superRefine(refineDateRange);
+export const instructorLessonRatingsQuerySchema = lessonRatingsBaseQuerySchema
+	.omit({ instructorId: true })
+	.superRefine(refineDateRange);
 
 export type ListLessonRatingsQuery = z.infer<
 	typeof listLessonRatingsQuerySchema

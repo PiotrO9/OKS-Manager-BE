@@ -1,7 +1,4 @@
-import type {
-	Vehicle,
-	VehicleAvailabilityStatus,
-} from '@prisma/client';
+import type { Vehicle, VehicleAvailabilityStatus } from '@prisma/client';
 
 export type VehicleForAccessRow = {
 	id: string;

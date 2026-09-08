@@ -13,8 +13,7 @@ export function parseRequestPart<TSchema extends z.ZodType>(
 ): z.infer<TSchema> {
 	const parsed = schema.safeParse(value);
 	if (!parsed.success) {
-		const message =
-			parsed.error.issues[0]?.message ?? `Invalid ${label}`;
+		const message = parsed.error.issues[0]?.message ?? `Invalid ${label}`;
 		throw AppError.badRequest(message);
 	}
 

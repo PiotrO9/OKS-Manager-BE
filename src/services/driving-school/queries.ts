@@ -1,9 +1,6 @@
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
-import {
-	activeSchoolClause,
-	reconcileUserDefaultOskId,
-} from '../oskContext';
+import { activeSchoolClause, reconcileUserDefaultOskId } from '../oskContext';
 import { settingsIncludeOffered } from './shared';
 
 const prisma = getPrisma();
@@ -93,12 +90,11 @@ export async function getDefaultDrivingSchoolForOwner(userId: string) {
 		defSettings === null
 			? null
 			: (() => {
-				const rest = { ...defSettings };
-				delete (
-					rest as Partial<typeof defSettings>
-				).offeredCourseTypes;
-				return rest;
-			})();
+					const rest = { ...defSettings };
+					delete (rest as Partial<typeof defSettings>)
+						.offeredCourseTypes;
+					return rest;
+				})();
 
 	return {
 		...defRest,

@@ -5,15 +5,9 @@ import type {
 	createDrivingSchoolBodySchema,
 	updateDrivingSchoolBodySchema,
 } from '../../schemas/driving-school.schemas';
-import {
-	activeSchoolClause,
-	reconcileUserDefaultOskId,
-} from '../oskContext';
+import { activeSchoolClause, reconcileUserDefaultOskId } from '../oskContext';
 import { loadOwnedActiveDrivingSchoolOrThrow } from './access';
-import {
-	mapSchoolWithOfferedSettings,
-	settingsIncludeOffered,
-} from './shared';
+import { mapSchoolWithOfferedSettings, settingsIncludeOffered } from './shared';
 import {
 	assertOfferedCourseTypesExist,
 	buildDrivingSchoolScalarUpdate,
@@ -162,10 +156,7 @@ export async function updateDrivingSchoolForOwner(
 	return mapSchoolWithOfferedSettings(updated);
 }
 
-export async function deleteDrivingSchoolForOwner(
-	userId: string,
-	id: string,
-) {
+export async function deleteDrivingSchoolForOwner(userId: string, id: string) {
 	await loadOwnedActiveDrivingSchoolOrThrow(userId, id);
 
 	const payload = await prisma.$transaction(async (tx) => {

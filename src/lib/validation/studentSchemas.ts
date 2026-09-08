@@ -91,7 +91,10 @@ export const createStudentPaymentBodySchema =
 				.string()
 				.trim()
 				.regex(/^\d+(\.\d{1,2})?$/, 'Invalid amount')
-				.refine((value) => Number(value) > 0, 'Amount must be positive'),
+				.refine(
+					(value) => Number(value) > 0,
+					'Amount must be positive',
+				),
 		),
 		dueDate: studentPaymentDateSchema,
 		method: studentPaymentMethodSchema,

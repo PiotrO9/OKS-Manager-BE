@@ -7,7 +7,10 @@ import {
 } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { scheduleQuerySchema } from '../../schemas/schedule.schemas';
-import { getMySchedule, getScheduleForTarget } from '../../services/schedule.service';
+import {
+	getMySchedule,
+	getScheduleForTarget,
+} from '../../services/schedule.service';
 
 const { prismaMock } = vi.hoisted(() => ({
 	prismaMock: {
@@ -36,13 +39,15 @@ const schoolId = '33333333-3333-4333-8333-333333333333';
 const instructorProfileId = '44444444-4444-4444-8444-444444444444';
 const vehicleId = '55555555-5555-4555-8555-555555555555';
 
-function lessonRow(overrides: {
-	id?: string;
-	startTime?: string;
-	endTime?: string;
-	lessonType?: LessonType;
-	status?: LessonStatus;
-} = {}) {
+function lessonRow(
+	overrides: {
+		id?: string;
+		startTime?: string;
+		endTime?: string;
+		lessonType?: LessonType;
+		status?: LessonStatus;
+	} = {},
+) {
 	return {
 		id: overrides.id ?? 'lesson-1',
 		lessonType: overrides.lessonType ?? LessonType.PRACTICE,
@@ -66,13 +71,15 @@ function lessonRow(overrides: {
 	};
 }
 
-function eventRow(overrides: {
-	id?: string;
-	startTime?: string;
-	endTime?: string;
-	type?: EventType;
-	status?: EventStatus;
-} = {}) {
+function eventRow(
+	overrides: {
+		id?: string;
+		startTime?: string;
+		endTime?: string;
+		type?: EventType;
+		status?: EventStatus;
+	} = {},
+) {
 	return {
 		id: overrides.id ?? 'event-1',
 		type: overrides.type ?? EventType.THEORY,

@@ -2,15 +2,8 @@ export {
 	assertActorCanManageAvailability,
 	resolveActiveInstructorProfile,
 } from './access';
-export {
-	deleteException,
-	listExceptions,
-	upsertException,
-} from './exceptions';
-export {
-	generateSlots,
-	generateSlotsInternal,
-} from './slots';
+export { deleteException, listExceptions, upsertException } from './exceptions';
+export { generateSlots, generateSlotsInternal } from './slots';
 export {
 	computeAvailability,
 	computeDayWindows,

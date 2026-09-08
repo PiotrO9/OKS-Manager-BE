@@ -8,4 +8,8 @@ export {
 	type LessonWithDetailsDto,
 } from './lesson/dtoMappers';
 export { getLessonById } from './lesson/readModel';
-export { cancelLesson, cancelOwnLesson, updateLesson } from './lesson/writeModel';
+export {
+	cancelLesson,
+	cancelOwnLesson,
+	updateLesson,
+} from './lesson/writeModel';

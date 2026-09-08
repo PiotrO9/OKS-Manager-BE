@@ -238,12 +238,9 @@ async function patchStudent(req: Request, res: Response) {
 	);
 	const body = parseRequestPart(patchStudentBodySchema, req.body, 'body');
 
-	const data = await patchStudentForStaff(
-		user.id,
-		user.role,
-		params.userId,
-		{ notes: body.notes },
-	);
+	const data = await patchStudentForStaff(user.id, user.role, params.userId, {
+		notes: body.notes,
+	});
 	return sendJsonSuccess(res, data);
 }
 

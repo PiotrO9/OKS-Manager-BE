@@ -69,11 +69,7 @@ async function postLessonRatingHandler(req: Request, res: Response) {
 	);
 	const body = parseBodyWithParser(parseCreateLessonRatingBody, req.body);
 
-	const data = await createLessonRating(
-		user,
-		params.lessonId,
-		body,
-	);
+	const data = await createLessonRating(user, params.lessonId, body);
 	return sendJsonSuccess(res, data, 201);
 }
 
@@ -85,10 +81,7 @@ async function getLessonRatingHandler(req: Request, res: Response) {
 		'params',
 	);
 
-	const data = await getLessonRatingForStudent(
-		user,
-		params.lessonId,
-	);
+	const data = await getLessonRatingForStudent(user, params.lessonId);
 	return sendJsonSuccess(res, data, 200);
 }
 

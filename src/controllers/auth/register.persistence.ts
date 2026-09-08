@@ -84,7 +84,9 @@ async function updateExistingRegisteredUser(
 			throw err;
 		}
 		console.error(logContext, err);
-		throw AppError.internal(registerDbFailureClientMessage(input.targetRole));
+		throw AppError.internal(
+			registerDbFailureClientMessage(input.targetRole),
+		);
 	}
 }
 
@@ -116,7 +118,10 @@ export async function persistRegisteredUser(
 	if (existingByEmail) {
 		console.error(
 			'register: email exists in app DB under different id after signUp - orphan Auth user possible',
-			{ authUserId: input.authUserId, existingUserId: existingByEmail.id },
+			{
+				authUserId: input.authUserId,
+				existingUserId: existingByEmail.id,
+			},
 		);
 		throw AppError.conflict('Email already registered');
 	}
@@ -166,6 +171,8 @@ export async function persistRegisteredUser(
 			'register: Prisma user.create failed after signUp - orphan auth user may exist',
 			err,
 		);
-		throw AppError.internal(registerDbFailureClientMessage(input.targetRole));
+		throw AppError.internal(
+			registerDbFailureClientMessage(input.targetRole),
+		);
 	}
 }

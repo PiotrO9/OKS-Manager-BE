@@ -73,11 +73,9 @@ describe('vehicleService.updateVehicleStatusForUser', () => {
 		mockOwnedSchool();
 
 		await expect(
-			vehicleService.updateVehicleStatusForUser(
-				userId,
-				vehicleId,
-				{ status: VehicleAvailabilityStatus.UNAVAILABLE },
-			),
+			vehicleService.updateVehicleStatusForUser(userId, vehicleId, {
+				status: VehicleAvailabilityStatus.UNAVAILABLE,
+			}),
 		).resolves.toMatchObject({
 			id: vehicleId,
 			status: VehicleAvailabilityStatus.UNAVAILABLE,
@@ -99,14 +97,10 @@ describe('vehicleService.updateVehicleStatusForUser', () => {
 		mockUpdatedVehicle(VehicleAvailabilityStatus.ACTIVE);
 
 		await expect(
-			vehicleService.updateVehicleStatusForUser(
-				userId,
-				vehicleId,
-				{
-					status: VehicleAvailabilityStatus.ACTIVE,
-					unavailableUntil: '2026-07-10',
-				},
-			),
+			vehicleService.updateVehicleStatusForUser(userId, vehicleId, {
+				status: VehicleAvailabilityStatus.ACTIVE,
+				unavailableUntil: '2026-07-10',
+			}),
 		).resolves.toMatchObject({
 			id: vehicleId,
 			status: VehicleAvailabilityStatus.ACTIVE,
@@ -127,7 +121,10 @@ describe('vehicleService.updateVehicleStatusForUser', () => {
 
 		mockVehicle();
 		mockOwnedSchool();
-		mockUpdatedVehicle(VehicleAvailabilityStatus.UNAVAILABLE, unavailableUntil);
+		mockUpdatedVehicle(
+			VehicleAvailabilityStatus.UNAVAILABLE,
+			unavailableUntil,
+		);
 
 		await expect(
 			vehicleService.updateVehicleStatusForUser(userId, vehicleId, {
@@ -153,11 +150,9 @@ describe('vehicleService.updateVehicleStatusForUser', () => {
 		prismaMock.vehicle.findUnique.mockResolvedValue(null);
 
 		await expect(
-			vehicleService.updateVehicleStatusForUser(
-				userId,
-				vehicleId,
-				{ status: VehicleAvailabilityStatus.ACTIVE },
-			),
+			vehicleService.updateVehicleStatusForUser(userId, vehicleId, {
+				status: VehicleAvailabilityStatus.ACTIVE,
+			}),
 		).rejects.toMatchObject({
 			statusCode: 404,
 			message: 'Vehicle not found',
@@ -171,11 +166,9 @@ describe('vehicleService.updateVehicleStatusForUser', () => {
 		mockOwnedSchool('44444444-4444-4444-4444-444444444444');
 
 		await expect(
-			vehicleService.updateVehicleStatusForUser(
-				userId,
-				vehicleId,
-				{ status: VehicleAvailabilityStatus.ACTIVE },
-			),
+			vehicleService.updateVehicleStatusForUser(userId, vehicleId, {
+				status: VehicleAvailabilityStatus.ACTIVE,
+			}),
 		).rejects.toMatchObject({
 			statusCode: 403,
 			message: 'Forbidden',
@@ -189,11 +182,9 @@ describe('vehicleService.updateVehicleStatusForUser', () => {
 		mockOwnedSchool();
 
 		await expect(
-			vehicleService.updateVehicleStatusForUser(
-				userId,
-				vehicleId,
-				{ status: VehicleAvailabilityStatus.ACTIVE },
-			),
+			vehicleService.updateVehicleStatusForUser(userId, vehicleId, {
+				status: VehicleAvailabilityStatus.ACTIVE,
+			}),
 		).rejects.toMatchObject({
 			statusCode: 404,
 			message: 'Vehicle not found',

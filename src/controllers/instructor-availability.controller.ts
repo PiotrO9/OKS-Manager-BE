@@ -67,11 +67,7 @@ async function deleteWeeklyDayHandler(req: Request, res: Response) {
 		'params',
 	);
 
-	await deleteWeeklyDay(
-		actor,
-		params.instructorId,
-		params.dayOfWeek,
-	);
+	await deleteWeeklyDay(actor, params.instructorId, params.dayOfWeek);
 	res.status(204).send();
 }
 

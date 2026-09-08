@@ -9,11 +9,7 @@ import type {
 import { getSchoolOwnedByUser } from './access';
 import { toCourseTypeDto, toDto } from './mappers';
 import { getCourseDetailForOwner } from './queries';
-import type {
-	CourseDetailDto,
-	CourseTypeDto,
-	CreatedCourseDto,
-} from './types';
+import type { CourseDetailDto, CourseTypeDto, CreatedCourseDto } from './types';
 
 const prisma = getPrisma();
 
@@ -86,9 +82,9 @@ export async function createCourseForUser(
 		body.theoryStartDate &&
 		body.theoryEndDate
 			? {
-				theoryStartDate: body.theoryStartDate,
-				theoryEndDate: body.theoryEndDate,
-			}
+					theoryStartDate: body.theoryStartDate,
+					theoryEndDate: body.theoryEndDate,
+				}
 			: { theoryStartDate: null, theoryEndDate: null };
 
 	const created = await prisma.course.create({

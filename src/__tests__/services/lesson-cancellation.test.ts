@@ -52,11 +52,13 @@ function mockStudentProfile() {
 	});
 }
 
-function mockLesson(overrides: Partial<{
-	studentId: string;
-	lessonType: LessonType;
-	status: LessonStatus;
-}> = {}) {
+function mockLesson(
+	overrides: Partial<{
+		studentId: string;
+		lessonType: LessonType;
+		status: LessonStatus;
+	}> = {},
+) {
 	prismaMock.lesson.findFirst.mockResolvedValue({
 		id: lessonId,
 		studentId: overrides.studentId ?? studentProfileId,

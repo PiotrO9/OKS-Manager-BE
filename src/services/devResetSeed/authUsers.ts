@@ -13,7 +13,9 @@ import type { SeedUserInput } from './types';
 async function listExistingAuthUserIdsByEmail(
 	emails: readonly string[],
 ): Promise<Map<string, string>> {
-	const normalizedEmails = new Set(emails.map((email) => email.toLowerCase()));
+	const normalizedEmails = new Set(
+		emails.map((email) => email.toLowerCase()),
+	);
 	const result = new Map<string, string>();
 	if (normalizedEmails.size === 0) {
 		return result;
@@ -58,15 +60,18 @@ export async function ensureAuthUsers(
 		const normalizedEmail = input.email.toLowerCase();
 		const existingId = existingByEmail.get(normalizedEmail);
 		if (existingId) {
-			const { error } = await supabase.auth.admin.updateUserById(existingId, {
-				password: input.password,
-				email_confirm: true,
-				user_metadata: {
-					firstName: input.firstName,
-					lastName: input.lastName,
-					role: input.role,
+			const { error } = await supabase.auth.admin.updateUserById(
+				existingId,
+				{
+					password: input.password,
+					email_confirm: true,
+					user_metadata: {
+						firstName: input.firstName,
+						lastName: input.lastName,
+						role: input.role,
+					},
 				},
-			});
+			);
 			if (error) {
 				throw error;
 			}

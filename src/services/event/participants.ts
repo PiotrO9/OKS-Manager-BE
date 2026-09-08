@@ -175,9 +175,7 @@ export async function removeStudentFromEvent(
 
 	await assertActorCanManageParticipantEvent(actor, event);
 
-	const [profileId] = await resolveStudentProfileIdsOrThrow([
-		studentUserId,
-	]);
+	const [profileId] = await resolveStudentProfileIdsOrThrow([studentUserId]);
 
 	const deleted = await prisma.eventParticipant.deleteMany({
 		where: {

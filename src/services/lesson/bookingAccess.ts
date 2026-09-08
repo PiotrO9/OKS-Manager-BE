@@ -1,8 +1,4 @@
-import {
-	CourseKind,
-	CourseParticipantStatus,
-	Role,
-} from '@prisma/client';
+import { CourseKind, CourseParticipantStatus, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { assertInstructorQualifiedForCourseType } from '../../lib/instructorCourseQualification';
 import { getPrisma } from '../../lib/prisma';

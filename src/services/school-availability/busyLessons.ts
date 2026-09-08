@@ -1,9 +1,6 @@
 import { LessonStatus, Role } from '@prisma/client';
 import { getPrisma } from '../../lib/prisma';
-import {
-	formatYYYYMMDD,
-	yyyymmddToDate,
-} from './dateHelpers';
+import { formatYYYYMMDD, yyyymmddToDate } from './dateHelpers';
 import type { Actor, BusyInterval } from './types';
 
 const prisma = getPrisma();

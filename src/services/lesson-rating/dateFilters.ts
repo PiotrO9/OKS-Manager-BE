@@ -2,11 +2,7 @@ import type { Prisma } from '@prisma/client';
 
 function toDayStart(date: Date): Date {
 	return new Date(
-		Date.UTC(
-			date.getUTCFullYear(),
-			date.getUTCMonth(),
-			date.getUTCDate(),
-		),
+		Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
 	);
 }
 

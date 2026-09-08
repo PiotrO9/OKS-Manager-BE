@@ -18,7 +18,11 @@ import {
 	hasInstructorProfilePatch,
 	mapInstructorPatchResult,
 } from './commandHelpers';
-import type { Actor, InstructorPatchInput, InstructorPatchResult } from './types';
+import type {
+	Actor,
+	InstructorPatchInput,
+	InstructorPatchResult,
+} from './types';
 
 const prisma = getPrisma();
 

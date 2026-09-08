@@ -92,9 +92,9 @@ export async function listCoursesForSchool(
 		totalHours: row.totalHours,
 		instructor: row.instructor
 			? {
-				id: row.instructor.user.id,
-				name: `${row.instructor.user.firstName} ${row.instructor.user.lastName}`.trim(),
-			}
+					id: row.instructor.user.id,
+					name: `${row.instructor.user.firstName} ${row.instructor.user.lastName}`.trim(),
+				}
 			: null,
 	}));
 }
@@ -189,9 +189,9 @@ export async function getCourseDetailForOwner(
 		capacity: row.capacity,
 		instructor: row.instructor
 			? {
-				id: row.instructor.user.id,
-				name: `${row.instructor.user.firstName} ${row.instructor.user.lastName}`.trim(),
-			}
+					id: row.instructor.user.id,
+					name: `${row.instructor.user.firstName} ${row.instructor.user.lastName}`.trim(),
+				}
 			: null,
 	};
 }

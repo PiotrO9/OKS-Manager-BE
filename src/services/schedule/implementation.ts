@@ -1,7 +1,4 @@
-export {
-	getMySchedule,
-	getScheduleForTarget,
-} from './queries';
+export { getMySchedule, getScheduleForTarget } from './queries';
 export type {
 	ScheduleActor,
 	ScheduleInstructorEventItemDto,

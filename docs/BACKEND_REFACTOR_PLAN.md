@@ -155,9 +155,10 @@ Wyniki z 2026-09-07:
 
 ### Stage 4 - formatowanie backendu
 
-- [ ] Uruchomic Prettier na osobnym branchu.
-- [ ] Sprawdzic, ze diff zawiera tylko formatowanie.
-- [ ] Uruchomic `npm run format:check`.
+- [x] Uruchomic Prettier na osobnym branchu.
+- [x] Sprawdzic, ze diff w `src` zawiera tylko formatowanie.
+- [x] Uruchomic `npm run format:check`.
+- [x] Uzgodnic ESLint z Prettierem przez `eslint-config-prettier`.
 
 ### Stage 5 - testy charakterystyki
 

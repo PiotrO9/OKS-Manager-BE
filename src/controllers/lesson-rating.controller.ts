@@ -25,10 +25,7 @@ async function listLessonRatingsHandler(req: Request, res: Response) {
 	return sendJsonSuccess(res, data, 200);
 }
 
-async function listInstructorLessonRatingsHandler(
-	req: Request,
-	res: Response,
-) {
+async function listInstructorLessonRatingsHandler(req: Request, res: Response) {
 	const user = requireUser(req);
 	const params = parseRequestPart(
 		instructorIdParamsSchema,
