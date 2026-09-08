@@ -162,14 +162,19 @@ Wyniki z 2026-09-07:
 
 ### Stage 5 - testy charakterystyki
 
-- [ ] Auth.
-- [ ] Courses.
-- [ ] Students.
-- [ ] Instructors.
-- [ ] Vehicles.
-- [ ] Events.
-- [ ] Payments.
-- [ ] Dev reset/seed.
+- [x] Auth.
+- [x] Courses.
+- [x] Students.
+- [x] Instructors.
+- [x] Vehicles.
+- [x] Events.
+- [x] Payments.
+- [x] Dev reset/seed.
+
+Zakres Stage 5 to minimalna warstwa testow charakterystyki dla obecnych
+zachowan domenowych. Przed duzym refactorem konkretnego modulu mozna dodac
+dodatkowe testy celowane, ale aktualny baseline zabezpiecza glowne obszary
+przed Stage 6.
 
 ### Stage 6 - modularnosc
 
