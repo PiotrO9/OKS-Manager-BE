@@ -2,7 +2,10 @@ import type { OpenAPIRegistry } from '@asteasolutions/zod-to-openapi';
 import {
 	assignStudentDrivingSchoolBodySchema,
 	assignStudentToCourseBodySchema,
+	createStudentPaymentBodySchema,
 	listStudentsQuerySchema,
+	markStudentPaymentPaidBodySchema,
+	markStudentPaymentUnpaidBodySchema,
 	okDataUnknown,
 	patchCourseParticipantStatusBodySchema,
 	patchStudentBodySchema,
@@ -12,9 +15,11 @@ import {
 	studentDetailParamsSchema,
 	studentDetailQuerySchema,
 	studentEventsQuerySchema,
+	studentPaymentParamsSchema,
 	studentPaymentsQuerySchema,
 	studentProcessStatusQuerySchema,
 	studentUserIdParamsSchema,
+	updateStudentPaymentBodySchema,
 } from './shared';
 
 export function registerStudentPaths(registry: OpenAPIRegistry): void {
@@ -93,6 +98,90 @@ export function registerStudentPaths(registry: OpenAPIRegistry): void {
 		},
 		responses: stdBearerResponses({
 			200: okDataUnknown('Lista opĹ‚at kursanta'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'post',
+		path: '/students/{userId}/payments',
+		tags: ['Students'],
+		summary: 'Utworzenie płatności kursanta (MANAGER)',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: studentUserIdParamsSchema,
+			body: {
+				content: {
+					'application/json': {
+						schema: createStudentPaymentBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			201: okDataUnknown('Utworzona płatność'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'patch',
+		path: '/students/{userId}/payments/{paymentId}',
+		tags: ['Students'],
+		summary: 'Aktualizacja płatności kursanta (MANAGER)',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: studentPaymentParamsSchema,
+			body: {
+				content: {
+					'application/json': {
+						schema: updateStudentPaymentBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('Zaktualizowana płatność'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'patch',
+		path: '/students/{userId}/payments/{paymentId}/mark-paid',
+		tags: ['Students'],
+		summary: 'Oznaczenie płatności jako opłaconej (MANAGER)',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: studentPaymentParamsSchema,
+			body: {
+				content: {
+					'application/json': {
+						schema: markStudentPaymentPaidBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('Płatność oznaczona jako opłacona'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'patch',
+		path: '/students/{userId}/payments/{paymentId}/mark-unpaid',
+		tags: ['Students'],
+		summary: 'Cofnięcie oznaczenia płatności jako opłaconej (MANAGER)',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: studentPaymentParamsSchema,
+			body: {
+				content: {
+					'application/json': {
+						schema: markStudentPaymentUnpaidBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('Płatność oznaczona jako nieopłacona'),
 		}),
 	});
 

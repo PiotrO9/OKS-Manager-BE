@@ -130,20 +130,10 @@ Wynik audytu routery vs OpenAPI z 2026-09-08:
 - Automatyczny check baseline'u tras znajduje sie w
   `src/__tests__/routes/endpoint-baseline.test.ts`.
 - W OpenAPI brakuje 11 tras obecnych w routerach/baseline:
-  - `GET /events`
-  - `GET /health`
-  - `GET /manager/attention-items`
-  - `GET /schedule`
-  - `GET /schedule/me`
-  - `PATCH /events/bulk-status`
-  - `PATCH /students/{userId}/payments/{paymentId}`
-  - `PATCH /students/{userId}/payments/{paymentId}/mark-paid`
-  - `PATCH /students/{userId}/payments/{paymentId}/mark-unpaid`
-  - `POST /dev/reset-and-seed`
-  - `POST /students/{userId}/payments`
+    - status po osobnej aktualizacji dokumentacji: uzupelnione.
 - W OpenAPI nie znaleziono dodatkowych tras, ktorych nie ma w baseline.
-- Ten audyt nie zmienia kontraktu API; wskazuje tylko braki dokumentacji
-  Swagger/OpenAPI do osobnej decyzji dokumentacyjnej.
+- `src/__tests__/swagger/openapi-route-coverage.test.ts` pilnuje, ze OpenAPI
+  dokumentuje kazdy nietechniczny endpoint z baseline'u.
 
 ### Stage 2 - checks/toolchain
 
@@ -247,13 +237,13 @@ Wynik koncowego audytu z 2026-09-08:
   `: any`, `as any` i `<any>` w `src`. Bezposrednie `console.*` pozostaje
   tylko w `src/lib/logger.ts`.
 - Najwieksze pliki po refactorze:
-  - `src/services/manager-attention/items.ts` - 371 linii
-  - `src/services/devResetSeed/operationalData.ts` - 290 linii
-  - `src/swagger/paths/shared.ts` - 281 linii
-  - `src/lib/validation/studentSchemas.ts` - 258 linii
-  - `src/swagger/paths/instructors.paths.ts` - 238 linii
-  - `src/swagger/paths/events.paths.ts` - 235 linii
-  - `src/swagger/paths/lessons.paths.ts` - 230 linii
+    - `src/services/manager-attention/items.ts` - 371 linii
+    - `src/services/devResetSeed/operationalData.ts` - 290 linii
+    - `src/swagger/paths/shared.ts` - 281 linii
+    - `src/lib/validation/studentSchemas.ts` - 258 linii
+    - `src/swagger/paths/instructors.paths.ts` - 238 linii
+    - `src/swagger/paths/events.paths.ts` - 235 linii
+    - `src/swagger/paths/lessons.paths.ts` - 230 linii
 - Ocena najwiekszych plikow: pozostale duze pliki sa glownie mapowaniem
   danych, seedem, walidacja albo dokumentacja OpenAPI. Nie widac juz
   krytycznego duzego kontrolera ani serwisu platnosci wymagajacego pilnego
