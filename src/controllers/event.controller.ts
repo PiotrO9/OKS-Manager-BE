@@ -124,11 +124,7 @@ async function getEventEligibleStudentsHandler(req: Request, res: Response) {
 		};
 	}
 
-	const data = await listTheoryEventEligibleStudents(
-		user,
-		params.id,
-		opts,
-	);
+	const data = await listTheoryEventEligibleStudents(user, params.id, opts);
 	return sendJsonSuccess(res, data, 200);
 }
 

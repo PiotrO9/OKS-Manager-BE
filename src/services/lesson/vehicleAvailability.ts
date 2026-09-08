@@ -114,9 +114,9 @@ export async function findAvailableVehicleIdForStudentBooking(
 	const orderedIds =
 		school?.defaultVehicleId && ids.includes(school.defaultVehicleId)
 			? [
-				school.defaultVehicleId,
-				...ids.filter((id) => id !== school.defaultVehicleId),
-			]
+					school.defaultVehicleId,
+					...ids.filter((id) => id !== school.defaultVehicleId),
+				]
 			: ids;
 
 	for (const vehicleId of orderedIds) {

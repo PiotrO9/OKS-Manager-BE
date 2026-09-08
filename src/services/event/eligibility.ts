@@ -95,14 +95,14 @@ export async function listTheoryEventEligibleStudents(
 		profileIds.length === 0
 			? new Set<string>()
 			: await findStudentProfileIdsWithScheduleConflictsForEventWindow(
-				prisma,
-				{
-					eventId: row.id,
-					start,
-					end,
-					candidateProfileIds: profileIds,
-				},
-			);
+					prisma,
+					{
+						eventId: row.id,
+						start,
+						end,
+						candidateProfileIds: profileIds,
+					},
+				);
 
 	const students: TheoryEventEligibleStudentRowDto[] = courseParticipants.map(
 		(cp) => {

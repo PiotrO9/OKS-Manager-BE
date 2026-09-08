@@ -31,6 +31,7 @@ export function hasInstructorSchoolOwnedByActor(
 	actorId: string,
 ): boolean {
 	return instructorSchools.some(
-		(row) => row.school.deletedAt === null && row.school.ownerId === actorId,
+		(row) =>
+			row.school.deletedAt === null && row.school.ownerId === actorId,
 	);
 }

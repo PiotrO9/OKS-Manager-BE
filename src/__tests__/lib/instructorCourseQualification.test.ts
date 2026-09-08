@@ -38,10 +38,7 @@ describe('instructor course qualification helpers', () => {
 		});
 
 		await expect(
-			assertInstructorQualifiedForCourseType(
-				instructorId,
-				courseTypeId,
-			),
+			assertInstructorQualifiedForCourseType(instructorId, courseTypeId),
 		).resolves.toBeUndefined();
 
 		expect(prismaMock.instructorProfile.findFirst).toHaveBeenCalledWith(
@@ -58,10 +55,7 @@ describe('instructor course qualification helpers', () => {
 		prismaMock.instructorProfile.findFirst.mockResolvedValue(null);
 
 		await expect(
-			assertInstructorQualifiedForCourseType(
-				instructorId,
-				courseTypeId,
-			),
+			assertInstructorQualifiedForCourseType(instructorId, courseTypeId),
 		).rejects.toMatchObject({
 			statusCode: 400,
 			message: INSTRUCTOR_COURSE_QUALIFICATION_ERROR,

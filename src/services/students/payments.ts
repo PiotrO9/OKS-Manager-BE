@@ -42,7 +42,9 @@ function formatAmount(value: number): string {
 	return value.toFixed(2);
 }
 
-function buildPaymentsDto(payments: StudentPaymentItemDto[]): StudentPaymentsDto {
+function buildPaymentsDto(
+	payments: StudentPaymentItemDto[],
+): StudentPaymentsDto {
 	const today = todayUtcStart();
 	let paidAmount = 0;
 	let unpaidAmount = 0;
@@ -215,7 +217,9 @@ export async function listStudentPayments(
 
 	payments.sort((a, b) => b._sortTime - a._sortTime);
 
-	return buildPaymentsDto(payments.map(({ _sortTime, ...payment }) => payment));
+	return buildPaymentsDto(
+		payments.map(({ _sortTime, ...payment }) => payment),
+	);
 }
 
 async function assertManagerCanManageStudentPayments(
@@ -353,7 +357,11 @@ export async function updateStudentPaymentForManager(
 		input.schoolId,
 	);
 
-	await assertPaymentBelongsToStudentCourse(student.id, input.schoolId, paymentId);
+	await assertPaymentBelongsToStudentCourse(
+		student.id,
+		input.schoolId,
+		paymentId,
+	);
 
 	await prisma.payment.update({
 		where: { id: paymentId },
@@ -361,7 +369,9 @@ export async function updateStudentPaymentForManager(
 			...(input.dueDate !== undefined
 				? { dueDate: parseDateOnly(input.dueDate) }
 				: {}),
-			...(input.method !== undefined ? { method: input.method ?? null } : {}),
+			...(input.method !== undefined
+				? { method: input.method ?? null }
+				: {}),
 		},
 	});
 
@@ -384,7 +394,11 @@ export async function markStudentPaymentPaidForManager(
 		input.schoolId,
 	);
 
-	await assertPaymentBelongsToStudentCourse(student.id, input.schoolId, paymentId);
+	await assertPaymentBelongsToStudentCourse(
+		student.id,
+		input.schoolId,
+		paymentId,
+	);
 
 	await prisma.payment.update({
 		where: { id: paymentId },
@@ -413,7 +427,11 @@ export async function markStudentPaymentUnpaidForManager(
 		input.schoolId,
 	);
 
-	await assertPaymentBelongsToStudentCourse(student.id, input.schoolId, paymentId);
+	await assertPaymentBelongsToStudentCourse(
+		student.id,
+		input.schoolId,
+		paymentId,
+	);
 
 	await prisma.payment.update({
 		where: { id: paymentId },

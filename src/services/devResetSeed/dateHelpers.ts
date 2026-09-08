@@ -15,7 +15,9 @@ export function timeOnly(hour: number, minute = 0): Date {
 }
 
 export function dateOnly(date: Date): Date {
-	return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+	return new Date(
+		Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+	);
 }
 
 export function pick<T>(items: readonly T[], index: number): T {

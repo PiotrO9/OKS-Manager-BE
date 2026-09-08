@@ -6,10 +6,7 @@ import {
 	activeInstructorProfileWhere,
 	hasInstructorSchoolOwnedByActor,
 } from './access';
-import {
-	mapQualifiedCourseTypes,
-	qualifiedCourseTypesSelect,
-} from './mappers';
+import { mapQualifiedCourseTypes, qualifiedCourseTypesSelect } from './mappers';
 import type { Actor, InstructorDetail, InstructorListItem } from './types';
 
 const prisma = getPrisma();

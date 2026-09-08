@@ -5,9 +5,7 @@ import type {
 	RatingWithRelations,
 } from './types';
 
-export function mapLessonRatingToDto(
-	row: LessonRating,
-): LessonRatingDto {
+export function mapLessonRatingToDto(row: LessonRating): LessonRatingDto {
 	return {
 		id: row.id,
 		lessonId: row.lessonId,

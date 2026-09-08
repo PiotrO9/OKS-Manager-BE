@@ -28,15 +28,19 @@ export async function resetAndSeedDemoDatabase(prisma: PrismaClient) {
 			stageTiming.referenceDataMs = Date.now() - stageStartedAt;
 
 			stageStartedAt = Date.now();
-			const operationalCounts = await seedOperationalData(tx, referenceContext);
+			const operationalCounts = await seedOperationalData(
+				tx,
+				referenceContext,
+			);
 			stageTiming.operationalDataMs = Date.now() - stageStartedAt;
 
 			const created = {
 				users: usersContext.users.length,
 				userProfiles: usersContext.users.length,
 				userSettings: usersContext.users.length,
-				admins: usersContext.users.filter((user) => user.role === Role.ADMIN)
-					.length,
+				admins: usersContext.users.filter(
+					(user) => user.role === Role.ADMIN,
+				).length,
 				managers: usersContext.managers.length,
 				instructors: usersContext.instructors.length,
 				students: usersContext.students.length,

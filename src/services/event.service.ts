@@ -17,7 +17,10 @@ export {
 	removeStudentFromEvent,
 	replaceEventStudents,
 } from './event/participants';
-export { getInstructorEventById, listInstructorEvents } from './event/readModel';
+export {
+	getInstructorEventById,
+	listInstructorEvents,
+} from './event/readModel';
 export {
 	bulkUpdateEventStatus,
 	createInstructorEvent,

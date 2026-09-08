@@ -31,7 +31,9 @@ export function calculateCourseProgress(
 		return 0;
 	}
 
-	return clampProgress(Math.round((completedMinutes / requiredMinutes) * 100));
+	return clampProgress(
+		Math.round((completedMinutes / requiredMinutes) * 100),
+	);
 }
 
 export function groupCompletedMinutesByCourse(

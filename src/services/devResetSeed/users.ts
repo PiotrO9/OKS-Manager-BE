@@ -1,4 +1,9 @@
-import { Prisma, Role, type InstructorProfile, type StudentProfile } from '@prisma/client';
+import {
+	Prisma,
+	Role,
+	type InstructorProfile,
+	type StudentProfile,
+} from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { buildSeedUsers } from './authUsers';
 import type { SeedContext, UserWithProfiles } from './types';
@@ -94,10 +99,13 @@ export async function createUsers(
 			): user is UserWithProfiles & {
 				instructorProfile: InstructorProfile;
 			} =>
-				user.role === Role.INSTRUCTOR && user.instructorProfile !== null,
+				user.role === Role.INSTRUCTOR &&
+				user.instructorProfile !== null,
 		),
 		students: users.filter(
-			(user): user is UserWithProfiles & { studentProfile: StudentProfile } =>
+			(
+				user,
+			): user is UserWithProfiles & { studentProfile: StudentProfile } =>
 				user.role === Role.STUDENT && user.studentProfile !== null,
 		),
 		courseTypes: [],

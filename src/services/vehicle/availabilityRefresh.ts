@@ -1,4 +1,8 @@
-import { Prisma, PrismaClient, VehicleAvailabilityStatus } from '@prisma/client';
+import {
+	Prisma,
+	PrismaClient,
+	VehicleAvailabilityStatus,
+} from '@prisma/client';
 
 type DbClient = Prisma.TransactionClient | PrismaClient;
 

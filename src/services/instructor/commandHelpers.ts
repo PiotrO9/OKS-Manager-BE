@@ -2,7 +2,11 @@ import { Role, type Prisma } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 import { mapQualifiedCourseTypes } from './mappers';
-import type { Actor, InstructorPatchInput, InstructorPatchResult } from './types';
+import type {
+	Actor,
+	InstructorPatchInput,
+	InstructorPatchResult,
+} from './types';
 
 const prisma = getPrisma();
 
@@ -48,9 +52,10 @@ export function assertManagerOwnsInstructorSchool(
 	}
 }
 
-export function buildInstructorUserUpdate(
-	patch: InstructorPatchInput,
-): { firstName?: string; lastName?: string } {
+export function buildInstructorUserUpdate(patch: InstructorPatchInput): {
+	firstName?: string;
+	lastName?: string;
+} {
 	const userUpdate: { firstName?: string; lastName?: string } = {};
 
 	if (patch.firstName !== undefined) {
@@ -79,7 +84,9 @@ export function buildInstructorProfileUpdate(
 	return profileUpdateData;
 }
 
-export function hasInstructorProfilePatch(patch: InstructorPatchInput): boolean {
+export function hasInstructorProfilePatch(
+	patch: InstructorPatchInput,
+): boolean {
 	return (
 		patch.experienceYears !== undefined ||
 		patch.qualifications !== undefined

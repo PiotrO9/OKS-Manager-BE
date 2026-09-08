@@ -38,7 +38,10 @@ export const scheduleQuerySchema = z
 			.string()
 			.regex(UUID_PARAM_RE, 'Invalid studentId')
 			.optional(),
-		schoolId: z.string().regex(UUID_PARAM_RE, 'Invalid schoolId').optional(),
+		schoolId: z
+			.string()
+			.regex(UUID_PARAM_RE, 'Invalid schoolId')
+			.optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.dateFrom > data.dateTo) {

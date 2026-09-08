@@ -102,7 +102,9 @@ describe('student payments service', () => {
 			id: studentProfileId,
 		});
 		prismaMock.courseParticipant.findMany.mockResolvedValue([]);
-		prismaMock.paymentPlan.findFirst.mockResolvedValue({ id: paymentPlanId });
+		prismaMock.paymentPlan.findFirst.mockResolvedValue({
+			id: paymentPlanId,
+		});
 		prismaMock.payment.findFirst.mockResolvedValue({ id: paymentId });
 		prismaMock.payment.create.mockResolvedValue({ id: paymentId });
 		prismaMock.payment.update.mockResolvedValue({ id: paymentId });
@@ -249,13 +251,18 @@ describe('student payments service', () => {
 	});
 
 	it('allows manager to add a payment to an existing student payment plan', async () => {
-		await createStudentPaymentForManager(actorId, Role.MANAGER, studentUserId, {
-			schoolId,
-			paymentPlanId,
-			amount: '700.00',
-			dueDate: '2026-08-01',
-			method: 'cash',
-		});
+		await createStudentPaymentForManager(
+			actorId,
+			Role.MANAGER,
+			studentUserId,
+			{
+				schoolId,
+				paymentPlanId,
+				amount: '700.00',
+				dueDate: '2026-08-01',
+				method: 'cash',
+			},
+		);
 
 		expect(prismaMock.paymentPlan.findFirst).toHaveBeenCalledWith({
 			where: {

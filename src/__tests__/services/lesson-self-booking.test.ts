@@ -121,7 +121,9 @@ function mockHappyPath() {
 	helperMocks.assertInstructorQualifiedForCourseType.mockResolvedValue(
 		undefined,
 	);
-	helperMocks.assertInstructorTimeWindowAvailable.mockResolvedValue(undefined);
+	helperMocks.assertInstructorTimeWindowAvailable.mockResolvedValue(
+		undefined,
+	);
 	helperMocks.assertStudentNoScheduleOverlap.mockResolvedValue(undefined);
 	helperMocks.assertCourseDrivingPackageHoursAllowNewLesson.mockResolvedValue(
 		undefined,
@@ -224,7 +226,12 @@ describe('bookOwnLesson', () => {
 		});
 
 		await expect(
-			bookOwnLesson(actor, { courseId, instructorId, startTime, endTime }),
+			bookOwnLesson(actor, {
+				courseId,
+				instructorId,
+				startTime,
+				endTime,
+			}),
 		).rejects.toMatchObject({
 			statusCode: 400,
 			message: 'Course does not allow practice lessons',
@@ -240,7 +247,12 @@ describe('bookOwnLesson', () => {
 		prismaMock.courseParticipant.findFirst.mockResolvedValue(null);
 
 		await expect(
-			bookOwnLesson(actor, { courseId, instructorId, startTime, endTime }),
+			bookOwnLesson(actor, {
+				courseId,
+				instructorId,
+				startTime,
+				endTime,
+			}),
 		).rejects.toMatchObject({ statusCode: 403 });
 
 		expect(prismaMock.courseParticipant.findFirst).toHaveBeenCalledWith({
@@ -273,7 +285,12 @@ describe('bookOwnLesson', () => {
 		});
 
 		await expect(
-			bookOwnLesson(actor, { courseId, instructorId, startTime, endTime }),
+			bookOwnLesson(actor, {
+				courseId,
+				instructorId,
+				startTime,
+				endTime,
+			}),
 		).resolves.toMatchObject({
 			lesson: { vehicleId: fallbackVehicleId },
 		});
@@ -284,7 +301,12 @@ describe('bookOwnLesson', () => {
 		prismaMock.vehicle.findMany.mockResolvedValue([]);
 
 		await expect(
-			bookOwnLesson(actor, { courseId, instructorId, startTime, endTime }),
+			bookOwnLesson(actor, {
+				courseId,
+				instructorId,
+				startTime,
+				endTime,
+			}),
 		).rejects.toMatchObject({
 			statusCode: 409,
 			message: 'No available vehicle for this time slot',

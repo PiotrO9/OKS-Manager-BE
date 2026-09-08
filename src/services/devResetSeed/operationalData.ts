@@ -28,7 +28,9 @@ export async function seedOperationalData(
 	tx: Prisma.TransactionClient,
 	context: SeedContext,
 ) {
-	const schools = await tx.drivingSchool.findMany({ orderBy: { name: 'asc' } });
+	const schools = await tx.drivingSchool.findMany({
+		orderBy: { name: 'asc' },
+	});
 	const courses: Prisma.CourseCreateManyInput[] = [];
 	const courseParticipants: Prisma.CourseParticipantCreateManyInput[] = [];
 	const paymentPlans: Prisma.PaymentPlanCreateManyInput[] = [];
@@ -37,7 +39,8 @@ export async function seedOperationalData(
 	const lessonRatings: Prisma.LessonRatingCreateManyInput[] = [];
 	const instructorEvents: Prisma.InstructorEventCreateManyInput[] = [];
 	const eventParticipants: Prisma.EventParticipantCreateManyInput[] = [];
-	const instructorTimeBlocks: Prisma.InstructorTimeBlockCreateManyInput[] = [];
+	const instructorTimeBlocks: Prisma.InstructorTimeBlockCreateManyInput[] =
+		[];
 	const seedCourses: SeedCourse[] = [];
 
 	for (let s = 0; s < schools.length; s += 1) {
@@ -54,7 +57,8 @@ export async function seedOperationalData(
 
 		for (let c = 0; c < 8; c += 1) {
 			const courseId = randomUUID();
-			const courseType = context.courseTypes[c % context.courseTypes.length]!;
+			const courseType =
+				context.courseTypes[c % context.courseTypes.length]!;
 			const kind = pick(
 				[
 					CourseKind.THEORY_GROUP,
@@ -118,7 +122,9 @@ export async function seedOperationalData(
 				courseId,
 				totalAmount: kind === CourseKind.EXTRA ? 900 : 3600,
 				type:
-					c % 2 === 0 ? PaymentPlanType.INSTALLMENTS : PaymentPlanType.FULL,
+					c % 2 === 0
+						? PaymentPlanType.INSTALLMENTS
+						: PaymentPlanType.FULL,
 				numberOfInstallments: c % 2 === 0 ? 4 : null,
 				status: 'active',
 			});
@@ -137,7 +143,8 @@ export async function seedOperationalData(
 							: p === 2 && c % 5 === 0
 								? PaymentStatus.FAILED
 								: PaymentStatus.PENDING,
-					method: p < 2 ? pick(['card', 'transfer', 'cash'], p) : null,
+					method:
+						p < 2 ? pick(['card', 'transfer', 'cash'], p) : null,
 				});
 			}
 
@@ -146,7 +153,11 @@ export async function seedOperationalData(
 				const student = pick(participants, l);
 				const lessonDate = addDays(new Date(), -35 + c * 4 + l);
 				const start = atTime(lessonDate, 8 + (l % 8));
-				const end = atTime(lessonDate, 9 + (l % 8), l % 3 === 0 ? 30 : 0);
+				const end = atTime(
+					lessonDate,
+					9 + (l % 8),
+					l % 3 === 0 ? 30 : 0,
+				);
 				const status = pick(
 					[
 						LessonStatus.COMPLETED,

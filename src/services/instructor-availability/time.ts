@@ -36,7 +36,10 @@ export function dateToYYYYMMDD(date: Date): string {
 	return `${y}-${mo}-${d}`;
 }
 
-export function subtractWindows(base: TimeWindow, used: TimeWindow[]): TimeWindow[] {
+export function subtractWindows(
+	base: TimeWindow,
+	used: TimeWindow[],
+): TimeWindow[] {
 	const sorted = [...used].sort((a, b) => a.start - b.start);
 	const free: TimeWindow[] = [];
 	let cursor = base.start;

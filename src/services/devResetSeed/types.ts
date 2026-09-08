@@ -26,7 +26,9 @@ export type SeedVehicle = Pick<Vehicle, 'id' | 'schoolId' | 'isActive'>;
 export type SeedContext = {
 	users: User[];
 	managers: User[];
-	instructors: Array<UserWithProfiles & { instructorProfile: InstructorProfile }>;
+	instructors: Array<
+		UserWithProfiles & { instructorProfile: InstructorProfile }
+	>;
 	students: Array<UserWithProfiles & { studentProfile: StudentProfile }>;
 	courseTypes: CourseType[];
 	vehicles: SeedVehicle[];

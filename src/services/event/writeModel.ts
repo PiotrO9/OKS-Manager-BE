@@ -1,7 +1,4 @@
-import {
-	EventType,
-	Role,
-} from '@prisma/client';
+import { EventType, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { validateVehicleForInstructor } from '../../lib/vehicle.helpers';
 import { getPrisma } from '../../lib/prisma';
@@ -13,9 +10,7 @@ import {
 	assertActorCanManageAvailability,
 	resolveActiveInstructorProfile,
 } from '../instructor-availability.service';
-import {
-	assertCourseEligibleForInstructorEvent,
-} from './courseEligibility';
+import { assertCourseEligibleForInstructorEvent } from './courseEligibility';
 import type { InstructorEventDto } from './mappers';
 import {
 	assertEventCapacityFitsParticipants,
@@ -205,11 +200,7 @@ export async function updateInstructorEvent(
 			});
 		}
 
-		await assertEventCapacityFitsParticipants(
-			tx,
-			eventId,
-			mergedCapacity,
-		);
+		await assertEventCapacityFitsParticipants(tx, eventId, mergedCapacity);
 
 		return tx.instructorEvent.update({
 			where: { id: eventId },

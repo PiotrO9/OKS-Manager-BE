@@ -25,7 +25,6 @@ export const errorRequestHandler: ErrorRequestHandler = (
 		return;
 	}
 
-	 
 	console.error('Unhandled error', err);
 	sendJsonError(res, 'Internal server error', 500);
 };

@@ -8,12 +8,13 @@ import type {
 import { assertActorCanReadSchoolSchedule } from './access';
 import { buildDateRangeWhere } from './dateRange';
 import { eventInclude, lessonInclude } from './includes';
-import {
-	mapInstructorEvent,
-	mapLesson,
-	mergeScheduleItems,
-} from './mappers';
-import type { EventRow, LessonRow, ScheduleActor, ScheduleItemDto } from './types';
+import { mapInstructorEvent, mapLesson, mergeScheduleItems } from './mappers';
+import type {
+	EventRow,
+	LessonRow,
+	ScheduleActor,
+	ScheduleItemDto,
+} from './types';
 
 const prisma = getPrisma();
 

@@ -23,7 +23,9 @@ describe('OpenAPI critical response contracts', () => {
 		const spec = getOpenApiSpec();
 		const schema = jsonSchemaFor(spec, '/auth/refresh', 'post', '200');
 		const properties = schema.properties as Record<string, unknown>;
-		const data = properties.data as { properties?: Record<string, unknown> };
+		const data = properties.data as {
+			properties?: Record<string, unknown>;
+		};
 
 		expect(data.properties).toHaveProperty('access_token');
 	});
@@ -32,7 +34,9 @@ describe('OpenAPI critical response contracts', () => {
 		const spec = getOpenApiSpec();
 		const schema = jsonSchemaFor(spec, '/events/{id}', 'get', '200');
 		const properties = schema.properties as Record<string, unknown>;
-		const data = properties.data as { properties?: Record<string, unknown> };
+		const data = properties.data as {
+			properties?: Record<string, unknown>;
+		};
 
 		expect(data.properties).toHaveProperty('event');
 	});
@@ -41,7 +45,9 @@ describe('OpenAPI critical response contracts', () => {
 		const spec = getOpenApiSpec();
 		const schema = jsonSchemaFor(spec, '/lessons/{id}', 'get', '200');
 		const properties = schema.properties as Record<string, unknown>;
-		const data = properties.data as { properties?: Record<string, unknown> };
+		const data = properties.data as {
+			properties?: Record<string, unknown>;
+		};
 
 		expect(data.properties).toHaveProperty('lesson');
 	});

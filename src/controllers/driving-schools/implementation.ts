@@ -46,10 +46,7 @@ async function setDefaultDrivingSchool(req: Request, res: Response) {
 		'params',
 	);
 
-	const data = await setDefaultDrivingSchoolForOwner(
-		user.id,
-		params.id,
-	);
+	const data = await setDefaultDrivingSchoolForOwner(user.id, params.id);
 	return sendJsonSuccess(res, data);
 }
 
@@ -87,11 +84,7 @@ async function updateDrivingSchool(req: Request, res: Response) {
 		'body',
 	);
 
-	const data = await updateDrivingSchoolForOwner(
-		user.id,
-		params.id,
-		body,
-	);
+	const data = await updateDrivingSchoolForOwner(user.id, params.id, body);
 	return sendJsonSuccess(res, data);
 }
 
