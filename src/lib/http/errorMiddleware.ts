@@ -26,6 +26,9 @@ export const errorRequestHandler: ErrorRequestHandler = (
 		return;
 	}
 
-	logger.error('Unhandled error', err);
+	logger.error('Unhandled error', {
+		error: err,
+		requestId: req.requestId,
+	});
 	sendJsonError(res, 'Internal server error', 500);
 };

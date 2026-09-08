@@ -136,11 +136,15 @@ export async function logout(req: Request, res: Response) {
 				if (signOutError) {
 					logger.error('logout: supabase signOut failed', {
 						message: signOutError.message,
+						requestId: req.requestId,
 					});
 				}
 			}
 		} catch (err) {
-			logger.error('logout: supabase revoke failed', err);
+			logger.error('logout: supabase revoke failed', {
+				error: err,
+				requestId: req.requestId,
+			});
 		}
 	}
 
