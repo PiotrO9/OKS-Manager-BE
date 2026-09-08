@@ -121,8 +121,29 @@ Strumien 4: modularity audit
 
 - [x] Utworzyc `BE/docs/BACKEND_ENDPOINT_BASELINE.md`.
 - [x] Zbudowac baseline z `src/server.ts` i `src/routes/*.routes.ts`.
-- [ ] Zweryfikowac rozjazdy miedzy routerami i OpenAPI.
-- [ ] Dodac automatyczny check porownujacy aktualne trasy z baseline'em.
+- [x] Zweryfikowac rozjazdy miedzy routerami i OpenAPI.
+- [x] Dodac automatyczny check porownujacy aktualne trasy z baseline'em.
+
+Wynik audytu routery vs OpenAPI z 2026-09-08:
+
+- Express routes sa zgodne z `BACKEND_ENDPOINT_BASELINE.md`.
+- Automatyczny check baseline'u tras znajduje sie w
+  `src/__tests__/routes/endpoint-baseline.test.ts`.
+- W OpenAPI brakuje 11 tras obecnych w routerach/baseline:
+  - `GET /events`
+  - `GET /health`
+  - `GET /manager/attention-items`
+  - `GET /schedule`
+  - `GET /schedule/me`
+  - `PATCH /events/bulk-status`
+  - `PATCH /students/{userId}/payments/{paymentId}`
+  - `PATCH /students/{userId}/payments/{paymentId}/mark-paid`
+  - `PATCH /students/{userId}/payments/{paymentId}/mark-unpaid`
+  - `POST /dev/reset-and-seed`
+  - `POST /students/{userId}/payments`
+- W OpenAPI nie znaleziono dodatkowych tras, ktorych nie ma w baseline.
+- Ten audyt nie zmienia kontraktu API; wskazuje tylko braki dokumentacji
+  Swagger/OpenAPI do osobnej decyzji dokumentacyjnej.
 
 ### Stage 2 - checks/toolchain
 
@@ -213,10 +234,30 @@ tym samym headerze i dolacza je do logow bledow obslugiwanych w request scope.
 
 ### Stage 8 - koncowy audyt
 
-- [ ] Porownac endpointy z baseline'em.
-- [ ] Uruchomic pelny `npm run check`.
-- [ ] Sprawdzic `any`, `@ts-ignore`, `eslint-disable`.
-- [ ] Sprawdzic najwieksze pliki po refactorze.
+- [x] Porownac endpointy z baseline'em.
+- [x] Uruchomic pelny `npm run check`.
+- [x] Sprawdzic `any`, `@ts-ignore`, `eslint-disable`.
+- [x] Sprawdzic najwieksze pliki po refactorze.
+
+Wynik koncowego audytu z 2026-09-08:
+
+- Endpoint baseline: PASS. Aktualne Express routes sa zgodne z
+  `BACKEND_ENDPOINT_BASELINE.md`.
+- Suppressions: brak `@ts-ignore`, `@ts-expect-error`, `eslint-disable`,
+  `: any`, `as any` i `<any>` w `src`. Bezposrednie `console.*` pozostaje
+  tylko w `src/lib/logger.ts`.
+- Najwieksze pliki po refactorze:
+  - `src/services/manager-attention/items.ts` - 371 linii
+  - `src/services/devResetSeed/operationalData.ts` - 290 linii
+  - `src/swagger/paths/shared.ts` - 281 linii
+  - `src/lib/validation/studentSchemas.ts` - 258 linii
+  - `src/swagger/paths/instructors.paths.ts` - 238 linii
+  - `src/swagger/paths/events.paths.ts` - 235 linii
+  - `src/swagger/paths/lessons.paths.ts` - 230 linii
+- Ocena najwiekszych plikow: pozostale duze pliki sa glownie mapowaniem
+  danych, seedem, walidacja albo dokumentacja OpenAPI. Nie widac juz
+  krytycznego duzego kontrolera ani serwisu platnosci wymagajacego pilnego
+  dzielenia w tym refactorze.
 
 ## Definition of Done
 
