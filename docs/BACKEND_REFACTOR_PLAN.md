@@ -179,7 +179,7 @@ przed Stage 6.
 ### Stage 6 - modularnosc
 
 - [x] Rozbic `manager-attention` wedlug realnych odpowiedzialnosci.
-- [ ] Rozbic `students/payments` na queries, commands, mappers, rules.
+- [x] Rozbic `students/payments` na queries, commands, mappers, rules.
 - [ ] Odchudzic duze kontrolery bez zmiany kontraktu HTTP.
 - [ ] Utrzymac stare importy przez fasady/re-exporty tam, gdzie to zmniejsza
       ryzyko.
@@ -187,6 +187,9 @@ przed Stage 6.
 `manager-attention/implementation.ts` pozostaje cienka kompozycja. Logika
 dostepu, budowania alertow, fabryki itemow i sortowania zostala wydzielona do
 osobnych modulow.
+
+`students/payments.ts` pozostaje kompatybilnosciowa fasada. Logika platnosci
+zostala wydzielona do modulow access, commands, mappers i queries.
 
 ### Stage 7 - logger
 
