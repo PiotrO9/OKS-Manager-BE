@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Role } from '@prisma/client';
 import { sendJsonError } from '../../lib/apiResponse';
 import { AppError } from '../../lib/http/AppError';
+import { logger } from '../../lib/logger';
 import { canInvokerRegisterUserWithRole } from '../../lib/registerRolePolicy';
 import { getSupabaseClient } from '../../lib/supabase';
 import {
@@ -96,7 +97,7 @@ export async function register(req: Request, res: Response) {
 
 	const authUserId = data.user?.id;
 	if (!authUserId) {
-		console.error('register: signUp succeeded but no user id returned');
+		logger.error('register: signUp succeeded but no user id returned');
 		return sendJsonError(res, 'Registration incomplete', 500);
 	}
 
@@ -120,7 +121,7 @@ export async function register(req: Request, res: Response) {
 	}
 
 	if (!data.user) {
-		console.error('register: missing user in signUp response');
+		logger.error('register: missing user in signUp response');
 		return sendJsonError(res, 'Registration incomplete', 500);
 	}
 

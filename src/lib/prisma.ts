@@ -1,5 +1,6 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
+import { logger } from './logger';
 
 declare global {
 	var __oskManagerPrisma: PrismaClient | undefined;
@@ -8,7 +9,7 @@ declare global {
 function createPrismaClient(): PrismaClient {
 	const connectionString = process.env.DATABASE_URL || '';
 	if (!connectionString && process.env.NODE_ENV !== 'test') {
-		console.warn(
+		logger.warn(
 			'Warning: DATABASE_URL is not set - Prisma client may fail to connect',
 		);
 	}

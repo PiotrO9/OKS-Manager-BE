@@ -3,6 +3,8 @@
  * Pełny obiekt błędu logowany jest przez wywołującego.
  */
 
+import { logger } from './logger';
+
 const DUPLICATE_EMAIL_SUBSTRINGS = [
 	'already registered',
 	'already been registered',
@@ -36,7 +38,7 @@ function mapAuthSignUpErrorForClient(error: SignUpErrorLike): {
 }
 
 function logAuthSignUpError(error: SignUpErrorLike): void {
-	console.error('register: supabase signUp error', {
+	logger.error('register: supabase signUp error', {
 		message: error.message,
 		code: error.code,
 		status: error.status,

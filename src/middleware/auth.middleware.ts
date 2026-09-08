@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { sendJsonError } from '../lib/apiResponse';
+import { logger } from '../lib/logger';
 import { getPrisma } from '../lib/prisma';
 import { getSupabaseClient } from '../lib/supabase';
 
@@ -34,10 +35,9 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
 		const { data, error } = await supabase.auth.getUser(token);
 
 		if (error || !data.user) {
-			console.error(
-				'Supabase getUser error:',
-				error?.message ?? 'no user',
-			);
+			logger.error('Supabase getUser error', {
+				message: error?.message ?? 'no user',
+			});
 			return sendJsonError(res, 'Invalid or expired token', 401);
 		}
 
@@ -64,7 +64,7 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
 
 		next();
 	} catch (err) {
-		console.error('Auth middleware error:', err);
+		logger.error('Auth middleware error', err);
 		return sendJsonError(res, 'Invalid or expired token', 401);
 	}
 }

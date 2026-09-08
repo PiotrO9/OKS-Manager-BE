@@ -20,6 +20,7 @@ import { createManagerAttentionRouter } from './routes/manager-attention.routes'
 import { createMeRouter } from './routes/me.routes';
 import { createScheduleRouter } from './routes/schedule.routes';
 import { setupSwagger } from './swagger/setupSwagger';
+import { logger } from './lib/logger';
 
 function parseAllowedOrigins(): string[] {
 	const raw = process.env.FRONTEND_URL?.trim();
@@ -81,11 +82,11 @@ async function startServer() {
 	const app = createApp();
 	const port = process.env.PORT || 3001;
 	app.listen(port, () => {
-		console.log(`Server listening on http://localhost:${port}`);
+		logger.info(`Server listening on http://localhost:${port}`);
 	});
 }
 
 startServer().catch((err) => {
-	console.error(err);
+	logger.error('Server startup failed', err);
 	process.exit(1);
 });

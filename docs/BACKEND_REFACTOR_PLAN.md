@@ -197,10 +197,15 @@ payments, profile i course bez zmiany publicznych eksportow ani route'ow.
 
 ### Stage 7 - logger
 
-- [ ] Wprowadzic jeden adapter loggera.
+- [x] Wprowadzic jeden adapter loggera.
 - [ ] Dodac request/correlation ID.
-- [ ] Zredagowac tokeny, cookies, hasla i dane wrazliwe.
-- [ ] Ograniczyc przypadkowe `console.*`.
+- [x] Zredagowac tokeny, cookies, hasla i dane wrazliwe.
+- [x] Ograniczyc przypadkowe `console.*`.
+
+Centralny adapter loggera znajduje sie w `src/lib/logger.ts`. Istniejace
+logi aplikacyjne zostaly przepiete na `logger.info/warn/error`, a bezposrednie
+uzycia `console.*` pozostaja tylko wewnatrz adaptera. Adapter redaguje
+wrazliwe pola kontekstu logow, m.in. tokeny, cookies i hasla.
 
 ### Stage 8 - koncowy audyt
 

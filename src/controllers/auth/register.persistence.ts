@@ -1,6 +1,7 @@
 import { Prisma, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { attachInstructorToSchoolWithDefaultsInTx } from '../../lib/instructorSchoolRegistration';
+import { logger } from '../../lib/logger';
 import { getPrisma } from '../../lib/prisma';
 import { attachStudentToSchoolReplaceInTx } from '../../lib/studentSchoolRegistration';
 import {
@@ -83,7 +84,7 @@ async function updateExistingRegisteredUser(
 		if (err instanceof AppError) {
 			throw err;
 		}
-		console.error(logContext, err);
+		logger.error(logContext, err);
 		throw AppError.internal(
 			registerDbFailureClientMessage(input.targetRole),
 		);
@@ -116,7 +117,7 @@ export async function persistRegisteredUser(
 		where: { email: input.emailTrimmed },
 	});
 	if (existingByEmail) {
-		console.error(
+		logger.error(
 			'register: email exists in app DB under different id after signUp - orphan Auth user possible',
 			{
 				authUserId: input.authUserId,
@@ -167,7 +168,7 @@ export async function persistRegisteredUser(
 			}
 		}
 
-		console.error(
+		logger.error(
 			'register: Prisma user.create failed after signUp - orphan auth user may exist',
 			err,
 		);

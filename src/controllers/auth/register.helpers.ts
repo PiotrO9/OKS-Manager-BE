@@ -2,6 +2,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { Response } from 'express';
 import { Prisma, Role } from '@prisma/client';
 import { sendJsonError, sendJsonSuccess } from '../../lib/apiResponse';
+import { logger } from '../../lib/logger';
 import { getPrisma } from '../../lib/prisma';
 import type { RegisterBody } from './types';
 
@@ -147,7 +148,7 @@ export async function completeRegisterSuccessResponse(
 		select: { id: true },
 	});
 	if (!profile) {
-		console.error('register: instructor profile missing after success', {
+		logger.error('register: instructor profile missing after success', {
 			authUserId,
 		});
 		return sendJsonError(res, 'Failed to create instructor', 500);
