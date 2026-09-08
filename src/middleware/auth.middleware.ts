@@ -37,6 +37,7 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
 		if (error || !data.user) {
 			logger.error('Supabase getUser error', {
 				message: error?.message ?? 'no user',
+				requestId: req.requestId,
 			});
 			return sendJsonError(res, 'Invalid or expired token', 401);
 		}
@@ -64,7 +65,10 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
 
 		next();
 	} catch (err) {
-		logger.error('Auth middleware error', err);
+		logger.error('Auth middleware error', {
+			error: err,
+			requestId: req.requestId,
+		});
 		return sendJsonError(res, 'Invalid or expired token', 401);
 	}
 }

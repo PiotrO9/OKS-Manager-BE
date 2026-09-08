@@ -5,6 +5,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import { sendJsonSuccess } from './lib/apiResponse';
 import { errorRequestHandler } from './lib/http/errorMiddleware';
+import { requestIdMiddleware } from './middleware/requestId.middleware';
 import { createAuthRouter } from './routes/auth.routes';
 import { createDrivingSchoolsRouter } from './routes/driving-schools.routes';
 import { createInstructorsRouter } from './routes/instructors.routes';
@@ -43,6 +44,7 @@ function createApp() {
 	);
 	app.use(express.json());
 	app.use(cookieParser());
+	app.use(requestIdMiddleware);
 
 	app.use('/auth', createAuthRouter());
 	app.use('/driving-schools', createDrivingSchoolsRouter());

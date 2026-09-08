@@ -97,7 +97,9 @@ export async function register(req: Request, res: Response) {
 
 	const authUserId = data.user?.id;
 	if (!authUserId) {
-		logger.error('register: signUp succeeded but no user id returned');
+		logger.error('register: signUp succeeded but no user id returned', {
+			requestId: req.requestId,
+		});
 		return sendJsonError(res, 'Registration incomplete', 500);
 	}
 
@@ -121,7 +123,9 @@ export async function register(req: Request, res: Response) {
 	}
 
 	if (!data.user) {
-		logger.error('register: missing user in signUp response');
+		logger.error('register: missing user in signUp response', {
+			requestId: req.requestId,
+		});
 		return sendJsonError(res, 'Registration incomplete', 500);
 	}
 

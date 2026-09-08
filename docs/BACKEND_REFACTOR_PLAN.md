@@ -198,7 +198,7 @@ payments, profile i course bez zmiany publicznych eksportow ani route'ow.
 ### Stage 7 - logger
 
 - [x] Wprowadzic jeden adapter loggera.
-- [ ] Dodac request/correlation ID.
+- [x] Dodac request/correlation ID.
 - [x] Zredagowac tokeny, cookies, hasla i dane wrazliwe.
 - [x] Ograniczyc przypadkowe `console.*`.
 
@@ -206,6 +206,10 @@ Centralny adapter loggera znajduje sie w `src/lib/logger.ts`. Istniejace
 logi aplikacyjne zostaly przepiete na `logger.info/warn/error`, a bezposrednie
 uzycia `console.*` pozostaja tylko wewnatrz adaptera. Adapter redaguje
 wrazliwe pola kontekstu logow, m.in. tokeny, cookies i hasla.
+
+Request/correlation ID jest nadawane w `requestIdMiddleware`. Backend przyjmuje
+opcjonalny header `X-Request-Id`, generuje UUID gdy go brakuje, odsyla ID w
+tym samym headerze i dolacza je do logow bledow obslugiwanych w request scope.
 
 ### Stage 8 - koncowy audyt
 
