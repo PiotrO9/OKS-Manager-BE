@@ -28,3 +28,7 @@ export type ManagerAttentionResultDto = {
 	total: number;
 	hiddenCount: number;
 };
+
+export type SortableAttentionItem = ManagerAttentionItemDto & {
+	sortDate: Date | null;
+};
