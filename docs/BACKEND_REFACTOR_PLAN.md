@@ -180,8 +180,8 @@ przed Stage 6.
 
 - [x] Rozbic `manager-attention` wedlug realnych odpowiedzialnosci.
 - [x] Rozbic `students/payments` na queries, commands, mappers, rules.
-- [ ] Odchudzic duze kontrolery bez zmiany kontraktu HTTP.
-- [ ] Utrzymac stare importy przez fasady/re-exporty tam, gdzie to zmniejsza
+- [x] Odchudzic duze kontrolery bez zmiany kontraktu HTTP.
+- [x] Utrzymac stare importy przez fasady/re-exporty tam, gdzie to zmniejsza
       ryzyko.
 
 `manager-attention/implementation.ts` pozostaje cienka kompozycja. Logika
@@ -190,6 +190,10 @@ osobnych modulow.
 
 `students/payments.ts` pozostaje kompatybilnosciowa fasada. Logika platnosci
 zostala wydzielona do modulow access, commands, mappers i queries.
+
+`controllers/students/implementation.ts` pozostaje kompatybilnosciowa fasada.
+Handlery studentow zostaly rozdzielone wedlug odpowiedzialnosci na read,
+payments, profile i course bez zmiany publicznych eksportow ani route'ow.
 
 ### Stage 7 - logger
 
