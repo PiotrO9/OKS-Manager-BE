@@ -34,6 +34,7 @@ export type CourseWithType = Course & {
 export type CourseListInstructorDto = {
 	id: string;
 	name: string;
+	avatarUrl: string | null;
 };
 
 export type CourseListItemDto = {

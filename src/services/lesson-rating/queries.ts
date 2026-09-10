@@ -71,6 +71,7 @@ async function fetchRatingsWithSummary(
 							select: {
 								firstName: true,
 								lastName: true,
+								profile: { select: { avatarUrl: true } },
 							},
 						},
 					},
@@ -83,6 +84,7 @@ async function fetchRatingsWithSummary(
 							select: {
 								firstName: true,
 								lastName: true,
+								profile: { select: { avatarUrl: true } },
 							},
 						},
 					},

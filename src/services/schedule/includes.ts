@@ -2,13 +2,25 @@ export const lessonInclude = {
 	instructorProfile: {
 		select: {
 			id: true,
-			user: { select: { firstName: true, lastName: true } },
+			user: {
+				select: {
+					firstName: true,
+					lastName: true,
+					profile: { select: { avatarUrl: true } },
+				},
+			},
 		},
 	},
 	studentProfile: {
 		select: {
 			id: true,
-			user: { select: { firstName: true, lastName: true } },
+			user: {
+				select: {
+					firstName: true,
+					lastName: true,
+					profile: { select: { avatarUrl: true } },
+				},
+			},
 		},
 	},
 	vehicle: {
@@ -23,7 +35,13 @@ export const eventInclude = {
 	instructor: {
 		select: {
 			id: true,
-			user: { select: { firstName: true, lastName: true } },
+			user: {
+				select: {
+					firstName: true,
+					lastName: true,
+					profile: { select: { avatarUrl: true } },
+				},
+			},
 		},
 	},
 	vehicle: {
@@ -34,7 +52,13 @@ export const eventInclude = {
 			student: {
 				select: {
 					id: true,
-					user: { select: { firstName: true, lastName: true } },
+					user: {
+						select: {
+							firstName: true,
+							lastName: true,
+							profile: { select: { avatarUrl: true } },
+						},
+					},
 				},
 			},
 		},

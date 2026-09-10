@@ -10,9 +10,11 @@ export type InstructorQualifiedCourseType = {
 
 export type InstructorListItem = {
 	id: string;
+	userId: string;
 	firstName: string;
 	lastName: string;
 	email: string;
+	avatarUrl: string | null;
 	qualifiedCourseTypes: InstructorQualifiedCourseType[];
 };
 

@@ -109,6 +109,7 @@ export async function listStudentInstructorEvents(
 							lastName: true,
 							email: true,
 							phone: true,
+							profile: { select: { avatarUrl: true } },
 						},
 					},
 				},

@@ -74,6 +74,7 @@ export type TheoryEventEligibleStudentRowDto = {
 	lastName: string;
 	email: string;
 	phone: string | null;
+	avatarUrl: string | null;
 	pkkNumber: string | null;
 	isActive: boolean;
 	createdAt: string;

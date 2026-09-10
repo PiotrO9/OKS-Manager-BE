@@ -41,6 +41,7 @@ export function mapLesson(
 			id: row.instructorProfile.id,
 			firstName: row.instructorProfile.user.firstName,
 			lastName: row.instructorProfile.user.lastName,
+			avatarUrl: row.instructorProfile.user.profile?.avatarUrl ?? null,
 		};
 	}
 	if (opts.includeStudent) {
@@ -48,6 +49,7 @@ export function mapLesson(
 			id: row.studentProfile.id,
 			firstName: row.studentProfile.user.firstName,
 			lastName: row.studentProfile.user.lastName,
+			avatarUrl: row.studentProfile.user.profile?.avatarUrl ?? null,
 		};
 	}
 	if (row.vehicle) {
@@ -74,13 +76,17 @@ function eventTypeToCalendarLessonType(et: EventType): LessonType {
 	return et === EventType.THEORY ? LessonType.THEORY : LessonType.PRACTICE;
 }
 
-function sortParticipantsForSchedule(
-	participants: EventRow['participants'],
-): { id: string; firstName: string; lastName: string }[] {
+function sortParticipantsForSchedule(participants: EventRow['participants']): {
+	id: string;
+	firstName: string;
+	lastName: string;
+	avatarUrl: string | null;
+}[] {
 	const mapped = participants.map((p) => ({
 		id: p.student.id,
 		firstName: p.student.user.firstName,
 		lastName: p.student.user.lastName,
+		avatarUrl: p.student.user.profile?.avatarUrl ?? null,
 	}));
 	return mapped.sort((a, b) => {
 		const ln = a.lastName.localeCompare(b.lastName);
@@ -111,6 +117,7 @@ export function mapInstructorEvent(
 			id: row.instructor.id,
 			firstName: row.instructor.user.firstName,
 			lastName: row.instructor.user.lastName,
+			avatarUrl: row.instructor.user.profile?.avatarUrl ?? null,
 		};
 	}
 	if (opts.includeStudents) {

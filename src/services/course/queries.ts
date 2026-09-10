@@ -76,6 +76,7 @@ export async function listCoursesForSchool(
 							id: true,
 							firstName: true,
 							lastName: true,
+							profile: { select: { avatarUrl: true } },
 						},
 					},
 				},
@@ -94,6 +95,7 @@ export async function listCoursesForSchool(
 			? {
 					id: row.instructor.user.id,
 					name: `${row.instructor.user.firstName} ${row.instructor.user.lastName}`.trim(),
+					avatarUrl: row.instructor.user.profile?.avatarUrl ?? null,
 				}
 			: null,
 	}));
@@ -163,6 +165,7 @@ export async function getCourseDetailForOwner(
 							id: true,
 							firstName: true,
 							lastName: true,
+							profile: { select: { avatarUrl: true } },
 						},
 					},
 				},
@@ -191,6 +194,7 @@ export async function getCourseDetailForOwner(
 			? {
 					id: row.instructor.user.id,
 					name: `${row.instructor.user.firstName} ${row.instructor.user.lastName}`.trim(),
+					avatarUrl: row.instructor.user.profile?.avatarUrl ?? null,
 				}
 			: null,
 	};

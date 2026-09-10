@@ -9,8 +9,18 @@ export type ScheduleLessonItemDto = {
 	status: string;
 	startTime: string;
 	endTime: string;
-	instructor?: { id: string; firstName: string; lastName: string };
-	student?: { id: string; firstName: string; lastName: string };
+	instructor?: {
+		id: string;
+		firstName: string;
+		lastName: string;
+		avatarUrl: string | null;
+	};
+	student?: {
+		id: string;
+		firstName: string;
+		lastName: string;
+		avatarUrl: string | null;
+	};
 	vehicle?: { id: string; name: string; registrationNumber: string };
 	rating?: {
 		id: string;
@@ -30,8 +40,18 @@ export type ScheduleInstructorEventItemDto = {
 	endTime: string;
 	capacity: number | null;
 	participantCount: number;
-	instructor?: { id: string; firstName: string; lastName: string };
-	students?: { id: string; firstName: string; lastName: string }[];
+	instructor?: {
+		id: string;
+		firstName: string;
+		lastName: string;
+		avatarUrl: string | null;
+	};
+	students?: {
+		id: string;
+		firstName: string;
+		lastName: string;
+		avatarUrl: string | null;
+	}[];
 	vehicle?: { id: string; name: string; registrationNumber: string };
 };
 
@@ -47,11 +67,19 @@ export type LessonRow = {
 	endTime: Date;
 	instructorProfile: {
 		id: string;
-		user: { firstName: string; lastName: string };
+		user: {
+			firstName: string;
+			lastName: string;
+			profile: { avatarUrl: string | null } | null;
+		};
 	};
 	studentProfile: {
 		id: string;
-		user: { firstName: string; lastName: string };
+		user: {
+			firstName: string;
+			lastName: string;
+			profile: { avatarUrl: string | null } | null;
+		};
 	};
 	vehicle: {
 		id: string;
@@ -75,7 +103,11 @@ export type EventRow = {
 	capacity: number | null;
 	instructor: {
 		id: string;
-		user: { firstName: string; lastName: string };
+		user: {
+			firstName: string;
+			lastName: string;
+			profile: { avatarUrl: string | null } | null;
+		};
 	};
 	vehicle: {
 		id: string;
@@ -85,7 +117,11 @@ export type EventRow = {
 	participants: {
 		student: {
 			id: string;
-			user: { firstName: string; lastName: string };
+			user: {
+				firstName: string;
+				lastName: string;
+				profile: { avatarUrl: string | null } | null;
+			};
 		};
 	}[];
 };

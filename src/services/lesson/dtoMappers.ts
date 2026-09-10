@@ -23,6 +23,7 @@ export type LessonPersonDetailDto = {
 	lastName: string;
 	email: string;
 	phone: string | null;
+	avatarUrl: string | null;
 };
 
 /** Pełny rekord pojazdu — zagnieżdżony w `lesson` przy GET /lessons/:id. */
@@ -87,6 +88,7 @@ export function mapPersonToLessonDetailDto(profile: {
 		lastName: string;
 		email: string;
 		phone: string | null;
+		profile?: { avatarUrl: string | null } | null;
 	};
 }): LessonPersonDetailDto {
 	return {
@@ -96,6 +98,7 @@ export function mapPersonToLessonDetailDto(profile: {
 		lastName: profile.user.lastName,
 		email: profile.user.email,
 		phone: profile.user.phone,
+		avatarUrl: profile.user.profile?.avatarUrl ?? null,
 	};
 }
 

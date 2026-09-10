@@ -36,6 +36,7 @@ export function mapRatingListItem(
 			userId: row.instructor.userId,
 			firstName: row.instructor.user.firstName,
 			lastName: row.instructor.user.lastName,
+			avatarUrl: row.instructor.user.profile?.avatarUrl ?? null,
 		},
 	};
 
@@ -45,6 +46,7 @@ export function mapRatingListItem(
 			userId: row.student.userId,
 			firstName: row.student.user.firstName,
 			lastName: row.student.user.lastName,
+			avatarUrl: row.student.user.profile?.avatarUrl ?? null,
 		};
 	}
 

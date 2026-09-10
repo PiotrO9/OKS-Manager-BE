@@ -45,9 +45,11 @@ export async function listInstructorsBySchoolForUser(
 					},
 					user: {
 						select: {
+							id: true,
 							firstName: true,
 							lastName: true,
 							email: true,
+							profile: { select: { avatarUrl: true } },
 						},
 					},
 				},
@@ -62,9 +64,11 @@ export async function listInstructorsBySchoolForUser(
 
 	const instructors: InstructorListItem[] = rows.map((row) => ({
 		id: row.instructor.id,
+		userId: row.instructor.user.id,
 		firstName: row.instructor.user.firstName,
 		lastName: row.instructor.user.lastName,
 		email: row.instructor.user.email,
+		avatarUrl: row.instructor.user.profile?.avatarUrl ?? null,
 		qualifiedCourseTypes: mapQualifiedCourseTypes(
 			row.instructor.qualifiedCourseTypes,
 		),

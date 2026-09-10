@@ -16,6 +16,7 @@ export type LessonRatingPersonDto = {
 	userId: string;
 	firstName: string;
 	lastName: string;
+	avatarUrl: string | null;
 };
 
 export type LessonRatingLessonDto = {
@@ -57,6 +58,7 @@ export type RatingWithRelations = Prisma.LessonRatingGetPayload<{
 					select: {
 						firstName: true;
 						lastName: true;
+						profile: { select: { avatarUrl: true } };
 					};
 				};
 			};
@@ -69,6 +71,7 @@ export type RatingWithRelations = Prisma.LessonRatingGetPayload<{
 					select: {
 						firstName: true;
 						lastName: true;
+						profile: { select: { avatarUrl: true } };
 					};
 				};
 			};
