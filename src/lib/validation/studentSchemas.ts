@@ -239,7 +239,163 @@ export const studentCourseParamsSchema = z.object({
 	courseId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid course id'),
 });
 
+const STUDENT_ADVANCED_FILTERS_MAX_COUNT = 8;
+const STUDENT_ADVANCED_FILTERS_MAX_BYTES = 4096;
+const STUDENT_FILTER_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const studentTextFieldFilterSchema = z
+	.object({
+		field: z.enum(['firstName', 'lastName', 'email']),
+		operator: z.enum(['contains', 'not_contains', 'eq', 'neq']),
+		value: z.string().trim().min(1).max(120),
+	})
+	.strict();
+
+const studentPhoneTextFilterSchema = z
+	.object({
+		field: z.literal('phone'),
+		operator: z.enum(['contains', 'not_contains']),
+		value: z.string().trim().min(1).max(80),
+	})
+	.strict();
+
+const studentPhoneEmptyFilterSchema = z
+	.object({
+		field: z.literal('phone'),
+		operator: z.enum(['is_empty', 'is_not_empty']),
+	})
+	.strict();
+
+const studentPkkTextFilterSchema = z
+	.object({
+		field: z.literal('pkkNumber'),
+		operator: z.enum(['contains', 'not_contains', 'eq', 'neq']),
+		value: z.string().trim().min(1).max(20),
+	})
+	.strict();
+
+const studentPkkEmptyFilterSchema = z
+	.object({
+		field: z.literal('pkkNumber'),
+		operator: z.enum(['is_empty', 'is_not_empty']),
+	})
+	.strict();
+
+const studentActiveFilterSchema = z
+	.object({
+		field: z.literal('isActive'),
+		operator: z.enum(['eq', 'neq']),
+		value: z.boolean(),
+	})
+	.strict();
+
+const studentCourseValueFilterSchema = z
+	.object({
+		field: z.literal('courseId'),
+		operator: z.enum(['eq', 'neq']),
+		value: z.string().trim().regex(UUID_PARAM_RE, 'Invalid courseId'),
+	})
+	.strict();
+
+const studentCourseEmptyFilterSchema = z
+	.object({
+		field: z.literal('courseId'),
+		operator: z.enum(['is_empty', 'is_not_empty']),
+	})
+	.strict();
+
+const studentRelationBooleanFilterSchema = z
+	.object({
+		field: z.enum(['hasOverduePayments', 'hasUpcomingLesson']),
+		operator: z.literal('eq'),
+		value: z.boolean(),
+	})
+	.strict();
+
+const studentCreatedAtSingleFilterSchema = z
+	.object({
+		field: z.literal('createdAt'),
+		operator: z.enum(['before', 'after']),
+		value: z
+			.string()
+			.regex(STUDENT_FILTER_DATE_RE, 'Date must be YYYY-MM-DD'),
+	})
+	.strict();
+
+const studentCreatedAtBetweenFilterSchema = z
+	.object({
+		field: z.literal('createdAt'),
+		operator: z.literal('between'),
+		value: z.tuple([
+			z.string().regex(STUDENT_FILTER_DATE_RE, 'Date must be YYYY-MM-DD'),
+			z.string().regex(STUDENT_FILTER_DATE_RE, 'Date must be YYYY-MM-DD'),
+		]),
+	})
+	.strict()
+	.refine((rule) => rule.value[0] <= rule.value[1], {
+		message: 'Date range must be ordered',
+		path: ['value'],
+	});
+
+export const studentAdvancedFilterSchema = z.union([
+	studentTextFieldFilterSchema,
+	studentPhoneTextFilterSchema,
+	studentPhoneEmptyFilterSchema,
+	studentPkkTextFilterSchema,
+	studentPkkEmptyFilterSchema,
+	studentActiveFilterSchema,
+	studentCourseValueFilterSchema,
+	studentCourseEmptyFilterSchema,
+	studentRelationBooleanFilterSchema,
+	studentCreatedAtSingleFilterSchema,
+	studentCreatedAtBetweenFilterSchema,
+]);
+
+const invalidFiltersValue = Symbol('invalid-student-filters');
+
+export const studentAdvancedFiltersQuerySchema = z.preprocess((val) => {
+	const first = Array.isArray(val) ? val[0] : val;
+
+	if (first === undefined || first === null || first === '') {
+		return [];
+	}
+
+	if (typeof first !== 'string') {
+		return invalidFiltersValue;
+	}
+
+	const raw = first.trim();
+
+	if (!raw) {
+		return [];
+	}
+
+	if (raw.length > STUDENT_ADVANCED_FILTERS_MAX_BYTES) {
+		return invalidFiltersValue;
+	}
+
+	try {
+		return JSON.parse(raw) as unknown;
+	} catch {
+		return invalidFiltersValue;
+	}
+}, z.array(studentAdvancedFilterSchema).max(STUDENT_ADVANCED_FILTERS_MAX_COUNT));
+
+export type StudentAdvancedFilter = z.infer<typeof studentAdvancedFilterSchema>;
+
 export const listStudentsQuerySchema = z.object({
+	search: zodPreprocessQueryFirst(z.string().trim().max(120).optional()),
+	view: zodPreprocessQueryFirst(
+		z
+			.enum([
+				'all',
+				'without-pkk',
+				'without-course',
+				'overdue',
+				'without-lesson',
+			])
+			.optional(),
+	),
 	schoolId: zodPreprocessQueryFirst(
 		z
 			.string({ required_error: 'schoolId is required' })
@@ -253,6 +409,7 @@ export const listStudentsQuerySchema = z.object({
 	limit: zodPreprocessQueryFirst(
 		z.coerce.number().int().min(1).max(100).default(20),
 	),
+	filters: studentAdvancedFiltersQuerySchema.default([]),
 });
 
 export type ListStudentsQuery = z.infer<typeof listStudentsQuerySchema>;

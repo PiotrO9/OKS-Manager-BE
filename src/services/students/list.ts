@@ -1,4 +1,5 @@
-import { Prisma, Role } from '@prisma/client';
+import { Role } from '@prisma/client';
+import { buildStudentListWhere } from './listFilters';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 import type { ListStudentsQuery } from '../../lib/validation/uuid';
@@ -12,7 +13,7 @@ export async function listStudentsForSchool(
 	actorRole: Role,
 	query: ListStudentsQuery,
 ): Promise<ListStudentsResult> {
-	const { schoolId, courseId, page, limit } = query;
+	const { schoolId, courseId, page, limit, filters } = query;
 
 	await assertActorCanListStudentsForSchool(actorId, actorRole, schoolId);
 
@@ -26,13 +27,38 @@ export async function listStudentsForSchool(
 		}
 	}
 
-	const where: Prisma.StudentProfileWhereInput = {
-		user: { deletedAt: null },
-		studentSchools: {
-			some: { schoolId, school: { deletedAt: null } },
-		},
-		...(courseId ? { courseParticipants: { some: { courseId } } } : {}),
-	};
+	const advancedCourseIds = [
+		...new Set(
+			filters.flatMap((filter) => {
+				if (
+					filter.field === 'courseId' &&
+					(filter.operator === 'eq' || filter.operator === 'neq') &&
+					'value' in filter
+				) {
+					return [filter.value];
+				}
+
+				return [];
+			}),
+		),
+	];
+
+	if (advancedCourseIds.length > 0) {
+		const courses = await prisma.course.findMany({
+			where: {
+				id: { in: advancedCourseIds },
+				schoolId,
+				deletedAt: null,
+			},
+			select: { id: true },
+		});
+
+		if (courses.length !== advancedCourseIds.length) {
+			throw AppError.notFound('Course not found');
+		}
+	}
+
+	const where = buildStudentListWhere(query);
 
 	const [rows, total] = await prisma.$transaction([
 		prisma.studentProfile.findMany({
@@ -56,6 +82,7 @@ export async function listStudentsForSchool(
 			orderBy: [
 				{ user: { lastName: 'asc' } },
 				{ user: { firstName: 'asc' } },
+				{ id: 'asc' },
 			],
 			skip: (page - 1) * limit,
 			take: limit,

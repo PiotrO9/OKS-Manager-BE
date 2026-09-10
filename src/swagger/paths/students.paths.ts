@@ -28,7 +28,10 @@ export function registerStudentPaths(registry: OpenAPIRegistry): void {
 		method: 'get',
 		path: '/students',
 		tags: ['Students'],
-		summary: 'Lista kursantów (INSTRUCTOR)',
+		summary:
+			'Lista kursantów z wyszukiwaniem, szybkimi i zaawansowanymi filtrami',
+		description:
+			'search: słowa wyszukiwane w imieniu, nazwisku, e-mailu, telefonie i PKK (bez rozróżniania wielkości liter). view: all, without-pkk, without-course, overdue, without-lesson. filters: JSON z maksymalnie 8 regułami Pole/Warunek/Wartość, np. [{"field":"isActive","operator":"neq","value":false},{"field":"courseId","operator":"neq","value":"00000000-0000-4000-8000-000000000000"}]. Dozwolone pola: firstName, lastName, email, phone, pkkNumber, isActive, courseId, hasOverduePayments, hasUpcomingLesson, createdAt. Warstwy schoolId, courseId, search, view i filters łączą się przez AND przed count i paginacją.',
 		security: [{ bearerAuth: [] }],
 		request: { query: listStudentsQuerySchema },
 		responses: stdBearerResponses({
