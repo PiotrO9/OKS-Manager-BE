@@ -207,6 +207,7 @@ export async function seedOperationalData(
 					instructorEvents.push({
 						id: eventId,
 						instructorId: instructor.instructorProfile.id,
+						schoolId: school.id,
 						courseId,
 						type: EventType.THEORY,
 						startTime: atTime(addDays(new Date(), -7 + e * 7), 17),

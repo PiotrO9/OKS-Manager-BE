@@ -15,6 +15,7 @@ type InstructorEventListRow = {
 	type: InstructorEventListItemDto['type'];
 	status: InstructorEventListItemDto['status'];
 	instructorId: string;
+	schoolId: string;
 	courseId: string | null;
 	startTime: Date;
 	endTime: Date;
@@ -32,6 +33,7 @@ function mapInstructorEventListItem(
 		type: row.type,
 		status: row.status,
 		instructorId: row.instructorId,
+		schoolId: row.schoolId,
 		courseId: row.courseId,
 		startTime: row.startTime.toISOString(),
 		endTime: row.endTime.toISOString(),
@@ -47,6 +49,7 @@ const instructorEventListSelect = {
 	type: true,
 	status: true,
 	instructorId: true,
+	schoolId: true,
 	courseId: true,
 	startTime: true,
 	endTime: true,
@@ -112,13 +115,7 @@ export async function listInstructorEvents(
 				...(query.instructorId !== undefined
 					? { instructorId: query.instructorId }
 					: {}),
-				instructor: {
-					instructorSchools: {
-						some: {
-							school: { ownerId: actor.id, deletedAt: null },
-						},
-					},
-				},
+				school: { ownerId: actor.id, deletedAt: null },
 			},
 			select: instructorEventListSelect,
 			orderBy: { startTime: 'asc' },

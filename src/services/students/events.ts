@@ -87,11 +87,13 @@ export async function listStudentInstructorEvents(
 	const rows = await prisma.instructorEvent.findMany({
 		where: {
 			isActive: true,
+			schoolId,
 			participants: { some: { studentId: student.id } },
 			...dateWhere,
 		},
 		select: {
 			id: true,
+			schoolId: true,
 			type: true,
 			status: true,
 			courseId: true,
@@ -143,6 +145,7 @@ export async function listStudentInstructorEvents(
 	return {
 		events: rows.map((row) => ({
 			id: row.id,
+			schoolId: row.schoolId,
 			type: row.type,
 			status: row.status,
 			courseId: row.courseId,

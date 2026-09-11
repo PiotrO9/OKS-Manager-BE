@@ -31,17 +31,12 @@ async function getStudentDetail(req: Request, res: Response) {
 		req.params,
 		'params',
 	);
-	const query = parseRequestPart(
-		studentDetailQuerySchema,
-		req.query,
-		'query',
-	);
+	parseRequestPart(studentDetailQuerySchema, req.query, 'query');
 
 	const data = await fetchStudentDetail(
 		user.id,
 		user.role,
 		params.userId,
-		query.schoolId,
 	);
 	return sendJsonSuccess(res, data);
 }

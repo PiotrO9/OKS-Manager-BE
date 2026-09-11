@@ -132,14 +132,17 @@ export async function getInstructorByIdForUser(
 	const active = profile.instructorSchools.filter(
 		(row) => row.school.deletedAt === null,
 	);
-	const schoolIds = active
-		.filter(
-			(row) =>
-				actor.role === Role.ADMIN || row.school.ownerId === actor.id,
-		)
-		.map((row) => row.schoolId);
+	if (active.length > 1) {
+		throw AppError.conflict(
+			'Instructor is assigned to multiple active driving schools',
+		);
+	}
 
-	schoolIds.sort();
+	const schoolId = active[0]?.schoolId;
+
+	if (!schoolId) {
+		throw AppError.notFound('Instructor not found');
+	}
 
 	return {
 		id: profile.id,
@@ -154,6 +157,7 @@ export async function getInstructorByIdForUser(
 		qualifiedCourseTypes: mapQualifiedCourseTypes(
 			profile.qualifiedCourseTypes,
 		),
-		schoolIds,
+		schoolId,
+		schoolIds: [schoolId],
 	};
 }

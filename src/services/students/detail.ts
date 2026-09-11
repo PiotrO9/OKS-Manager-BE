@@ -2,6 +2,7 @@ import { Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 import { assertActorCanListStudentsForSchool } from './access';
+import { resolveActiveStudentSchoolId } from './schoolResolver';
 import type { StudentDetailDto } from './types';
 
 const prisma = getPrisma();
@@ -10,11 +11,12 @@ export async function getStudentDetail(
 	actorId: string,
 	actorRole: Role,
 	studentUserId: string,
-	schoolId: string,
 ): Promise<StudentDetailDto> {
 	if (actorRole === Role.STUDENT && actorId !== studentUserId) {
 		throw AppError.forbidden('Forbidden');
 	}
+
+	const schoolId = await resolveActiveStudentSchoolId(studentUserId);
 
 	if (actorRole !== Role.STUDENT) {
 		await assertActorCanListStudentsForSchool(actorId, actorRole, schoolId);
@@ -65,6 +67,7 @@ export async function getStudentDetail(
 	return {
 		id: student.id,
 		userId: student.user.id,
+		schoolId,
 		firstName: student.user.firstName,
 		lastName: student.user.lastName,
 		email: student.user.email,

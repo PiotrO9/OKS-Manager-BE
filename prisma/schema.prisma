@@ -142,6 +142,7 @@ model DrivingSchool {
   instructorSchools    InstructorSchool[]
   studentSchools       StudentSchool[]
   instructorTimeBlocks InstructorTimeBlock[]
+  instructorEvents     InstructorEvent[]
 
   @@map("driving_schools")
 }
@@ -219,6 +220,7 @@ model InstructorSchool {
   instructor InstructorProfile @relation(fields: [instructorId], references: [id], onDelete: Cascade)
   school     DrivingSchool     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
+  @@unique([instructorId], name: "uq_instructor_schools_instructor_id")
   @@unique([instructorId, schoolId], name: "uq_instructor_schools_instructor_id_school_id")
   @@map("instructor_schools")
 }
@@ -232,6 +234,7 @@ model StudentSchool {
   student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
   school  DrivingSchool  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
+  @@unique([studentId], name: "uq_student_schools_student_id")
   @@unique([studentId, schoolId], name: "uq_student_schools_student_id_school_id")
   @@map("student_schools")
 }
@@ -403,6 +406,7 @@ model InstructorLeave {
 model InstructorEvent {
   id           String      @id @default(uuid()) @map("id") @db.Uuid
   instructorId String      @map("instructor_id") @db.Uuid
+  schoolId     String      @map("school_id") @db.Uuid
   courseId     String?     @map("course_id") @db.Uuid
   type         EventType   @map("type")
   startTime    DateTime    @map("start_time")
@@ -414,11 +418,13 @@ model InstructorEvent {
   createdAt    DateTime    @default(now()) @map("created_at")
 
   instructor   InstructorProfile  @relation("InstructorEvents", fields: [instructorId], references: [id], onDelete: Cascade)
+  school       DrivingSchool      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   course       Course?            @relation(fields: [courseId], references: [id], onDelete: SetNull)
   vehicle      Vehicle?           @relation("VehicleEvents", fields: [vehicleId], references: [id], onDelete: SetNull)
   participants EventParticipant[]
 
   @@index([instructorId, startTime], name: "idx_instructor_events_instructor_id_start_time")
+  @@index([schoolId, startTime], name: "idx_instructor_events_school_id_start_time")
   @@index([vehicleId, startTime], name: "idx_instructor_events_vehicle_id_start_time")
   @@index([courseId], name: "idx_instructor_events_course_id")
   @@map("instructor_events")

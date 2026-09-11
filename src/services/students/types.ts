@@ -37,6 +37,7 @@ export type PatchCourseParticipantStatusResult = {
 export type StudentDetailDto = {
 	id: string;
 	userId: string;
+	schoolId: string;
 	firstName: string;
 	lastName: string;
 	email: string;

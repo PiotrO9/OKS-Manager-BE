@@ -43,6 +43,11 @@ export async function createInstructorEvent(
 
 	await assertActorCanManageAvailability(actor, instructorId);
 	await resolveActiveInstructorProfile(instructorId);
+	const schoolId = await resolveInstructorEventSchoolId({
+		instructorId,
+		courseId,
+		vehicleId,
+	});
 
 	if (courseId) {
 		await assertCourseEligibleForInstructorEvent(instructorId, courseId);
@@ -78,6 +83,7 @@ export async function createInstructorEvent(
 		const created = await tx.instructorEvent.create({
 			data: {
 				instructorId,
+				schoolId,
 				courseId: courseId ?? null,
 				type,
 				startTime: start,
@@ -106,6 +112,7 @@ export async function updateInstructorEvent(
 			instructorId: true,
 			isActive: true,
 			courseId: true,
+			schoolId: true,
 			type: true,
 			status: true,
 			startTime: true,
@@ -133,6 +140,7 @@ export async function updateInstructorEvent(
 	}
 
 	const mergedInstructorId = body.instructorId ?? current.instructorId;
+	const mergedCourseId = current.courseId;
 	const mergedType = body.type ?? current.type;
 	const mergedStatus = body.status ?? current.status;
 	const mergedStart = body.startTime
@@ -149,13 +157,13 @@ export async function updateInstructorEvent(
 	}
 
 	if (
-		current.courseId !== null &&
+		mergedCourseId !== null &&
 		mergedType === EventType.THEORY &&
 		(body.instructorId !== undefined || body.type !== undefined)
 	) {
 		await assertCourseEligibleForInstructorEvent(
 			mergedInstructorId,
-			current.courseId,
+			mergedCourseId,
 		);
 	}
 
@@ -172,6 +180,11 @@ export async function updateInstructorEvent(
 
 	const resolvedVehicleId =
 		mergedType === EventType.DRIVE ? mergedVehicleId : null;
+	const mergedSchoolId = await resolveInstructorEventSchoolId({
+		instructorId: mergedInstructorId,
+		courseId: mergedCourseId,
+		vehicleId: resolvedVehicleId ?? undefined,
+	});
 
 	const timeChanged =
 		body.startTime !== undefined || body.endTime !== undefined;
@@ -206,6 +219,7 @@ export async function updateInstructorEvent(
 			where: { id: eventId },
 			data: {
 				instructorId: mergedInstructorId,
+				schoolId: mergedSchoolId,
 				type: mergedType,
 				status: mergedStatus,
 				startTime: mergedStart,
@@ -218,4 +232,56 @@ export async function updateInstructorEvent(
 	});
 
 	return { event: mapInstructorEventWriteDto(row) };
+}
+
+async function resolveInstructorEventSchoolId(input: {
+	instructorId: string;
+	courseId?: string | null;
+	vehicleId?: string | null;
+}): Promise<string> {
+	const link = await prisma.instructorSchool.findFirst({
+		where: {
+			instructorId: input.instructorId,
+			school: { deletedAt: null },
+		},
+		select: { schoolId: true },
+	});
+
+	if (!link) {
+		throw AppError.unprocessableEntity(
+			'Instructor is not assigned to a driving school',
+		);
+	}
+
+	if (input.courseId) {
+		const course = await prisma.course.findFirst({
+			where: { id: input.courseId, deletedAt: null },
+			select: { schoolId: true },
+		});
+		if (!course) {
+			throw AppError.notFound('Course not found');
+		}
+		if (course.schoolId !== link.schoolId) {
+			throw AppError.unprocessableEntity(
+				'Course is not in the instructor driving school',
+			);
+		}
+	}
+
+	if (input.vehicleId) {
+		const vehicle = await prisma.vehicle.findFirst({
+			where: { id: input.vehicleId, isActive: true },
+			select: { schoolId: true },
+		});
+		if (!vehicle) {
+			throw AppError.notFound('Vehicle not found');
+		}
+		if (vehicle.schoolId !== link.schoolId) {
+			throw AppError.badRequest(
+				'Vehicle is not in the instructor driving school',
+			);
+		}
+	}
+
+	return link.schoolId;
 }

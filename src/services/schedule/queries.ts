@@ -6,6 +6,7 @@ import type {
 	ScheduleMeQuery,
 } from '../../schemas/schedule.schemas';
 import { assertActorCanReadSchoolSchedule } from './access';
+import { assertActorCanManageAvailability } from '../instructor-availability.service';
 import { buildDateRangeWhere } from './dateRange';
 import { eventInclude, lessonInclude } from './includes';
 import { mapInstructorEvent, mapLesson, mergeScheduleItems } from './mappers';
@@ -133,6 +134,7 @@ export async function getScheduleForTarget(
 	const eventWhere = buildDateRangeWhere(query.dateFrom, query.dateTo, false);
 
 	if (query.instructorId) {
+		await assertActorCanManageAvailability(actor, query.instructorId);
 		const [rows, eventRows] = await Promise.all([
 			prisma.lesson.findMany({
 				where: { ...where, instructorId: query.instructorId },
@@ -177,14 +179,15 @@ export async function getScheduleForTarget(
 			include: lessonInclude,
 			orderBy: { startTime: 'asc' },
 		}),
-		prisma.instructorEvent.findMany({
-			where: {
-				...eventWhere,
-				isActive: true,
-				participants: { some: { studentId: query.studentId! } },
-				course: { is: { schoolId, deletedAt: null } },
-			},
-			include: eventInclude,
+			prisma.instructorEvent.findMany({
+				where: {
+					...eventWhere,
+					isActive: true,
+					participants: { some: { studentId: query.studentId! } },
+					schoolId,
+					school: { deletedAt: null },
+				},
+				include: eventInclude,
 			orderBy: { startTime: 'asc' },
 		}),
 	]);

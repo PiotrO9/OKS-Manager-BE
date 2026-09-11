@@ -85,6 +85,22 @@ describe('getStudentProcessStatus', () => {
 		expect(findStep(result, 'Zaplanowanie jazd').completed).toBe(false);
 	});
 
+	it('returns process step descriptions with Polish diacritics intact', async () => {
+		const result = await getStudentProcessStatus(
+			studentUserId,
+			Role.STUDENT,
+			studentUserId,
+			schoolId,
+		);
+
+		expect(findStep(result, 'Dane kursanta').description).toBe(
+			'Uzupełnij podstawowe dane kursanta i upewnij się, że konto jest aktywne.',
+		);
+		expect(findStep(result, 'Zaplanowanie jazd').description).toBe(
+			'Zaplanuj co najmniej jedną nieanulowaną jazdę.',
+		);
+	});
+
 	it('marks PKK as completed when the student has a PKK number', async () => {
 		mockStudent({ pkkNumber: '12345678901234567890' });
 

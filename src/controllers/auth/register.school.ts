@@ -87,8 +87,8 @@ async function resolveStudentSchoolIdForInstructor(
 		throw AppError.badRequest('Instructor is not assigned to any school');
 	}
 	if (instructorLinks.length > 1) {
-		throw AppError.badRequest(
-			'schoolId is required when instructor belongs to multiple schools',
+		throw AppError.conflict(
+			'Instructor is assigned to multiple active driving schools',
 		);
 	}
 

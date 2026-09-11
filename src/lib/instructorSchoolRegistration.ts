@@ -63,10 +63,12 @@ export async function addInstructorToSchoolInTx(
 	}
 
 	const existingLink = await tx.instructorSchool.findFirst({
-		where: { instructorId: instructorProfileId, schoolId },
+		where: { instructorId: instructorProfileId },
 	});
 	if (existingLink) {
-		throw AppError.conflict('Already assigned');
+		throw AppError.conflict(
+			'Instructor is already assigned to a driving school',
+		);
 	}
 
 	const hourRows = buildInstructorWorkingHoursDefaultRows(

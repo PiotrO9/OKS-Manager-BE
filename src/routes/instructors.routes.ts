@@ -38,6 +38,12 @@ function createInstructorsRouter() {
 		requireMinRole('MANAGER'),
 		asyncHandler(assignInstructorToSchool),
 	);
+	router.put(
+		'/:id/school',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(assignInstructorToSchool),
+	);
 	router.patch(
 		'/:id',
 		authMiddleware,

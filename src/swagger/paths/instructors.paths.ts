@@ -82,6 +82,27 @@ export function registerInstructorPaths(registry: OpenAPIRegistry): void {
 	});
 
 	registry.registerPath({
+		method: 'put',
+		path: '/instructors/{id}/school',
+		tags: ['Instructors'],
+		summary: 'Zmiana przypisania instruktora do jednego OSK (MANAGER)',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: instructorIdParamsSchema,
+			body: {
+				content: {
+					'application/json': {
+						schema: assignInstructorToSchoolBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('OK'),
+		}),
+	});
+
+	registry.registerPath({
 		method: 'patch',
 		path: '/instructors/{id}',
 		tags: ['Instructors'],

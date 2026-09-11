@@ -29,7 +29,8 @@ export type InstructorDetail = {
 	experienceYears: number | null;
 	qualifications: string | null;
 	qualifiedCourseTypes: InstructorQualifiedCourseType[];
-	schoolIds: string[];
+	schoolId: string;
+	schoolIds?: string[];
 };
 
 export type InstructorPatchResult = {

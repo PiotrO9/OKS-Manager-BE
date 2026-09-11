@@ -11,16 +11,23 @@ export const studentDetailParamsSchema = z.object({
 
 export const studentDetailQuerySchema = z.object({
 	schoolId: zodPreprocessQueryFirst(
+		z.preprocess(
+			(val) => (val === '' || val === null ? undefined : val),
+			z.string().regex(UUID_PARAM_RE, 'Invalid schoolId').optional(),
+		),
+	).optional(),
+});
+
+export type StudentDetailQuery = z.infer<typeof studentDetailQuerySchema>;
+
+export const studentProcessStatusQuerySchema = z.object({
+	schoolId: zodPreprocessQueryFirst(
 		z
 			.string({ required_error: 'schoolId is required' })
 			.min(1, 'schoolId is required')
 			.regex(UUID_PARAM_RE, 'Invalid schoolId'),
 	),
 });
-
-export type StudentDetailQuery = z.infer<typeof studentDetailQuerySchema>;
-
-export const studentProcessStatusQuerySchema = studentDetailQuerySchema;
 
 export type StudentProcessStatusQuery = z.infer<
 	typeof studentProcessStatusQuerySchema

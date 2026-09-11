@@ -19,7 +19,7 @@ export function buildStudentProcessStatusSteps(input: {
 			name: 'Dane kursanta',
 			completed: input.hasBasicData,
 			description:
-				'UzupeĹ‚nij podstawowe dane kursanta i upewnij siÄ™, ĹĽe konto jest aktywne.',
+				'Uzupełnij podstawowe dane kursanta i upewnij się, że konto jest aktywne.',
 		},
 		{
 			name: 'Numer PKK',
@@ -34,7 +34,7 @@ export function buildStudentProcessStatusSteps(input: {
 		{
 			name: 'Zaplanowanie jazd',
 			completed: input.hasScheduledLesson,
-			description: 'Zaplanuj co najmniej jednÄ… nieanulowanÄ… jazdÄ™.',
+			description: 'Zaplanuj co najmniej jedną nieanulowaną jazdę.',
 		},
 	];
 }

@@ -3,6 +3,7 @@ import type { InstructorEventDto } from './mappers';
 export const instructorEventWriteSelect = {
 	id: true,
 	instructorId: true,
+	schoolId: true,
 	courseId: true,
 	type: true,
 	status: true,
@@ -16,6 +17,7 @@ export const instructorEventWriteSelect = {
 type InstructorEventWriteRow = {
 	id: string;
 	instructorId: string;
+	schoolId: string;
 	courseId: string | null;
 	type: InstructorEventDto['type'];
 	status: InstructorEventDto['status'];
@@ -32,6 +34,7 @@ export function mapInstructorEventWriteDto(
 	return {
 		id: row.id,
 		instructorId: row.instructorId,
+		schoolId: row.schoolId,
 		type: row.type,
 		status: row.status,
 		courseId: row.courseId,

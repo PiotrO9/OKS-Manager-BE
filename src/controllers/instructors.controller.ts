@@ -103,7 +103,7 @@ async function assignInstructorToSchool(req: Request, res: Response) {
 		params.id,
 		body.schoolId,
 	);
-	return sendJsonSuccess(res, data, 201);
+	return sendJsonSuccess(res, data);
 }
 
 export {

@@ -70,7 +70,8 @@ Mounted at `/instructors`, routes in `src/routes/instructors.routes.ts`.
 | GET | `/instructors` | `listInstructorsBySchool` | bearer, min role `MANAGER` | 200 |
 | GET | `/instructors/:id` | `getInstructorById` | bearer, min role `MANAGER` | 200 |
 | GET | `/instructors/:id/ratings` | `listInstructorLessonRatingsHandler` | bearer, min role `MANAGER` | 200 |
-| POST | `/instructors/:id/schools` | `assignInstructorToSchool` | bearer, min role `MANAGER` | 201 |
+| POST | `/instructors/:id/schools` | `assignInstructorToSchool` | bearer, min role `MANAGER` | 200 |
+| PUT | `/instructors/:id/school` | `assignInstructorToSchool` | bearer, min role `MANAGER` | 200 |
 | PATCH | `/instructors/:id` | `patchInstructor` | bearer, min role `MANAGER` | 200 |
 | DELETE | `/instructors/:id` | `deleteInstructor` | bearer, min role `MANAGER` | 204 |
 
@@ -240,4 +241,3 @@ future API documentation work:
   registration.
 - `/openapi.json` and `/api-docs` are mounted by Swagger setup and are technical
   routes, not normal domain API endpoints.
-

@@ -7,6 +7,7 @@ import {
 export type InstructorEventDto = {
 	id: string;
 	instructorId: string;
+	schoolId: string;
 	type: EventType;
 	status: EventStatus;
 	courseId: string | null;
@@ -45,6 +46,7 @@ export type InstructorEventListItemDto = {
 	type: EventType;
 	status: EventStatus;
 	instructorId: string;
+	schoolId: string;
 	courseId: string | null;
 	startTime: string;
 	endTime: string;

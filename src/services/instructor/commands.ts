@@ -1,6 +1,5 @@
 import { Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
-import { addInstructorToSchoolInTx } from '../../lib/instructorSchoolRegistration';
 import { getPrisma } from '../../lib/prisma';
 import {
 	activeInstructorProfileWhere,
@@ -154,7 +153,18 @@ export async function assignInstructorToSchoolForManagerOrAdmin(
 
 	const profile = await prisma.instructorProfile.findFirst({
 		where: activeInstructorProfileWhere(instructorId),
-		select: { id: true },
+		select: {
+			id: true,
+			userId: true,
+			instructorSchools: {
+				select: {
+					schoolId: true,
+					school: {
+						select: { ownerId: true, deletedAt: true },
+					},
+				},
+			},
+		},
 	});
 
 	if (!profile) {
@@ -174,11 +184,100 @@ export async function assignInstructorToSchoolForManagerOrAdmin(
 		throw AppError.forbidden('Forbidden');
 	}
 
+	assertManagerOwnsInstructorSchool(
+		actor,
+		profile.instructorSchools,
+		hasInstructorSchoolOwnedByActor,
+	);
+
+	const activeLinks = profile.instructorSchools.filter(
+		(row) => row.school.deletedAt === null,
+	);
+
+	if (activeLinks.length > 1) {
+		throw AppError.conflict(
+			'Instructor is assigned to multiple active driving schools',
+		);
+	}
+
+	const currentSchoolId = activeLinks[0]?.schoolId ?? null;
+
+	if (currentSchoolId === schoolId) {
+		return { instructorId: profile.id, schoolId };
+	}
+
+	await assertInstructorCanChangeSchool(profile.id, currentSchoolId);
+
 	await prisma.$transaction(async (tx) => {
-		await addInstructorToSchoolInTx(tx, profile.id, schoolId);
+		await tx.instructorSchool.deleteMany({
+			where: { instructorId: profile.id },
+		});
+		await tx.instructorSchool.create({
+			data: { instructorId: profile.id, schoolId },
+		});
+		await tx.user.update({
+			where: { id: profile.userId },
+			data: { defaultOskId: schoolId },
+		});
 	});
 
 	return { instructorId: profile.id, schoolId };
+}
+
+async function assertInstructorCanChangeSchool(
+	instructorId: string,
+	currentSchoolId: string | null,
+): Promise<void> {
+	if (!currentSchoolId) {
+		return;
+	}
+
+	const now = new Date();
+	const [futureLessons, activeEvents, assignedCourses, futureBlocks] =
+		await Promise.all([
+			prisma.lesson.count({
+				where: {
+					instructorId,
+					deletedAt: null,
+					startTime: { gte: now },
+					course: { schoolId: currentSchoolId, deletedAt: null },
+				},
+			}),
+			prisma.instructorEvent.count({
+				where: {
+					instructorId,
+					schoolId: currentSchoolId,
+					isActive: true,
+					startTime: { gte: now },
+				},
+			}),
+			prisma.course.count({
+				where: {
+					instructorId,
+					schoolId: currentSchoolId,
+					deletedAt: null,
+					status: 'active',
+				},
+			}),
+			prisma.instructorTimeBlock.count({
+				where: {
+					instructorId,
+					schoolId: currentSchoolId,
+					startTime: { gte: now },
+				},
+			}),
+		]);
+
+	if (
+		futureLessons > 0 ||
+		activeEvents > 0 ||
+		assignedCourses > 0 ||
+		futureBlocks > 0
+	) {
+		throw AppError.conflict(
+			'Instructor has active obligations in the current driving school',
+		);
+	}
 }
 
 export async function softDeleteInstructorForManagerOrAdmin(

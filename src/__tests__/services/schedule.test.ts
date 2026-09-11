@@ -182,7 +182,8 @@ describe('schedule service', () => {
 			expect.objectContaining({
 				where: expect.objectContaining({
 					participants: { some: { studentId: studentProfileId } },
-					course: { is: { schoolId, deletedAt: null } },
+					schoolId,
+					school: { deletedAt: null },
 				}),
 			}),
 		);
