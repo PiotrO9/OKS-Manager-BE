@@ -41,32 +41,34 @@ function buildNullableUserTextFilter(
 	operator: 'contains' | 'not_contains' | 'is_empty' | 'is_not_empty',
 	value?: string,
 ): Prisma.StudentProfileWhereInput {
-	if (operator === 'is_empty') {
-		return { user: { OR: [{ [field]: null }, { [field]: '' }] } };
-	}
+	switch (operator) {
+		case 'is_empty':
+			return { user: { OR: [{ [field]: null }, { [field]: '' }] } };
 
-	if (operator === 'is_not_empty') {
-		return {
-			user: {
-				AND: [{ [field]: { not: null } }, { [field]: { not: '' } }],
-			},
-		};
-	}
-
-	if (operator === 'contains') {
-		return { user: { [field]: buildInsensitiveContains(value ?? '') } };
-	}
-
-	return {
-		OR: [
-			{ user: { [field]: null } },
-			{
-				NOT: {
-					user: { [field]: buildInsensitiveContains(value ?? '') },
+		case 'is_not_empty':
+			return {
+				user: {
+					AND: [{ [field]: { not: null } }, { [field]: { not: '' } }],
 				},
-			},
-		],
-	};
+			};
+
+		case 'contains':
+			return { user: { [field]: buildInsensitiveContains(value ?? '') } };
+
+		case 'not_contains':
+			return {
+				OR: [
+					{ user: { [field]: null } },
+					{
+						NOT: {
+							user: {
+								[field]: buildInsensitiveContains(value ?? ''),
+							},
+						},
+					},
+				],
+			};
+	}
 }
 
 function buildNullableStudentTextFilter(
