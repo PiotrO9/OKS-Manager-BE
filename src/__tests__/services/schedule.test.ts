@@ -20,6 +20,9 @@ const { prismaMock } = vi.hoisted(() => ({
 		instructorEvent: {
 			findMany: vi.fn(),
 		},
+		instructorSchool: {
+			findFirst: vi.fn(),
+		},
 		lesson: {
 			findMany: vi.fn(),
 		},
@@ -107,6 +110,7 @@ describe('schedule service', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		prismaMock.drivingSchool.findFirst.mockResolvedValue({ id: schoolId });
+		prismaMock.instructorSchool.findFirst.mockResolvedValue({ id: 'link-1' });
 		prismaMock.instructorEvent.findMany.mockResolvedValue([]);
 		prismaMock.lesson.findMany.mockResolvedValue([]);
 		prismaMock.studentProfile.findUnique.mockResolvedValue({
@@ -208,6 +212,48 @@ describe('schedule service', () => {
 		});
 		expect(prismaMock.lesson.findMany).not.toHaveBeenCalled();
 		expect(prismaMock.instructorEvent.findMany).not.toHaveBeenCalled();
+	});
+
+	it('filters manager instructor schedule by owned school', async () => {
+		prismaMock.lesson.findMany.mockResolvedValue([lessonRow()]);
+		prismaMock.instructorEvent.findMany.mockResolvedValue([eventRow()]);
+
+		await getScheduleForTarget(
+			{ id: actorId, role: Role.MANAGER },
+			{
+				dateFrom: '2026-06-22',
+				dateTo: '2026-06-28',
+				instructorId: instructorProfileId,
+			},
+		);
+
+		expect(prismaMock.instructorSchool.findFirst).toHaveBeenCalledWith({
+			where: {
+				instructorId: instructorProfileId,
+				school: { ownerId: actorId, deletedAt: null },
+			},
+			select: { id: true },
+		});
+		expect(prismaMock.lesson.findMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					instructorId: instructorProfileId,
+					course: {
+						deletedAt: null,
+						school: { ownerId: actorId, deletedAt: null },
+					},
+				}),
+			}),
+		);
+		expect(prismaMock.instructorEvent.findMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					instructorId: instructorProfileId,
+					isActive: true,
+					school: { ownerId: actorId, deletedAt: null },
+				}),
+			}),
+		);
 	});
 
 	it('validates date range and required schoolId for manager student schedule', () => {

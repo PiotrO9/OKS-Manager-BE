@@ -31,6 +31,14 @@ export async function seedOperationalData(
 	const schools = await tx.drivingSchool.findMany({
 		orderBy: { name: 'asc' },
 	});
+	const [instructorSchools, studentSchools] = await Promise.all([
+		tx.instructorSchool.findMany({
+			select: { instructorId: true, schoolId: true },
+		}),
+		tx.studentSchool.findMany({
+			select: { studentId: true, schoolId: true },
+		}),
+	]);
 	const courses: Prisma.CourseCreateManyInput[] = [];
 	const courseParticipants: Prisma.CourseParticipantCreateManyInput[] = [];
 	const paymentPlans: Prisma.PaymentPlanCreateManyInput[] = [];
@@ -46,10 +54,20 @@ export async function seedOperationalData(
 	for (let s = 0; s < schools.length; s += 1) {
 		const school = schools[s]!;
 		const schoolInstructors = context.instructors.filter(
-			(_, index) => index % schools.length === s,
+			(instructor) =>
+				instructorSchools.some(
+					(link) =>
+						link.instructorId === instructor.instructorProfile.id &&
+						link.schoolId === school.id,
+				),
 		);
 		const schoolStudents = context.students.filter(
-			(_, index) => index % schools.length === s,
+			(student) =>
+				studentSchools.some(
+					(link) =>
+						link.studentId === student.studentProfile.id &&
+						link.schoolId === school.id,
+				),
 		);
 		const schoolVehicles = context.vehicles.filter(
 			(vehicle) => vehicle.schoolId === school.id && vehicle.isActive,

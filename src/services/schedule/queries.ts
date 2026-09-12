@@ -135,9 +135,24 @@ export async function getScheduleForTarget(
 
 	if (query.instructorId) {
 		await assertActorCanManageAvailability(actor, query.instructorId);
+		const managerSchoolFilter =
+			actor.role === Role.MANAGER
+				? { ownerId: actor.id, deletedAt: null }
+				: undefined;
 		const [rows, eventRows] = await Promise.all([
 			prisma.lesson.findMany({
-				where: { ...where, instructorId: query.instructorId },
+				where: {
+					...where,
+					instructorId: query.instructorId,
+					...(managerSchoolFilter
+						? {
+								course: {
+									deletedAt: null,
+									school: managerSchoolFilter,
+								},
+							}
+						: {}),
+				},
 				include: lessonInclude,
 				orderBy: { startTime: 'asc' },
 			}),
@@ -146,6 +161,9 @@ export async function getScheduleForTarget(
 					...eventWhere,
 					instructorId: query.instructorId,
 					isActive: true,
+					...(managerSchoolFilter
+						? { school: managerSchoolFilter }
+						: {}),
 				},
 				include: eventInclude,
 				orderBy: { startTime: 'asc' },
