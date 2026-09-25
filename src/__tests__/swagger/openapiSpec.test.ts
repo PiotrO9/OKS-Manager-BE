@@ -13,6 +13,9 @@ describe('getOpenApiSpec', () => {
 		expect(
 			spec.paths?.['/events/{id}/eligible-students']?.get,
 		).toBeDefined();
+		expect(
+			spec.paths?.['/events/{id}/students/availability-check']?.post,
+		).toBeDefined();
 		expect(spec.paths?.['/lessons/me']?.post).toBeDefined();
 		expect(
 			spec.paths?.['/instructors/{instructorId}/availability/slots']?.get,
@@ -100,6 +103,7 @@ describe('getOpenApiSpec', () => {
 			['delete', '/events/{id}'],
 			['get', '/events/{id}/students'],
 			['put', '/events/{id}/students'],
+			['post', '/events/{id}/students/availability-check'],
 			['delete', '/events/{id}/students/{studentUserId}'],
 			['post', '/events/{id}/students'],
 			['get', '/events/{id}/eligible-students'],
@@ -116,6 +120,7 @@ describe('getOpenApiSpec', () => {
 			['get', '/manager/attention-items'],
 			['get', '/schedule/me'],
 			['get', '/schedule'],
+			['post', '/schedule/availability-options'],
 			['post', '/dev/reset-and-seed'],
 		];
 

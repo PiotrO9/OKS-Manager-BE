@@ -1,19 +1,20 @@
-import { LessonStatus } from '@prisma/client';
+import { EventStatus, LessonStatus } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
+import { instantToPolishDateTime } from '../../lib/polishScheduleTime';
 import {
 	assertActorCanManageAvailability,
 	resolveActiveInstructorProfile,
 } from './access';
 import {
-	datesAreSameUtcDay,
+	datesAreSamePolishDay,
 	dbTimeToHHmm,
 	minutesToHHmm,
-	nextUtcDay,
+	polishDateOnly,
+	polishDayRange,
 	subtractWindows,
 	timeToMinutes,
 	timeWindowFromDates,
-	utcDateOnly,
 	yyyymmddToDate,
 	type TimeWindow,
 } from './time';
@@ -120,7 +121,7 @@ export async function computeDayWindows(
 			end: timeToMinutes(dbTimeToHHmm(exception.endTime!)),
 		};
 	} else {
-		const dayOfWeek = date.getUTCDay();
+		const dayOfWeek = instantToPolishDateTime(date).dayOfWeek;
 		const weekly = await db.instructorWorkingHoursDefault.findUnique({
 			where: {
 				uq_instructor_working_hours_default_instructor_id_day_of_week: {
@@ -139,21 +140,22 @@ export async function computeDayWindows(
 		};
 	}
 
-	const dayStart = date;
-	const dayEnd = nextUtcDay(date);
+	const { start: dayStart, end: dayEnd } = polishDayRange(date);
 
 	const [timeBlocks, lessons, instructorEvents] = await Promise.all([
 		db.instructorTimeBlock.findMany({
 			where: {
 				instructorId,
-				startTime: { gte: dayStart, lt: dayEnd },
+				startTime: { lt: dayEnd },
+				endTime: { gt: dayStart },
 			},
 			select: { startTime: true, endTime: true },
 		}),
 		db.lesson.findMany({
 			where: {
 				instructorId,
-				startTime: { gte: dayStart, lt: dayEnd },
+				startTime: { lt: dayEnd },
+				endTime: { gt: dayStart },
 				status: { not: LessonStatus.CANCELLED },
 				...(excludeLessonId ? { id: { not: excludeLessonId } } : {}),
 			},
@@ -163,7 +165,9 @@ export async function computeDayWindows(
 			where: {
 				instructorId,
 				isActive: true,
-				startTime: { gte: dayStart, lt: dayEnd },
+				status: { not: EventStatus.CANCELLED },
+				startTime: { lt: dayEnd },
+				endTime: { gt: dayStart },
 				...(excludeEventId ? { id: { not: excludeEventId } } : {}),
 			},
 			select: { startTime: true, endTime: true },
@@ -171,9 +175,15 @@ export async function computeDayWindows(
 	]);
 
 	const usedWindows: TimeWindow[] = [
-		...timeBlocks.map(timeWindowFromDates),
-		...lessons.map(timeWindowFromDates),
-		...instructorEvents.map(timeWindowFromDates),
+		...timeBlocks.map((row) =>
+			timeWindowFromDates(row, { start: dayStart, end: dayEnd }),
+		),
+		...lessons.map((row) =>
+			timeWindowFromDates(row, { start: dayStart, end: dayEnd }),
+		),
+		...instructorEvents.map((row) =>
+			timeWindowFromDates(row, { start: dayStart, end: dayEnd }),
+		),
 	];
 
 	return subtractWindows(baseWindow, usedWindows);
@@ -190,14 +200,14 @@ export async function assertInstructorTimeWindowAvailable(
 	if (startTime.getTime() >= endTime.getTime()) {
 		throw AppError.badRequest('startTime must be before endTime');
 	}
-	if (!datesAreSameUtcDay(startTime, endTime)) {
+	if (!datesAreSamePolishDay(startTime, endTime)) {
 		throw AppError.badRequest(
-			'Event must start and end on the same UTC calendar day',
+			'Event must start and end on the same Polish calendar day',
 		);
 	}
 	const free = await computeDayWindows(
 		instructorId,
-		utcDateOnly(startTime),
+		polishDateOnly(startTime),
 		db,
 		excludeEventId,
 		excludeLessonId,
@@ -205,8 +215,8 @@ export async function assertInstructorTimeWindowAvailable(
 	if (free === null) {
 		throw AppError.conflict('Slot outside instructor availability');
 	}
-	const reqStart = startTime.getUTCHours() * 60 + startTime.getUTCMinutes();
-	const reqEnd = endTime.getUTCHours() * 60 + endTime.getUTCMinutes();
+	const reqStart = instantToPolishDateTime(startTime).minutes;
+	const reqEnd = instantToPolishDateTime(endTime).minutes;
 	const ok = free.some((w) => reqStart >= w.start && reqEnd <= w.end);
 	if (!ok) {
 		throw AppError.conflict('Slot outside instructor availability');

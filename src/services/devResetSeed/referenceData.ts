@@ -70,13 +70,23 @@ export async function seedReferenceData(
 	const defaultVehicleBySchool = new Map<string, string>();
 	for (let i = 0; i < schools.length; i += 1) {
 		const school = schools[i]!;
-		for (let v = 1; v <= 5; v += 1) {
+		const vehicleCount = context.seedPlan.schools[i]!.vehicles;
+		for (let v = 1; v <= vehicleCount; v += 1) {
 			const vehicleId = randomUUID();
-			const isActive = v !== 5;
+			const isUnavailable = vehicleCount >= 3 && v === vehicleCount;
+			const isActive = !isUnavailable;
+			const availabilityStatus = isUnavailable
+				? VehicleAvailabilityStatus.UNAVAILABLE
+				: VehicleAvailabilityStatus.ACTIVE;
 			if (v === 1) {
 				defaultVehicleBySchool.set(school.id, vehicleId);
 			}
-			vehicles.push({ id: vehicleId, schoolId: school.id, isActive });
+			vehicles.push({
+				id: vehicleId,
+				schoolId: school.id,
+				isActive,
+				availabilityStatus,
+			});
 			vehicleInputs.push({
 				id: vehicleId,
 				schoolId: school.id,
@@ -88,12 +98,9 @@ export async function seedReferenceData(
 				mileageKm: 35000 + i * 9000 + v * 4200,
 				inspectionDate: addDays(new Date(), 80 + v * 12),
 				insuranceDate: addDays(new Date(), 120 + v * 10),
-				availabilityStatus:
-					v === 5
-						? VehicleAvailabilityStatus.UNAVAILABLE
-						: VehicleAvailabilityStatus.ACTIVE,
+				availabilityStatus,
 				isActive,
-				note: v === 5 ? 'Pojazd serwisowy w danych demo.' : null,
+				note: isUnavailable ? 'Pojazd serwisowy w danych demo.' : null,
 			});
 		}
 	}
@@ -127,53 +134,87 @@ export async function seedReferenceData(
 		);
 	}
 
-	for (let i = 0; i < context.instructors.length; i += 1) {
-		const instructor = context.instructors[i]!;
-		const school = schools[i % schools.length]!;
-		userDefaultOskRows.push(
-			Prisma.sql`(${instructor.id}::uuid, ${school.id}::uuid)`,
+	let instructorOffset = 0;
+	for (let schoolIndex = 0; schoolIndex < schools.length; schoolIndex += 1) {
+		const school = schools[schoolIndex]!;
+		const instructorCount =
+			context.seedPlan.schools[schoolIndex]!.instructors;
+		const schoolInstructors = context.instructors.slice(
+			instructorOffset,
+			instructorOffset + instructorCount,
 		);
-		instructorSchools.push({
-			id: randomUUID(),
-			instructorId: instructor.instructorProfile.id,
-			schoolId: school.id,
-		});
-		for (const type of courseTypes.slice(0, 1 + (i % courseTypes.length))) {
-			instructorQualificationRows.push(
-				Prisma.sql`(${type.id}::uuid, ${instructor.instructorProfile.id}::uuid)`,
+		for (
+			let localIndex = 0;
+			localIndex < schoolInstructors.length;
+			localIndex += 1
+		) {
+			const instructor = schoolInstructors[localIndex]!;
+			const instructorIndex = instructorOffset + localIndex;
+			userDefaultOskRows.push(
+				Prisma.sql`(${instructor.id}::uuid, ${school.id}::uuid)`,
 			);
-		}
-		for (let day = 1; day <= 5; day += 1) {
-			instructorWorkingHoursDefaults.push({
+			instructorSchools.push({
 				id: randomUUID(),
 				instructorId: instructor.instructorProfile.id,
-				dayOfWeek: day,
-				startTime: timeOnly(8 + (i % 2)),
-				endTime: timeOnly(16 + (i % 3)),
+				schoolId: school.id,
 			});
+			const qualificationCount = Math.min(
+				courseTypes.length,
+				Math.max(
+					2,
+					2 + (instructorIndex % Math.max(1, courseTypes.length - 1)),
+				),
+			);
+			for (const type of courseTypes.slice(0, qualificationCount)) {
+				instructorQualificationRows.push(
+					Prisma.sql`(${type.id}::uuid, ${instructor.instructorProfile.id}::uuid)`,
+				);
+			}
+			for (let day = 1; day <= 5; day += 1) {
+				instructorWorkingHoursDefaults.push({
+					id: randomUUID(),
+					instructorId: instructor.instructorProfile.id,
+					dayOfWeek: day,
+					startTime: timeOnly(8 + (instructorIndex % 2)),
+					endTime: timeOnly(16 + (instructorIndex % 3)),
+				});
+			}
+			if (instructorIndex % 4 === 0) {
+				instructorLeaves.push({
+					id: randomUUID(),
+					instructorId: instructor.instructorProfile.id,
+					startDate: dateOnly(
+						addDays(new Date(), 14 + instructorIndex),
+					),
+					endDate: dateOnly(
+						addDays(new Date(), 16 + instructorIndex),
+					),
+				});
+			}
 		}
-		if (i % 4 === 0) {
-			instructorLeaves.push({
-				id: randomUUID(),
-				instructorId: instructor.instructorProfile.id,
-				startDate: dateOnly(addDays(new Date(), 14 + i)),
-				endDate: dateOnly(addDays(new Date(), 16 + i)),
-			});
-		}
+		instructorOffset += instructorCount;
 	}
 
 	const studentSchools: Prisma.StudentSchoolCreateManyInput[] = [];
-	for (let i = 0; i < context.students.length; i += 1) {
-		const student = context.students[i]!;
-		const school = schools[i % schools.length]!;
-		userDefaultOskRows.push(
-			Prisma.sql`(${student.id}::uuid, ${school.id}::uuid)`,
+	let studentOffset = 0;
+	for (let schoolIndex = 0; schoolIndex < schools.length; schoolIndex += 1) {
+		const school = schools[schoolIndex]!;
+		const studentCount = context.seedPlan.schools[schoolIndex]!.students;
+		const schoolStudents = context.students.slice(
+			studentOffset,
+			studentOffset + studentCount,
 		);
-		studentSchools.push({
-			id: randomUUID(),
-			studentId: student.studentProfile.id,
-			schoolId: school.id,
-		});
+		for (const student of schoolStudents) {
+			userDefaultOskRows.push(
+				Prisma.sql`(${student.id}::uuid, ${school.id}::uuid)`,
+			);
+			studentSchools.push({
+				id: randomUUID(),
+				studentId: student.studentProfile.id,
+				schoolId: school.id,
+			});
+		}
+		studentOffset += studentCount;
 	}
 
 	await tx.instructorSchool.createMany({ data: instructorSchools });

@@ -1,5 +1,6 @@
-import type { Prisma } from '@prisma/client';
+import { VehicleAvailabilityStatus, type Prisma } from '@prisma/client';
 import { AppError } from './http/AppError';
+import { polishTodayYyyymmdd } from './polishScheduleTime';
 import { getPrisma } from './prisma';
 
 type DbClient = Prisma.TransactionClient | ReturnType<typeof getPrisma>;
@@ -11,13 +12,44 @@ export async function validateVehicleForInstructor(
 	instructorId: string,
 	vehicleId: string,
 	db: DbClient = getPrisma(),
+	options?: { requireAvailable?: boolean },
 ): Promise<void> {
 	const vehicle = await db.vehicle.findFirst({
 		where: { id: vehicleId, isActive: true },
-		select: { id: true, schoolId: true },
+		select: {
+			id: true,
+			schoolId: true,
+			availabilityStatus: true,
+			unavailableUntil: true,
+		},
 	});
 	if (!vehicle) {
 		throw AppError.notFound('Vehicle not found');
+	}
+	const unavailableUntil = vehicle.unavailableUntil
+		? vehicle.unavailableUntil.toISOString().slice(0, 10)
+		: null;
+	const expiredTemporaryUnavailability =
+		vehicle.availabilityStatus === VehicleAvailabilityStatus.UNAVAILABLE &&
+		unavailableUntil !== null &&
+		unavailableUntil < polishTodayYyyymmdd();
+
+	if (expiredTemporaryUnavailability) {
+		await db.vehicle.update({
+			where: { id: vehicle.id },
+			data: {
+				availabilityStatus: VehicleAvailabilityStatus.ACTIVE,
+				unavailableUntil: null,
+			},
+		});
+	}
+
+	if (
+		options?.requireAvailable &&
+		vehicle.availabilityStatus !== VehicleAvailabilityStatus.ACTIVE &&
+		!expiredTemporaryUnavailability
+	) {
+		throw AppError.badRequest('Vehicle is unavailable');
 	}
 	const link = await db.instructorSchool.findFirst({
 		where: { instructorId, schoolId: vehicle.schoolId },

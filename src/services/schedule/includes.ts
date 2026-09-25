@@ -1,4 +1,10 @@
 export const lessonInclude = {
+	course: {
+		select: {
+			category: true,
+			courseType: { select: { code: true } },
+		},
+	},
 	instructorProfile: {
 		select: {
 			id: true,
@@ -32,6 +38,12 @@ export const lessonInclude = {
 };
 
 export const eventInclude = {
+	course: {
+		select: {
+			category: true,
+			courseType: { select: { code: true } },
+		},
+	},
 	instructor: {
 		select: {
 			id: true,

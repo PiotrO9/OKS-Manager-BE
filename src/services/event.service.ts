@@ -2,6 +2,8 @@ export { findStudentProfileIdsWithScheduleConflictsForEventWindow } from './even
 export { listTheoryEventEligibleStudents } from './event/eligibility';
 export type {
 	AssignStudentsToEventResult,
+	EventStudentsAvailabilityIssueDto,
+	EventStudentsAvailabilityResult,
 	InstructorEventDto,
 	InstructorEventListItemDto,
 	InstructorEventWithDetailsDto,
@@ -13,6 +15,7 @@ export type {
 } from './event/mappers';
 export {
 	assignStudentsToEvent,
+	checkEventStudentsAvailability,
 	getEventStudentUserIds,
 	removeStudentFromEvent,
 	replaceEventStudents,

@@ -1,4 +1,4 @@
-import { CourseKind, LessonStatus, Prisma } from '@prisma/client';
+import { CourseKind, EventStatus, LessonStatus, Prisma } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import {
 	assertCourseDrivingPackageHoursAllowNewLesson,
@@ -71,6 +71,7 @@ export async function assertLessonSchedulingWindowAvailable(
 		where: {
 			instructorId: params.instructorId,
 			isActive: true,
+			status: { not: EventStatus.CANCELLED },
 			startTime: { lt: params.end },
 			endTime: { gt: params.start },
 		},

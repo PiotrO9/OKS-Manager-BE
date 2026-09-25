@@ -1,6 +1,6 @@
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
-export async function resetDatabase(prisma: PrismaClient) {
+export async function resetDatabase(prisma: Prisma.TransactionClient) {
 	await prisma.$executeRawUnsafe(`
 		TRUNCATE TABLE
 			"_InstructorQualifiedCourseTypes",

@@ -41,6 +41,9 @@ npx prisma migrate deploy
 
 Szczegóły procesu są opisane w `docs/DATABASE_WORKFLOW.md`.
 
+Mechanizm walidacji terminarza, dostępnych godzin i konfliktów zapisu jest
+opisany w [docs/SCHEDULE_AVAILABILITY.md](docs/SCHEDULE_AVAILABILITY.md).
+
 ## Homelab Deployment
 
 Pushes to `main` run the backend CI workflow. When CI passes, it triggers the homelab deployment workflow in the deploy repository.

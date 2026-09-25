@@ -1,4 +1,5 @@
-import { EventType, Role } from '@prisma/client';
+import { CourseParticipantStatus, EventType, Role } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 import { assertActorCanManageAvailability } from '../instructor-availability.service';
@@ -8,6 +9,8 @@ import {
 	getSchoolIdsForEventParticipantValidation,
 	loadActiveStudentUserIdToProfileIdMap,
 } from './participantValidation';
+import { findStudentProfileIdsWithScheduleConflictsForEventWindow } from './conflicts';
+import type { EventStudentsAvailabilityIssueDto } from './mappers';
 
 const prisma = getPrisma();
 
@@ -19,6 +22,7 @@ export type ParticipantWriteEvent = {
 	startTime?: Date;
 	endTime?: Date;
 	capacity?: number | null;
+	courseId?: string | null;
 };
 
 export function getUniqueStudentIdsOrThrow(studentIds: string[]): string[] {
@@ -45,6 +49,7 @@ export async function loadParticipantWriteEvent(
 						startTime: true,
 						endTime: true,
 						capacity: true,
+						courseId: true,
 					}
 				: {}),
 		},
@@ -108,4 +113,119 @@ export async function assertStudentProfilesAllowedForEvent(
 		profileIds,
 		allowedSchoolIds,
 	);
+}
+
+export type PreparedEventStudentReplacement = {
+	event: ParticipantWriteEvent & {
+		startTime: Date;
+		endTime: Date;
+		capacity: number | null;
+		courseId: string | null;
+	};
+	studentUserIds: string[];
+	studentProfileIds: string[];
+	start: Date;
+	end: Date;
+};
+
+export async function prepareEventStudentReplacement(
+	actor: { id: string; role: Role },
+	eventId: string,
+	studentIds: string[],
+	window?: { start: Date; end: Date },
+): Promise<PreparedEventStudentReplacement> {
+	const studentUserIds = getUniqueStudentIdsOrThrow(studentIds);
+	const event = await loadParticipantWriteEvent(eventId, {
+		includeSchedule: true,
+	});
+
+	await assertActorCanManageParticipantEvent(actor, event);
+
+	const studentProfileIds =
+		await resolveStudentProfileIdsOrThrow(studentUserIds);
+	await assertStudentProfilesAllowedForEvent(
+		actor,
+		event.instructorId,
+		studentProfileIds,
+	);
+	await assertStudentProfilesInEventCourse(
+		prisma,
+		studentProfileIds,
+		event.courseId ?? null,
+	);
+
+	return {
+		event: event as PreparedEventStudentReplacement['event'],
+		studentUserIds,
+		studentProfileIds,
+		start: window?.start ?? event.startTime!,
+		end: window?.end ?? event.endTime!,
+	};
+}
+
+export async function assertStudentProfilesInEventCourse(
+	db: Prisma.TransactionClient | typeof prisma,
+	studentProfileIds: string[],
+	courseId: string | null,
+): Promise<void> {
+	if (!courseId || studentProfileIds.length === 0) {
+		return;
+	}
+
+	const rows = await db.courseParticipant.findMany({
+		where: {
+			courseId,
+			studentId: { in: studentProfileIds },
+			status: CourseParticipantStatus.ACTIVE,
+		},
+		select: { studentId: true },
+	});
+	const activeStudentIds = new Set(rows.map((row) => row.studentId));
+
+	if (studentProfileIds.some((id) => !activeStudentIds.has(id))) {
+		throw AppError.unprocessableEntity(
+			'One or more students are not active participants of the event course',
+		);
+	}
+}
+
+export async function getEventStudentReplacementIssues(
+	prepared: PreparedEventStudentReplacement,
+	db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<EventStudentsAvailabilityIssueDto[]> {
+	const issues: EventStudentsAvailabilityIssueDto[] = [];
+
+	if (
+		prepared.event.capacity !== null &&
+		prepared.studentUserIds.length > prepared.event.capacity
+	) {
+		issues.push({
+			code: 'EVENT_CAPACITY_EXCEEDED',
+			message: 'Liczba kursantów przekracza limit miejsc wydarzenia.',
+		});
+	}
+
+	const conflictingProfileIds =
+		await findStudentProfileIdsWithScheduleConflictsForEventWindow(db, {
+			eventId: prepared.event.id,
+			start: prepared.start,
+			end: prepared.end,
+			candidateProfileIds: prepared.studentProfileIds,
+		});
+
+	if (conflictingProfileIds.size > 0) {
+		const conflictingStudentUserIds = prepared.studentUserIds.filter(
+			(_userId, index) =>
+				conflictingProfileIds.has(prepared.studentProfileIds[index]!),
+		);
+
+		issues.push({
+			code: 'STUDENT_SCHEDULE_CONFLICT',
+			message:
+				'Co najmniej jeden kursant ma w tym czasie inną lekcję lub wydarzenie.',
+			studentUserIds: conflictingStudentUserIds,
+		});
+	}
+
+	return issues;
 }

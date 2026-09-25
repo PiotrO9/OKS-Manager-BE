@@ -19,6 +19,31 @@ function jsonSchemaFor(
 }
 
 describe('OpenAPI critical response contracts', () => {
+	it('describes the optional dev seed configuration body', () => {
+		const spec = getOpenApiSpec() as {
+			paths: Record<string, Record<string, Record<string, unknown>>>;
+		};
+		const operation = spec.paths['/dev/reset-and-seed']?.post;
+		const requestBody = operation?.requestBody as {
+			required?: boolean;
+			content?: Record<string, { schema?: Record<string, unknown> }>;
+		};
+		const schema = requestBody.content?.['application/json']?.schema;
+		const properties = schema?.properties as Record<
+			string,
+			Record<string, unknown>
+		>;
+
+		expect(requestBody.required).toBe(false);
+		expect(schema?.additionalProperties).toBe(false);
+		expect(properties.students?.enum).toEqual(['low', 'default', 'high']);
+		expect(properties.randomSeed).toMatchObject({
+			type: 'string',
+			minLength: 1,
+			maxLength: 100,
+		});
+	});
+
 	it('describes auth refresh access token response', () => {
 		const spec = getOpenApiSpec();
 		const schema = jsonSchemaFor(spec, '/auth/refresh', 'post', '200');

@@ -1,21 +1,26 @@
 import type { Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
+import { runScheduleWriteTransaction } from '../schedule-validation/transaction';
 import type {
 	AssignStudentsBody,
+	EventStudentsAvailabilityCheckBody,
 	ReplaceEventStudentsBody,
 } from '../../schemas/event.schemas';
 import { assertNewParticipantNoScheduleConflicts } from './conflicts';
 import type {
 	AssignStudentsToEventResult,
+	EventStudentsAvailabilityResult,
 	ReplaceEventStudentsResult,
 } from './mappers';
 import { getEventStudentUserIds } from './participantQueries';
 import {
 	assertActorCanManageParticipantEvent,
 	assertStudentProfilesAllowedForEvent,
+	getEventStudentReplacementIssues,
 	getUniqueStudentIdsOrThrow,
 	loadParticipantWriteEvent,
+	prepareEventStudentReplacement,
 	resolveStudentProfileIdsOrThrow,
 } from './participantWriteHelpers';
 
@@ -47,7 +52,7 @@ export async function assignStudentsToEvent(
 	const start = event.startTime!;
 	const end = event.endTime!;
 
-	return prisma.$transaction(async (tx) => {
+	return runScheduleWriteTransaction(async (tx) => {
 		const existing = await tx.eventParticipant.findMany({
 			where: { eventId },
 			select: { studentId: true },
@@ -100,37 +105,29 @@ export async function replaceEventStudents(
 	eventId: string,
 	body: ReplaceEventStudentsBody,
 ): Promise<ReplaceEventStudentsResult> {
-	const uniqueIds = getUniqueStudentIdsOrThrow(body.studentIds);
-	const event = await loadParticipantWriteEvent(eventId, {
-		includeSchedule: true,
-	});
-
-	await assertActorCanManageParticipantEvent(actor, event);
-
-	if (event.capacity != null && uniqueIds.length > event.capacity) {
-		throw AppError.conflict('Event capacity would be exceeded');
-	}
-
-	const targetProfileIds = await resolveStudentProfileIdsOrThrow(uniqueIds);
-	await assertStudentProfilesAllowedForEvent(
+	const prepared = await prepareEventStudentReplacement(
 		actor,
-		event.instructorId,
-		targetProfileIds,
+		eventId,
+		body.studentIds,
 	);
 
-	const start = event.startTime!;
-	const end = event.endTime!;
+	await runScheduleWriteTransaction(async (tx) => {
+		const issues = await getEventStudentReplacementIssues(prepared, tx);
+		if (issues.length > 0) {
+			throw AppError.conflict(issues[0]!.message);
+		}
 
-	await prisma.$transaction(async (tx) => {
 		const existing = await tx.eventParticipant.findMany({
 			where: { eventId },
 			select: { studentId: true },
 		});
 		const existingSet = new Set(existing.map((e) => e.studentId));
-		const targetSet = new Set(targetProfileIds);
+		const targetSet = new Set(prepared.studentProfileIds);
 
 		const toRemove = [...existingSet].filter((id) => !targetSet.has(id));
-		const toAdd = targetProfileIds.filter((id) => !existingSet.has(id));
+		const toAdd = prepared.studentProfileIds.filter(
+			(id) => !existingSet.has(id),
+		);
 
 		if (toRemove.length > 0) {
 			await tx.eventParticipant.deleteMany({
@@ -139,16 +136,6 @@ export async function replaceEventStudents(
 					studentId: { in: toRemove },
 				},
 			});
-		}
-
-		for (const studentId of toAdd) {
-			await assertNewParticipantNoScheduleConflicts(
-				tx,
-				eventId,
-				studentId,
-				start,
-				end,
-			);
 		}
 
 		if (toAdd.length > 0) {
@@ -162,8 +149,31 @@ export async function replaceEventStudents(
 	});
 
 	return {
-		studentUserIds: [...uniqueIds].sort(),
+		studentUserIds: [...prepared.studentUserIds].sort(),
 	};
+}
+
+export async function checkEventStudentsAvailability(
+	actor: { id: string; role: Role },
+	eventId: string,
+	body: EventStudentsAvailabilityCheckBody,
+): Promise<EventStudentsAvailabilityResult> {
+	const window =
+		body.startTime && body.endTime
+			? {
+					start: new Date(body.startTime),
+					end: new Date(body.endTime),
+				}
+			: undefined;
+	const prepared = await prepareEventStudentReplacement(
+		actor,
+		eventId,
+		body.studentIds,
+		window,
+	);
+	const issues = await getEventStudentReplacementIssues(prepared);
+
+	return { available: issues.length === 0, issues };
 }
 
 export async function removeStudentFromEvent(

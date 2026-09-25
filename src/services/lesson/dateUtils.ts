@@ -1,8 +1,10 @@
+import {
+	instantToPolishDateTime,
+	polishTodayYyyymmdd,
+} from '../../lib/polishScheduleTime';
+
 export function formatYYYYMMDD(date: Date): string {
-	const y = date.getUTCFullYear();
-	const mo = String(date.getUTCMonth() + 1).padStart(2, '0');
-	const d = String(date.getUTCDate()).padStart(2, '0');
-	return `${y}-${mo}-${d}`;
+	return instantToPolishDateTime(date).date;
 }
 
 export function yyyymmddToDate(dateStr: string): Date {
@@ -27,5 +29,5 @@ export function compareYyyymmdd(a: string, b: string): number {
 }
 
 export function utcTodayYyyymmdd(): string {
-	return formatYYYYMMDD(new Date());
+	return polishTodayYyyymmdd();
 }

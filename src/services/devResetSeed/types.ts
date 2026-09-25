@@ -6,6 +6,7 @@ import {
 	type User,
 	type Vehicle,
 } from '@prisma/client';
+import type { SeedPlan } from './seedPlan';
 
 export type SeedUserInput = {
 	email: string;
@@ -21,7 +22,10 @@ export type UserWithProfiles = User & {
 	studentProfile: StudentProfile | null;
 };
 
-export type SeedVehicle = Pick<Vehicle, 'id' | 'schoolId' | 'isActive'>;
+export type SeedVehicle = Pick<
+	Vehicle,
+	'id' | 'schoolId' | 'isActive' | 'availabilityStatus'
+>;
 
 export type SeedContext = {
 	users: User[];
@@ -32,4 +36,5 @@ export type SeedContext = {
 	students: Array<UserWithProfiles & { studentProfile: StudentProfile }>;
 	courseTypes: CourseType[];
 	vehicles: SeedVehicle[];
+	seedPlan: SeedPlan;
 };

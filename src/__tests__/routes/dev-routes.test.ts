@@ -1,6 +1,9 @@
 import { describe, expect, it, afterEach } from 'vitest';
 import { AppError } from '../../lib/http/AppError';
-import { requireResetAndSeedEnabled } from '../../routes/dev.routes';
+import {
+	parseResetAndSeedBody,
+	requireResetAndSeedEnabled,
+} from '../../routes/dev.routes';
 
 describe('requireResetAndSeedEnabled', () => {
 	const originalAllowDbReset = process.env.ALLOW_DB_RESET;
@@ -25,6 +28,27 @@ describe('requireResetAndSeedEnabled', () => {
 		expect(() => requireResetAndSeedEnabled()).toThrow(AppError);
 		expect(() => requireResetAndSeedEnabled()).toThrow(
 			'Database reset is disabled',
+		);
+	});
+});
+
+describe('parseResetAndSeedBody', () => {
+	it('normalizes a missing body to an empty configuration', () => {
+		expect(parseResetAndSeedBody(undefined)).toEqual({});
+	});
+
+	it('returns validated seed options', () => {
+		expect(
+			parseResetAndSeedBody({ students: 'low', lessons: 'high' }),
+		).toEqual({ students: 'low', lessons: 'high' });
+	});
+
+	it('maps an invalid body to a bad request error', () => {
+		expect(() => parseResetAndSeedBody({ students: 'medium' })).toThrow(
+			AppError,
+		);
+		expect(() => parseResetAndSeedBody({ unknown: 'low' })).toThrow(
+			AppError,
 		);
 	});
 });

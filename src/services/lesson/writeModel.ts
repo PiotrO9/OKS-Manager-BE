@@ -11,6 +11,8 @@ import {
 import { mapLessonRowToDto, type LessonDto } from './dtoMappers';
 import { assertLessonSchedulingWindowAvailable } from './scheduleConflicts';
 import { vehicleHasBookingConflict } from './vehicleAvailability';
+import { assertScheduleDurationAllowed } from '../schedule-validation/policy';
+import { runScheduleWriteTransaction } from '../schedule-validation/transaction';
 
 const prisma = getPrisma();
 
@@ -71,10 +73,10 @@ export async function updateLesson(
 	}
 
 	const timeChanged =
-		body.startTime !== undefined || body.endTime !== undefined;
-	const instructorChanged =
-		body.instructorId !== undefined &&
-		body.instructorId !== existing.instructorId;
+		start.getTime() !== existing.startTime.getTime() ||
+		end.getTime() !== existing.endTime.getTime();
+	const vehicleChanged = vehicleId !== existing.vehicleId;
+	const instructorChanged = instructorId !== existing.instructorId;
 
 	const needsInstructorTimeValidation = timeChanged || instructorChanged;
 
@@ -133,7 +135,15 @@ export async function updateLesson(
 		await assertLessonTimeIsBookable(start, course.schoolId);
 	}
 
-	const row = await prisma.$transaction(async (tx) => {
+	const row = await runScheduleWriteTransaction(async (tx) => {
+		if (timeChanged) {
+			await assertScheduleDurationAllowed(tx, {
+				schoolId: course.schoolId,
+				kind: 'PRACTICE',
+				start,
+				end,
+			});
+		}
 		if (needsInstructorTimeValidation) {
 			await assertLessonSchedulingWindowAvailable(tx, {
 				instructorId,
@@ -158,7 +168,10 @@ export async function updateLesson(
 		if (!vehicleInSchool) {
 			throw AppError.badRequest('Vehicle is not for this driving school');
 		}
-		await validateVehicleForInstructor(instructorId, vehicleId, tx);
+		await validateVehicleForInstructor(instructorId, vehicleId, tx, {
+			requireAvailable:
+				timeChanged || vehicleChanged || instructorChanged,
+		});
 
 		const vehicleConflict = await vehicleHasBookingConflict(
 			tx,

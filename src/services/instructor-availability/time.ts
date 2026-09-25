@@ -1,3 +1,8 @@
+import {
+	instantToPolishDateTime,
+	polishDayBounds,
+} from '../../lib/polishScheduleTime';
+
 export type TimeWindow = { start: number; end: number };
 
 export function timeToMinutes(hhmm: string): number {
@@ -76,36 +81,36 @@ export function splitWindowIntoSlots(
 	return slots;
 }
 
-export function datesAreSameUtcDay(startTime: Date, endTime: Date): boolean {
+export function datesAreSamePolishDay(startTime: Date, endTime: Date): boolean {
 	return (
-		startTime.getUTCFullYear() === endTime.getUTCFullYear() &&
-		startTime.getUTCMonth() === endTime.getUTCMonth() &&
-		startTime.getUTCDate() === endTime.getUTCDate()
+		instantToPolishDateTime(startTime).date ===
+		instantToPolishDateTime(endTime).date
 	);
 }
 
-export function utcDateOnly(date: Date): Date {
-	return new Date(
-		Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
-	);
+export function polishDateOnly(date: Date): Date {
+	return yyyymmddToDate(instantToPolishDateTime(date).date);
 }
 
-export function nextUtcDay(date: Date): Date {
-	return new Date(
-		Date.UTC(
-			date.getUTCFullYear(),
-			date.getUTCMonth(),
-			date.getUTCDate() + 1,
-		),
-	);
+export function polishDayRange(date: Date): { start: Date; end: Date } {
+	return polishDayBounds(dateToYYYYMMDD(date));
 }
 
-export function timeWindowFromDates(row: {
-	startTime: Date;
-	endTime: Date;
-}): TimeWindow {
+export function timeWindowFromDates(
+	row: { startTime: Date; endTime: Date },
+	dayRange?: { start: Date; end: Date },
+): TimeWindow {
+	const start =
+		dayRange && row.startTime <= dayRange.start
+			? 0
+			: instantToPolishDateTime(row.startTime).minutes;
+	const end =
+		dayRange && row.endTime >= dayRange.end
+			? 24 * 60
+			: instantToPolishDateTime(row.endTime).minutes;
+
 	return {
-		start: row.startTime.getUTCHours() * 60 + row.startTime.getUTCMinutes(),
-		end: row.endTime.getUTCHours() * 60 + row.endTime.getUTCMinutes(),
+		start,
+		end,
 	};
 }

@@ -5,6 +5,7 @@ import {
 	clientError,
 	createInstructorEventBodySchema,
 	eligibleStudentsQuerySchema,
+	eventStudentsAvailabilityCheckBodySchema,
 	eventIdAndStudentUserParamsSchema,
 	eventIdParamsSchema,
 	getEventQuerySchema,
@@ -242,6 +243,32 @@ export function registerEventPaths(registry: OpenAPIRegistry): void {
 			409: clientError(
 				'Przekroczono capacity lub konflikt czasowy kursanta',
 			),
+			422: clientError(
+				'Event nie THEORY lub kursant nie w odpowiedniej szkole OSK',
+			),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'post',
+		path: '/events/{id}/students/availability-check',
+		tags: ['Events'],
+		summary: 'Sprawdzenie docelowej listy kursantów wydarzenia (MANAGER)',
+		description:
+			'Bez zapisu sprawdza capacity, przynależność kursantów i kolizje grafiku. Opcjonalne startTime + endTime pozwalają sprawdzić projektowane okno wydarzenia. Sam edytowany event jest pomijany przy wykrywaniu konfliktów.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: eventIdParamsSchema,
+			body: {
+				content: {
+					'application/json': {
+						schema: eventStudentsAvailabilityCheckBodySchema,
+					},
+				},
+			},
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown('data.available oraz data.issues[]'),
 			422: clientError(
 				'Event nie THEORY lub kursant nie w odpowiedniej szkole OSK',
 			),

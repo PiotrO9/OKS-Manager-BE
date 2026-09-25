@@ -388,6 +388,7 @@ model InstructorTimeBlock {
   instructor InstructorProfile @relation(fields: [instructorId], references: [id], onDelete: Cascade)
   school     DrivingSchool?    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
+  @@index([instructorId, startTime], name: "idx_instructor_time_blocks_instructor_start")
   @@map("instructor_time_blocks")
 }
 
@@ -400,6 +401,7 @@ model InstructorLeave {
 
   instructor InstructorProfile @relation(fields: [instructorId], references: [id], onDelete: Cascade)
 
+  @@index([instructorId, startDate, endDate], name: "idx_instructor_leaves_instructor_range")
   @@map("instructor_leaves")
 }
 

@@ -1,5 +1,6 @@
 import {
 	EventType,
+	EventStatus,
 	LessonStatus,
 	Prisma,
 	PrismaClient,
@@ -39,6 +40,7 @@ export async function vehicleHasBookingConflict(
 			vehicleId,
 			type: EventType.DRIVE,
 			isActive: true,
+			status: { not: EventStatus.CANCELLED },
 			startTime: { lt: end },
 			endTime: { gt: start },
 		},

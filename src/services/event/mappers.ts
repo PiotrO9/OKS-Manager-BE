@@ -63,6 +63,17 @@ export type AssignStudentsToEventResult = {
 
 export type ReplaceEventStudentsResult = { studentUserIds: string[] };
 
+export type EventStudentsAvailabilityIssueDto = {
+	code: 'EVENT_CAPACITY_EXCEEDED' | 'STUDENT_SCHEDULE_CONFLICT';
+	message: string;
+	studentUserIds?: string[];
+};
+
+export type EventStudentsAvailabilityResult = {
+	available: boolean;
+	issues: EventStudentsAvailabilityIssueDto[];
+};
+
 export type TheoryEventEligibleCapacityDto = {
 	limit: number | null;
 	used: number;

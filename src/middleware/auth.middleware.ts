@@ -32,17 +32,16 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
 
 	try {
 		const supabase = getSupabaseClient();
-		const { data, error } = await supabase.auth.getUser(token);
+		const { data, error } = await supabase.auth.getClaims(token);
+		const userId = data?.claims.sub;
 
-		if (error || !data.user) {
-			logger.error('Supabase getUser error', {
+		if (error || !userId) {
+			logger.error('Supabase getClaims error', {
 				message: error?.message ?? 'no user',
 				requestId: req.requestId,
 			});
 			return sendJsonError(res, 'Invalid or expired token', 401);
 		}
-
-		const userId = data.user.id;
 
 		const dbUser = await prisma.user.findUnique({
 			where: { id: userId },

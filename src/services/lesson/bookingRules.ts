@@ -26,6 +26,8 @@ import {
 	findAvailableVehicleIdForStudentBooking,
 } from './vehicleAvailability';
 import { assertLessonSchedulingWindowAvailable } from './scheduleConflicts';
+import { assertScheduleDurationAllowed } from '../schedule-validation/policy';
+import { runScheduleWriteTransaction } from '../schedule-validation/transaction';
 
 const prisma = getPrisma();
 
@@ -86,7 +88,13 @@ async function createPracticeLessonForStudent(input: {
 		resolveVehicleId,
 	} = input;
 
-	const row = await prisma.$transaction(async (tx) => {
+	const row = await runScheduleWriteTransaction(async (tx) => {
+		await assertScheduleDurationAllowed(tx, {
+			schoolId: course.schoolId,
+			kind: 'PRACTICE',
+			start,
+			end,
+		});
 		await assertLessonSchedulingWindowAvailable(tx, {
 			instructorId,
 			studentProfileId,

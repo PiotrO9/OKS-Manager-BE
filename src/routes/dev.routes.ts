@@ -1,15 +1,24 @@
 import { Router } from 'express';
+import { parseRequestPart } from '../controllers/requestParsing';
 import { sendJsonSuccess } from '../lib/apiResponse';
 import { AppError } from '../lib/http/AppError';
 import { asyncHandler } from '../lib/http/asyncHandler';
 import { getPrisma } from '../lib/prisma';
 import { authMiddleware, requireRole } from '../middleware/auth.middleware';
+import {
+	devResetAndSeedBodySchema,
+	type DevResetAndSeedBody,
+} from '../schemas/dev.schemas';
 import { resetAndSeedDemoDatabase } from '../services/devResetSeed.service';
 
 function requireResetAndSeedEnabled() {
 	if (process.env.ALLOW_DB_RESET !== 'true') {
 		throw AppError.forbidden('Database reset is disabled');
 	}
+}
+
+function parseResetAndSeedBody(body: unknown): DevResetAndSeedBody {
+	return parseRequestPart(devResetAndSeedBodySchema, body, 'body');
 }
 
 function createDevRouter() {
@@ -22,8 +31,12 @@ function createDevRouter() {
 		asyncHandler(async (req, res) => {
 			const startedAtMs = Date.now();
 			requireResetAndSeedEnabled();
+			const seedOptions = parseResetAndSeedBody(req.body);
 
-			const result = await resetAndSeedDemoDatabase(getPrisma());
+			const result = await resetAndSeedDemoDatabase(
+				getPrisma(),
+				seedOptions,
+			);
 			const finishedAtMs = Date.now();
 			const durationMs = finishedAtMs - startedAtMs;
 
@@ -43,4 +56,4 @@ function createDevRouter() {
 	return router;
 }
 
-export { createDevRouter, requireResetAndSeedEnabled };
+export { createDevRouter, parseResetAndSeedBody, requireResetAndSeedEnabled };

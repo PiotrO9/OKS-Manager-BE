@@ -21,8 +21,8 @@ npx prisma migrate dev --name <change-name>
 
 3. Test the application locally.
 4. Commit both:
-   - `prisma/schema.prisma`
-   - the generated folder in `prisma/migrations`
+    - `prisma/schema.prisma`
+    - the generated folder in `prisma/migrations`
 
 ## Production Migrations
 
@@ -54,6 +54,23 @@ The manual reset endpoint is:
 POST /dev/reset-and-seed
 ```
 
+The JSON body is optional. Data volumes accept `low`, `default`, or `high`:
+
+```json
+{
+	"schools": "low",
+	"students": "low",
+	"lessons": "high",
+	"randomSeed": "manual-schedule-test"
+}
+```
+
+Supported fields are `schools`, `instructors`, `students`, `vehicles`,
+`courses`, `courseParticipants`, `lessons`, `events`, and `timeBlocks`.
+Omitted fields use `default`; `schools` is the exception and defaults to
+`low`, which creates exactly one school. Reusing `randomSeed` reproduces the
+same volume plan.
+
 It requires:
 
 - a valid Bearer access token,
@@ -67,4 +84,3 @@ ALLOW_DB_RESET=false
 ```
 
 and restart the backend.
-

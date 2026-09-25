@@ -17,6 +17,8 @@ import {
 	assertInstructorEventWindowAvailable,
 	assertVehicleAvailableForEventWindow,
 } from './writeConflicts';
+import { assertScheduleDurationAllowed } from '../schedule-validation/policy';
+import { runScheduleWriteTransaction } from '../schedule-validation/transaction';
 import {
 	instructorEventWriteSelect,
 	mapInstructorEventWriteDto,
@@ -60,12 +62,20 @@ export async function createInstructorEvent(
 		if (!vehicleId) {
 			throw AppError.badRequest('vehicleId is required for DRIVE events');
 		}
-		await validateVehicleForInstructor(instructorId, vehicleId, prisma);
+		await validateVehicleForInstructor(instructorId, vehicleId, prisma, {
+			requireAvailable: true,
+		});
 	}
 
 	const resolvedVehicleId = type === EventType.DRIVE ? vehicleId! : null;
 
-	const row = await prisma.$transaction(async (tx) => {
+	const row = await runScheduleWriteTransaction(async (tx) => {
+		await assertScheduleDurationAllowed(tx, {
+			schoolId,
+			kind: type,
+			start,
+			end,
+		});
 		await assertInstructorEventWindowAvailable(tx, {
 			instructorId,
 			start,
@@ -151,6 +161,12 @@ export async function updateInstructorEvent(
 		body.vehicleId !== undefined ? body.vehicleId : current.vehicleId;
 	const mergedCapacity =
 		body.capacity !== undefined ? body.capacity : current.capacity;
+	const timeChanged =
+		mergedStart.getTime() !== current.startTime.getTime() ||
+		mergedEnd.getTime() !== current.endTime.getTime();
+	const vehicleChanged = mergedVehicleId !== current.vehicleId;
+	const typeChanged = mergedType !== current.type;
+	const instructorChanged = mergedInstructorId !== current.instructorId;
 
 	if (mergedStart.getTime() >= mergedEnd.getTime()) {
 		throw AppError.badRequest('startTime must be before endTime');
@@ -175,6 +191,13 @@ export async function updateInstructorEvent(
 			mergedInstructorId,
 			mergedVehicleId,
 			prisma,
+			{
+				requireAvailable:
+					timeChanged ||
+					vehicleChanged ||
+					typeChanged ||
+					instructorChanged,
+			},
 		);
 	}
 
@@ -186,14 +209,17 @@ export async function updateInstructorEvent(
 		vehicleId: resolvedVehicleId ?? undefined,
 	});
 
-	const timeChanged =
-		body.startTime !== undefined || body.endTime !== undefined;
-	const instructorChanged =
-		body.instructorId !== undefined &&
-		body.instructorId !== current.instructorId;
 	const needsTimeValidation = timeChanged || instructorChanged;
 
-	const row = await prisma.$transaction(async (tx) => {
+	const row = await runScheduleWriteTransaction(async (tx) => {
+		if (timeChanged || body.type !== undefined) {
+			await assertScheduleDurationAllowed(tx, {
+				schoolId: mergedSchoolId,
+				kind: mergedType,
+				start: mergedStart,
+				end: mergedEnd,
+			});
+		}
 		if (needsTimeValidation) {
 			await assertInstructorEventWindowAvailable(tx, {
 				instructorId: mergedInstructorId,
@@ -204,7 +230,11 @@ export async function updateInstructorEvent(
 			});
 		}
 
-		if (mergedType === EventType.DRIVE && resolvedVehicleId) {
+		if (
+			mergedType === EventType.DRIVE &&
+			resolvedVehicleId &&
+			(timeChanged || vehicleChanged || typeChanged || instructorChanged)
+		) {
 			await assertVehicleAvailableForEventWindow(tx, {
 				vehicleId: resolvedVehicleId,
 				start: mergedStart,
@@ -234,7 +264,7 @@ export async function updateInstructorEvent(
 	return { event: mapInstructorEventWriteDto(row) };
 }
 
-async function resolveInstructorEventSchoolId(input: {
+export async function resolveInstructorEventSchoolId(input: {
 	instructorId: string;
 	courseId?: string | null;
 	vehicleId?: string | null;

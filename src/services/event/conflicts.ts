@@ -1,4 +1,4 @@
-import { LessonStatus, Prisma } from '@prisma/client';
+import { EventStatus, LessonStatus, Prisma } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import type { getPrisma } from '../../lib/prisma';
 
@@ -32,6 +32,7 @@ export async function findStudentProfileIdsWithScheduleConflictsForEventWindow(
 				eventId: { not: eventId },
 				event: {
 					isActive: true,
+					status: { not: EventStatus.CANCELLED },
 					startTime: { lt: end },
 					endTime: { gt: start },
 				},

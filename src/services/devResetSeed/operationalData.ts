@@ -9,11 +9,18 @@ import {
 	PaymentPlanType,
 	PaymentStatus,
 	Prisma,
+	VehicleAvailabilityStatus,
 	type InstructorProfile,
 	type StudentProfile,
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { addDays, atTime, dateOnly, pick } from './dateHelpers';
+import { createSeedRandom, getSeedRange, type SeedRandom } from './config';
+import { addDays, dateOnly, pick } from './dateHelpers';
+import {
+	SeedSchedulePlanner,
+	type SeedInstructorCalendar,
+} from './schedulePlanner';
+import { assertSeedScheduleIntegrity } from './scheduleIntegrity';
 import type { SeedContext, SeedVehicle, UserWithProfiles } from './types';
 
 type SeedCourse = {
@@ -24,6 +31,68 @@ type SeedCourse = {
 	schoolVehicles: SeedVehicle[];
 };
 
+const PRACTICE_LESSONS_PER_ANCHOR_DAY = 3;
+const PRACTICE_SCHEDULE_START_OFFSET_DAYS = -7;
+
+function courseKindForIndex(
+	index: number,
+	instructorCount: number,
+	random: SeedRandom,
+): CourseKind {
+	if (index < instructorCount) {
+		return index % 3 === 2 ? CourseKind.EXTRA : CourseKind.PRACTICAL;
+	}
+	if (index === instructorCount) return CourseKind.THEORY_GROUP;
+
+	const roll = random.integerInclusive([1, 100]);
+	if (roll <= 55) return CourseKind.PRACTICAL;
+	if (roll <= 80) return CourseKind.THEORY_GROUP;
+	return CourseKind.EXTRA;
+}
+
+function rotateTake<T>(items: readonly T[], count: number, start: number): T[] {
+	return Array.from(
+		{ length: Math.min(count, items.length) },
+		(_, index) => items[(start + index) % items.length]!,
+	);
+}
+
+function leastLoadedInstructor(
+	instructors: SeedCourse['instructor'][],
+	loadByInstructor: ReadonlyMap<string, number>,
+): SeedCourse['instructor'] {
+	return instructors.reduce((selected, candidate) => {
+		const selectedLoad =
+			loadByInstructor.get(selected.instructorProfile.id) ?? 0;
+		const candidateLoad =
+			loadByInstructor.get(candidate.instructorProfile.id) ?? 0;
+
+		return candidateLoad < selectedLoad ? candidate : selected;
+	});
+}
+
+function seededLessonStatus(
+	start: Date,
+	end: Date,
+	index: number,
+	now: Date,
+): LessonStatus {
+	if (index % 7 === 2) return LessonStatus.CANCELLED;
+
+	return end <= now ? LessonStatus.COMPLETED : LessonStatus.SCHEDULED;
+}
+
+function seededEventStatus(
+	start: Date,
+	end: Date,
+	index: number,
+	now: Date,
+): EventStatus {
+	if (index % 5 === 2) return EventStatus.CANCELLED;
+
+	return end <= now ? EventStatus.DONE : EventStatus.PLANNED;
+}
+
 export async function seedOperationalData(
 	tx: Prisma.TransactionClient,
 	context: SeedContext,
@@ -31,14 +100,92 @@ export async function seedOperationalData(
 	const schools = await tx.drivingSchool.findMany({
 		orderBy: { name: 'asc' },
 	});
-	const [instructorSchools, studentSchools] = await Promise.all([
+	const [
+		instructorSchools,
+		studentSchools,
+		workingHours,
+		workingExceptions,
+		instructorLeaves,
+		schoolSettingsRows,
+		courseTypeQualifications,
+	] = await Promise.all([
 		tx.instructorSchool.findMany({
 			select: { instructorId: true, schoolId: true },
 		}),
 		tx.studentSchool.findMany({
 			select: { studentId: true, schoolId: true },
 		}),
+		tx.instructorWorkingHoursDefault.findMany({
+			select: {
+				instructorId: true,
+				dayOfWeek: true,
+				startTime: true,
+				endTime: true,
+			},
+		}),
+		tx.instructorWorkingHours.findMany({
+			select: {
+				instructorId: true,
+				date: true,
+				startTime: true,
+				endTime: true,
+				isDayOff: true,
+			},
+		}),
+		tx.instructorLeave.findMany({
+			select: { instructorId: true, startDate: true, endDate: true },
+		}),
+		tx.schoolSettings.findMany({
+			select: {
+				schoolId: true,
+				slotDurationMinutes: true,
+				slotMustStartFullHour: true,
+				practiceMinDurationMinutes: true,
+				practiceMaxDurationMinutes: true,
+				theoryMinDurationMinutes: true,
+				theoryMaxDurationMinutes: true,
+			},
+		}),
+		tx.courseType.findMany({
+			select: {
+				id: true,
+				qualifiedInstructors: { select: { id: true } },
+			},
+		}),
 	]);
+	const calendars = new Map<string, SeedInstructorCalendar>();
+	for (const instructor of context.instructors) {
+		const instructorId = instructor.instructorProfile.id;
+		calendars.set(instructorId, {
+			windows: workingHours.filter(
+				(row) => row.instructorId === instructorId,
+			),
+			exceptions: workingExceptions.filter(
+				(row) => row.instructorId === instructorId,
+			),
+			leaves: instructorLeaves.filter(
+				(row) => row.instructorId === instructorId,
+			),
+		});
+	}
+	const planner = new SeedSchedulePlanner(calendars);
+	const settingsBySchool = new Map(
+		schoolSettingsRows.map((settings) => [settings.schoolId, settings]),
+	);
+	const qualifiedInstructorsByCourseType = new Map(
+		courseTypeQualifications.map((courseType) => [
+			courseType.id,
+			new Set(
+				courseType.qualifiedInstructors.map(
+					(instructor) => instructor.id,
+				),
+			),
+		]),
+	);
+	const now = new Date();
+	const random = createSeedRandom(
+		`${context.seedPlan.randomSeed}:operational`,
+	);
 	const courses: Prisma.CourseCreateManyInput[] = [];
 	const courseParticipants: Prisma.CourseParticipantCreateManyInput[] = [];
 	const paymentPlans: Prisma.PaymentPlanCreateManyInput[] = [];
@@ -53,40 +200,128 @@ export async function seedOperationalData(
 
 	for (let s = 0; s < schools.length; s += 1) {
 		const school = schools[s]!;
-		const schoolInstructors = context.instructors.filter(
-			(instructor) =>
-				instructorSchools.some(
-					(link) =>
-						link.instructorId === instructor.instructorProfile.id &&
-						link.schoolId === school.id,
-				),
+		const schoolSettings = settingsBySchool.get(school.id);
+		if (!schoolSettings) {
+			throw new Error(`Missing settings for seeded school ${school.id}`);
+		}
+		const schoolInstructors = context.instructors.filter((instructor) =>
+			instructorSchools.some(
+				(link) =>
+					link.instructorId === instructor.instructorProfile.id &&
+					link.schoolId === school.id,
+			),
 		);
-		const schoolStudents = context.students.filter(
-			(student) =>
-				studentSchools.some(
-					(link) =>
-						link.studentId === student.studentProfile.id &&
-						link.schoolId === school.id,
-				),
+		const schoolStudents = context.students.filter((student) =>
+			studentSchools.some(
+				(link) =>
+					link.studentId === student.studentProfile.id &&
+					link.schoolId === school.id,
+			),
 		);
 		const schoolVehicles = context.vehicles.filter(
-			(vehicle) => vehicle.schoolId === school.id && vehicle.isActive,
+			(vehicle) =>
+				vehicle.schoolId === school.id &&
+				vehicle.isActive &&
+				vehicle.availabilityStatus === VehicleAvailabilityStatus.ACTIVE,
 		);
+		const eligibleCourseTypes = context.courseTypes.filter((courseType) => {
+			const qualified = qualifiedInstructorsByCourseType.get(
+				courseType.id,
+			);
 
-		for (let c = 0; c < 8; c += 1) {
+			return schoolInstructors.some((instructor) =>
+				qualified?.has(instructor.instructorProfile.id),
+			);
+		});
+		if (eligibleCourseTypes.length === 0) {
+			throw new Error(
+				`Seeded school ${school.id} has no qualified instructors`,
+			);
+		}
+		if (eligibleCourseTypes.length < 2 && context.courseTypes.length >= 2) {
+			throw new Error(
+				`Seeded school ${school.id} must support at least two course types`,
+			);
+		}
+		if (schoolVehicles.length === 0) {
+			throw new Error(
+				`Seeded school ${school.id} has no available vehicle`,
+			);
+		}
+		const drivingCourseLoadByInstructor = new Map<string, number>();
+		const theoryCourseLoadByInstructor = new Map<string, number>();
+
+		const courseCount = context.seedPlan.schools[s]!.courses;
+		const studentCategoryCodes = new Map<string, Set<string>>();
+		for (let c = 0; c < courseCount; c += 1) {
 			const courseId = randomUUID();
 			const courseType =
-				context.courseTypes[c % context.courseTypes.length]!;
-			const kind = pick(
-				[
-					CourseKind.THEORY_GROUP,
-					CourseKind.PRACTICAL,
-					CourseKind.EXTRA,
-				],
+				eligibleCourseTypes[c % eligibleCourseTypes.length]!;
+			const kind = courseKindForIndex(
 				c,
+				schoolInstructors.length,
+				random,
 			);
-			const instructor = pick(schoolInstructors, c);
-			const participants = schoolStudents.slice(c * 2, c * 2 + 12);
+			const isFinishedCourse = c === schoolInstructors.length;
+			const qualified = qualifiedInstructorsByCourseType.get(
+				courseType.id,
+			);
+			const eligibleInstructors = schoolInstructors.filter((instructor) =>
+				qualified?.has(instructor.instructorProfile.id),
+			);
+			const courseLoadByInstructor =
+				kind === CourseKind.THEORY_GROUP
+					? theoryCourseLoadByInstructor
+					: drivingCourseLoadByInstructor;
+			const instructor = leastLoadedInstructor(
+				eligibleInstructors,
+				courseLoadByInstructor,
+			);
+			courseLoadByInstructor.set(
+				instructor.instructorProfile.id,
+				(courseLoadByInstructor.get(instructor.instructorProfile.id) ??
+					0) + 1,
+			);
+			const requestedParticipantCount = random.integerInclusive(
+				getSeedRange(
+					'courseParticipants',
+					context.seedPlan.options.courseParticipants,
+				),
+			);
+			const minimumParticipantCount = Math.ceil(
+				(2 * schoolStudents.length) / courseCount,
+			);
+			const participantLimit =
+				kind === CourseKind.THEORY_GROUP
+					? Math.min(schoolStudents.length, 20)
+					: schoolStudents.length;
+			const participantCount = Math.min(
+				participantLimit,
+				Math.max(requestedParticipantCount, minimumParticipantCount),
+			);
+			const rotatedStudents = rotateTake(
+				schoolStudents,
+				schoolStudents.length,
+				(c * 3) % Math.max(1, schoolStudents.length),
+			);
+			const participants = [
+				...schoolStudents.filter(
+					(student) =>
+						(studentCategoryCodes.get(student.studentProfile.id)
+							?.size ?? 0) < 2,
+				),
+				...rotatedStudents,
+			]
+				.filter(
+					(student, index, all) =>
+						all.findIndex(
+							(candidate) =>
+								candidate.studentProfile.id ===
+								student.studentProfile.id,
+						) === index,
+				)
+				.slice(0, participantCount);
+			const categoryCode = courseType.code.trim();
 
 			courses.push({
 				id: courseId,
@@ -104,14 +339,24 @@ export async function seedOperationalData(
 				capacity: kind === CourseKind.THEORY_GROUP ? 20 : null,
 				theoryStartDate:
 					kind === CourseKind.THEORY_GROUP
-						? dateOnly(addDays(new Date(), -45 + c * 7))
+						? dateOnly(
+								addDays(
+									new Date(),
+									isFinishedCourse ? -75 : -45 + c * 7,
+								),
+							)
 						: null,
 				theoryEndDate:
 					kind === CourseKind.THEORY_GROUP
-						? dateOnly(addDays(new Date(), -30 + c * 7))
+						? dateOnly(
+								addDays(
+									new Date(),
+									isFinishedCourse ? -15 : -30 + c * 7,
+								),
+							)
 						: null,
 				instructorId: instructor.instructorProfile.id,
-				status: c % 7 === 0 ? 'finished' : 'active',
+				status: isFinishedCourse ? 'finished' : 'active',
 			});
 
 			seedCourses.push({
@@ -124,21 +369,26 @@ export async function seedOperationalData(
 
 			for (let p = 0; p < participants.length; p += 1) {
 				const student = participants[p]!;
+				const categories =
+					studentCategoryCodes.get(student.studentProfile.id) ??
+					new Set();
+				categories.add(categoryCode);
+				studentCategoryCodes.set(student.studentProfile.id, categories);
 				courseParticipants.push({
 					courseId,
 					studentId: student.studentProfile.id,
-					status:
-						c % 7 === 0 || p % 9 === 0
-							? CourseParticipantStatus.FINISHED
-							: CourseParticipantStatus.ACTIVE,
+					status: isFinishedCourse
+						? CourseParticipantStatus.FINISHED
+						: CourseParticipantStatus.ACTIVE,
 				});
 			}
 
 			const paymentPlanId = randomUUID();
+			const paymentPlanTotal = kind === CourseKind.EXTRA ? 900 : 3600;
 			paymentPlans.push({
 				id: paymentPlanId,
 				courseId,
-				totalAmount: kind === CourseKind.EXTRA ? 900 : 3600,
+				totalAmount: paymentPlanTotal,
 				type:
 					c % 2 === 0
 						? PaymentPlanType.INSTALLMENTS
@@ -149,98 +399,140 @@ export async function seedOperationalData(
 
 			const installments = c % 2 === 0 ? 4 : 1;
 			for (let p = 0; p < installments; p += 1) {
+				const dueDate = dateOnly(addDays(new Date(), -30 + p * 30));
+				const paymentStatus =
+					p === 0 && c % 5 === 0
+						? PaymentStatus.FAILED
+						: p < 2
+							? PaymentStatus.PAID
+							: PaymentStatus.PENDING;
 				payments.push({
 					id: randomUUID(),
 					paymentPlanId,
-					amount: installments === 1 ? 3600 : 900,
-					dueDate: dateOnly(addDays(new Date(), -30 + p * 30)),
-					paidAt: p < 2 ? addDays(new Date(), -28 + p * 30) : null,
-					status:
-						p < 2
-							? PaymentStatus.PAID
-							: p === 2 && c % 5 === 0
-								? PaymentStatus.FAILED
-								: PaymentStatus.PENDING,
+					amount: paymentPlanTotal / installments,
+					dueDate,
+					paidAt:
+						paymentStatus === PaymentStatus.PAID
+							? addDays(dueDate, -2)
+							: null,
+					status: paymentStatus,
 					method:
-						p < 2 ? pick(['card', 'transfer', 'cash'], p) : null,
+						paymentStatus === PaymentStatus.PAID
+							? pick(['card', 'transfer', 'cash'], p)
+							: null,
 				});
 			}
 
-			for (let l = 0; l < Math.min(18, participants.length * 2); l += 1) {
-				const lessonId = randomUUID();
-				const student = pick(participants, l);
-				const lessonDate = addDays(new Date(), -35 + c * 4 + l);
-				const start = atTime(lessonDate, 8 + (l % 8));
-				const end = atTime(
-					lessonDate,
-					9 + (l % 8),
-					l % 3 === 0 ? 30 : 0,
+			if (kind !== CourseKind.THEORY_GROUP) {
+				const lessonCount = random.integerInclusive(
+					getSeedRange('lessons', context.seedPlan.options.lessons),
 				);
-				const status = pick(
-					[
-						LessonStatus.COMPLETED,
-						LessonStatus.SCHEDULED,
-						LessonStatus.CANCELLED,
-					],
-					l + c,
-				);
-				const lessonType =
-					kind === CourseKind.THEORY_GROUP
-						? LessonType.THEORY
-						: LessonType.PRACTICE;
-				lessons.push({
-					id: lessonId,
-					courseId,
-					studentId: student.studentProfile.id,
-					instructorId: instructor.instructorProfile.id,
-					vehicleId: pick(schoolVehicles, l)?.id ?? null,
-					lessonType,
-					startTime: start,
-					endTime: end,
-					status,
-				});
-
-				if (
-					status === LessonStatus.COMPLETED &&
-					lessonType === LessonType.PRACTICE &&
-					l % 2 === 0
-				) {
-					lessonRatings.push({
-						id: randomUUID(),
-						lessonId,
+				for (let l = 0; l < lessonCount; l += 1) {
+					const lessonId = randomUUID();
+					const student = pick(participants, l);
+					const vehicle = random.pick(schoolVehicles);
+					const lessonDurationMinutes =
+						l % 3 === 0
+							? Math.min(
+									schoolSettings.practiceMaxDurationMinutes,
+									Math.max(
+										schoolSettings.practiceMinDurationMinutes,
+										90,
+									),
+								)
+							: schoolSettings.practiceMinDurationMinutes;
+					const { start, end } = planner.reserve({
+						anchor: addDays(
+							new Date(),
+							PRACTICE_SCHEDULE_START_OFFSET_DAYS +
+								Math.floor(
+									l / PRACTICE_LESSONS_PER_ANCHOR_DAY,
+								) +
+								(c % 3),
+						),
+						durationMinutes: lessonDurationMinutes,
+						instructorId: instructor.instructorProfile.id,
+						studentIds: [student.studentProfile.id],
+						vehicleId: vehicle.id,
+						slotIndex: l,
+						stepMinutes: schoolSettings.slotMustStartFullHour
+							? 60
+							: schoolSettings.slotDurationMinutes,
+					});
+					const status = seededLessonStatus(start, end, l + c, now);
+					lessons.push({
+						id: lessonId,
+						courseId,
 						studentId: student.studentProfile.id,
 						instructorId: instructor.instructorProfile.id,
-						rating: 4 + (l % 2),
-						comment:
-							l % 4 === 0
-								? 'Bardzo konkretne wskazowki po jezdzie.'
-								: null,
+						vehicleId: vehicle.id,
+						lessonType: LessonType.PRACTICE,
+						startTime: start,
+						endTime: end,
+						status,
 					});
+
+					if (status === LessonStatus.COMPLETED && l % 2 === 0) {
+						lessonRatings.push({
+							id: randomUUID(),
+							lessonId,
+							studentId: student.studentProfile.id,
+							instructorId: instructor.instructorProfile.id,
+							rating: 4 + (l % 2),
+							comment:
+								l % 4 === 0
+									? 'Bardzo konkretne wskazowki po jezdzie.'
+									: null,
+						});
+					}
 				}
 			}
 
 			if (kind === CourseKind.THEORY_GROUP) {
-				for (let e = 0; e < 3; e += 1) {
+				const eventCount = random.integerInclusive(
+					getSeedRange('events', context.seedPlan.options.events),
+				);
+				for (let e = 0; e < eventCount; e += 1) {
 					const eventId = randomUUID();
+					const eventStudents = participants.slice(0, 10);
+					const eventDurationMinutes =
+						e % 2 === 0
+							? schoolSettings.theoryMinDurationMinutes
+							: schoolSettings.theoryMaxDurationMinutes;
+					const eventSlot = planner.reserve({
+						anchor: addDays(
+							new Date(),
+							isFinishedCourse
+								? -65 + e * 7
+								: -44 + c * 7 + e * 7,
+						),
+						durationMinutes: eventDurationMinutes,
+						instructorId: instructor.instructorProfile.id,
+						studentIds: eventStudents.map(
+							(student) => student.studentProfile.id,
+						),
+						slotIndex: e + c,
+						stepMinutes: schoolSettings.slotMustStartFullHour
+							? 60
+							: schoolSettings.slotDurationMinutes,
+					});
 					instructorEvents.push({
 						id: eventId,
 						instructorId: instructor.instructorProfile.id,
 						schoolId: school.id,
 						courseId,
 						type: EventType.THEORY,
-						startTime: atTime(addDays(new Date(), -7 + e * 7), 17),
-						endTime: atTime(addDays(new Date(), -7 + e * 7), 19),
+						startTime: eventSlot.start,
+						endTime: eventSlot.end,
 						capacity: 20,
-						status: pick(
-							[
-								EventStatus.DONE,
-								EventStatus.PLANNED,
-								EventStatus.CANCELLED,
-							],
+						status: seededEventStatus(
+							eventSlot.start,
+							eventSlot.end,
 							e + c,
+							now,
 						),
 					});
-					for (const student of participants.slice(0, 10)) {
+					for (const student of eventStudents) {
 						eventParticipants.push({
 							id: randomUUID(),
 							eventId,
@@ -253,13 +545,25 @@ export async function seedOperationalData(
 
 		for (let i = 0; i < schoolInstructors.length; i += 1) {
 			const instructor = schoolInstructors[i]!;
-			for (let b = 0; b < 4; b += 1) {
+			const blockCount = random.integerInclusive(
+				getSeedRange('timeBlocks', context.seedPlan.options.timeBlocks),
+			);
+			for (let b = 0; b < blockCount; b += 1) {
+				const blockSlot = planner.reserve({
+					anchor: addDays(new Date(), b * 3 + i),
+					durationMinutes: schoolSettings.slotDurationMinutes,
+					instructorId: instructor.instructorProfile.id,
+					slotIndex: b + 2,
+					stepMinutes: schoolSettings.slotMustStartFullHour
+						? 60
+						: schoolSettings.slotDurationMinutes,
+				});
 				instructorTimeBlocks.push({
 					id: randomUUID(),
 					instructorId: instructor.instructorProfile.id,
 					schoolId: school.id,
-					startTime: atTime(addDays(new Date(), b * 3 + i), 12),
-					endTime: atTime(addDays(new Date(), b * 3 + i), 13),
+					startTime: blockSlot.start,
+					endTime: blockSlot.end,
 					type: pick(
 						[
 							InstructorTimeBlockType.BREAK,
@@ -272,6 +576,13 @@ export async function seedOperationalData(
 			}
 		}
 	}
+
+	assertSeedScheduleIntegrity({
+		lessons,
+		events: instructorEvents,
+		eventParticipants,
+		blocks: instructorTimeBlocks,
+	});
 
 	if (courses.length > 0) await tx.course.createMany({ data: courses });
 	if (courseParticipants.length > 0) {

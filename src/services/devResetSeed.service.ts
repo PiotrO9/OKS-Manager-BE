@@ -5,22 +5,32 @@ import { resetDatabase } from './devResetSeed/database';
 import { seedOperationalData } from './devResetSeed/operationalData';
 import { seedReferenceData } from './devResetSeed/referenceData';
 import { createUsers } from './devResetSeed/users';
+import type { SeedOptionsInput } from './devResetSeed/config';
+import { createSeedPlan } from './devResetSeed/seedPlan';
 
-export async function resetAndSeedDemoDatabase(prisma: PrismaClient) {
+export async function resetAndSeedDemoDatabase(
+	prisma: PrismaClient,
+	optionsInput: SeedOptionsInput = {},
+) {
 	const stageTiming: Record<string, number> = {};
+	const seedPlan = createSeedPlan(optionsInput);
 
 	let stageStartedAt = Date.now();
 	const authUserIdsByEmail = await ensureAuthUsers(AUTH_ACCOUNTS);
 	stageTiming.authMs = Date.now() - stageStartedAt;
 
-	stageStartedAt = Date.now();
-	await resetDatabase(prisma);
-	stageTiming.resetMs = Date.now() - stageStartedAt;
-
 	const result = await prisma.$transaction(
 		async (tx) => {
 			stageStartedAt = Date.now();
-			const usersContext = await createUsers(tx, authUserIdsByEmail);
+			await resetDatabase(tx);
+			stageTiming.resetMs = Date.now() - stageStartedAt;
+
+			stageStartedAt = Date.now();
+			const usersContext = await createUsers(
+				tx,
+				authUserIdsByEmail,
+				seedPlan,
+			);
 			stageTiming.usersMs = Date.now() - stageStartedAt;
 
 			stageStartedAt = Date.now();
@@ -68,6 +78,11 @@ export async function resetAndSeedDemoDatabase(prisma: PrismaClient) {
 			};
 
 			return {
+				configuration: {
+					randomSeed: seedPlan.randomSeed,
+					levels: seedPlan.options,
+					schools: seedPlan.schools,
+				},
 				created,
 				stageTiming,
 				demoAccounts: DEMO_ACCOUNTS.map((account) => ({

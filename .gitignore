@@ -1,8 +1,13 @@
 # Node
 node_modules/
 
+# Temporary Codex dependency backups
+node_modules.codex-backup*/
+node_modules.codex-backup*
+
 # Build
 dist/
+coverage/
 
 # Runtime
 .env

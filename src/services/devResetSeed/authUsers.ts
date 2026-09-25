@@ -9,6 +9,7 @@ import {
 } from './constants';
 import { pick } from './dateHelpers';
 import type { SeedUserInput } from './types';
+import type { SeedPlan } from './seedPlan';
 
 async function listExistingAuthUserIdsByEmail(
 	emails: readonly string[],
@@ -101,10 +102,19 @@ export async function ensureAuthUsers(
 	return idsByEmail;
 }
 
-export function buildSeedUsers(): SeedUserInput[] {
+export function buildSeedUsers(seedPlan: SeedPlan): SeedUserInput[] {
 	const users: SeedUserInput[] = [ADMIN_ACCOUNT, ...DEMO_ACCOUNTS];
+	const managerCount = seedPlan.schools.length;
+	const instructorCount = seedPlan.schools.reduce(
+		(sum, school) => sum + school.instructors,
+		0,
+	);
+	const studentCount = seedPlan.schools.reduce(
+		(sum, school) => sum + school.students,
+		0,
+	);
 
-	for (let i = 1; i <= 3; i += 1) {
+	for (let i = 1; i < managerCount; i += 1) {
 		users.push({
 			email: `manager${String(i).padStart(2, '0')}@demo.osk.local`,
 			password: DEMO_PASSWORD,
@@ -114,7 +124,7 @@ export function buildSeedUsers(): SeedUserInput[] {
 		});
 	}
 
-	for (let i = 1; i <= 12; i += 1) {
+	for (let i = 1; i < instructorCount; i += 1) {
 		users.push({
 			email: `instructor${String(i).padStart(2, '0')}@demo.osk.local`,
 			password: DEMO_PASSWORD,
@@ -124,7 +134,7 @@ export function buildSeedUsers(): SeedUserInput[] {
 		});
 	}
 
-	for (let i = 1; i <= 80; i += 1) {
+	for (let i = 1; i < studentCount; i += 1) {
 		users.push({
 			email: `student${String(i).padStart(3, '0')}@demo.osk.local`,
 			password: DEMO_PASSWORD,

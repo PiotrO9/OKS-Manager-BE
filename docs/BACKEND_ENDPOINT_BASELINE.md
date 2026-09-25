@@ -22,8 +22,8 @@ Globalne bledy:
 
 | Method | Path | Handler | Auth | Success status |
 | --- | --- | --- | --- | --- |
-| GET | `/health` | `src/server.ts` inline handler | public | 200 |
-| GET | `/test` | `src/server.ts` inline handler | public | 200 |
+| GET | `/health` | `src/app.ts` inline handler | public | 200 |
+| GET | `/test` | `src/app.ts` inline handler | public | 200 |
 | GET | `/openapi.json` | `setupSwagger` | public | 200 |
 | USE | `/api-docs` | `swaggerUi.serve/setup` | public | n/a |
 
@@ -164,6 +164,7 @@ Mounted at `/events`, routes in `src/routes/events.routes.ts`.
 | DELETE | `/events/:id` | `deleteEventHandler` | bearer, min role `MANAGER` | 204 |
 | GET | `/events/:id/students` | `getEventStudentsHandler` | bearer, min role `MANAGER` | 200 |
 | PUT | `/events/:id/students` | `putEventStudentsHandler` | bearer, min role `MANAGER` | 200 |
+| POST | `/events/:id/students/availability-check` | `postEventStudentsAvailabilityCheckHandler` | bearer, min role `MANAGER` | 200 |
 | DELETE | `/events/:id/students/:studentUserId` | `deleteEventStudentsHandler` | bearer, min role `MANAGER` | 200 |
 | POST | `/events/:id/students` | `postEventStudentsHandler` | bearer, min role `MANAGER` | 200 |
 
@@ -215,6 +216,8 @@ Mounted at `/schedule`, routes in `src/routes/schedule.routes.ts`.
 | --- | --- | --- | --- | --- |
 | GET | `/schedule/me` | `getMeHandler` | bearer | 200 |
 | GET | `/schedule` | `getScheduleHandler` | bearer, min role `MANAGER` | 200 |
+| POST | `/schedule/availability-check` | `postScheduleAvailabilityCheckHandler` | bearer, role checked by intent | 200 |
+| POST | `/schedule/availability-options` | `postScheduleAvailabilityOptionsHandler` | bearer, min role `MANAGER` | 200 |
 
 ## Dev
 

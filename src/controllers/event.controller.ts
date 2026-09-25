@@ -7,6 +7,7 @@ import {
 } from '../lib/validation/uuid';
 import {
 	eligibleStudentsQuerySchema,
+	eventStudentsAvailabilityCheckBodySchema,
 	getEventQuerySchema,
 	listEventsQuerySchema,
 	parseAssignStudentsBody,
@@ -18,6 +19,7 @@ import {
 import {
 	assignStudentsToEvent,
 	bulkUpdateEventStatus,
+	checkEventStudentsAvailability,
 	createInstructorEvent,
 	deleteInstructorEvent,
 	getEventStudentUserIds,
@@ -58,6 +60,22 @@ async function putEventStudentsHandler(req: Request, res: Response) {
 	const body = parseBodyWithParser(parseReplaceEventStudentsBody, req.body);
 
 	const data = await replaceEventStudents(user, params.id, body);
+	return sendJsonSuccess(res, data, 200);
+}
+
+async function postEventStudentsAvailabilityCheckHandler(
+	req: Request,
+	res: Response,
+) {
+	const user = requireUser(req);
+	const params = parseRequestPart(eventIdParamsSchema, req.params, 'params');
+	const body = parseRequestPart(
+		eventStudentsAvailabilityCheckBodySchema,
+		req.body,
+		'body',
+	);
+
+	const data = await checkEventStudentsAvailability(user, params.id, body);
 	return sendJsonSuccess(res, data, 200);
 }
 
@@ -154,6 +172,7 @@ export {
 	patchEventHandler,
 	patchEventsBulkStatusHandler,
 	postEventHandler,
+	postEventStudentsAvailabilityCheckHandler,
 	postEventStudentsHandler,
 	putEventStudentsHandler,
 };

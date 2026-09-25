@@ -41,6 +41,7 @@ import {
 	bulkUpdateEventStatusBodySchema,
 	createInstructorEventBodySchema,
 	eligibleStudentsQuerySchema,
+	eventStudentsAvailabilityCheckBodySchema,
 	getEventQuerySchema,
 	patchInstructorEventBodySchema,
 	replaceEventStudentsBodySchema,
@@ -49,6 +50,8 @@ import { managerAttentionQuerySchema } from '../../schemas/manager-attention.sch
 import {
 	scheduleMeQuerySchema,
 	scheduleQuerySchema,
+	scheduleAvailabilityCheckBodySchema,
+	scheduleAvailabilityOptionsBodySchema,
 } from '../../schemas/schedule.schemas';
 import {
 	bookLessonBodySchema,
@@ -270,12 +273,15 @@ export {
 	bulkUpdateEventStatusBodySchema,
 	createInstructorEventBodySchema,
 	eligibleStudentsQuerySchema,
+	eventStudentsAvailabilityCheckBodySchema,
 	getEventQuerySchema,
 	patchInstructorEventBodySchema,
 	replaceEventStudentsBodySchema,
 	managerAttentionQuerySchema,
 	scheduleMeQuerySchema,
 	scheduleQuerySchema,
+	scheduleAvailabilityCheckBodySchema,
+	scheduleAvailabilityOptionsBodySchema,
 	bookLessonBodySchema,
 	bookOwnLessonBodySchema,
 	cancelLessonBodySchema,

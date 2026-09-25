@@ -9,6 +9,7 @@ import {
 	patchEventHandler,
 	patchEventsBulkStatusHandler,
 	postEventHandler,
+	postEventStudentsAvailabilityCheckHandler,
 	postEventStudentsHandler,
 	putEventStudentsHandler,
 } from '../controllers/event.controller';
@@ -79,6 +80,13 @@ function createEventsRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		asyncHandler(putEventStudentsHandler),
+	);
+
+	router.post(
+		'/:id/students/availability-check',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(postEventStudentsAvailabilityCheckHandler),
 	);
 
 	router.delete(

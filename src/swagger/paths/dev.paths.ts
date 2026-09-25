@@ -1,4 +1,5 @@
 import type { OpenAPIRegistry } from '@asteasolutions/zod-to-openapi';
+import { devResetAndSeedBodySchema } from '../../schemas/dev.schemas';
 import { clientError, okDataUnknown, stdBearerResponses } from './shared';
 
 export function registerDevPaths(registry: OpenAPIRegistry): void {
@@ -10,6 +11,18 @@ export function registerDevPaths(registry: OpenAPIRegistry): void {
 		description:
 			'Endpoint deweloperski. Wymaga Bearer tokena użytkownika ADMIN oraz ALLOW_DB_RESET=true po stronie backendu.',
 		security: [{ bearerAuth: [] }],
+		request: {
+			body: {
+				required: false,
+				description:
+					'Opcjonalne poziomy liczby generowanych danych. Pominięte pola korzystają z wartości domyślnych seedera.',
+				content: {
+					'application/json': {
+						schema: devResetAndSeedBodySchema,
+					},
+				},
+			},
+		},
 		responses: stdBearerResponses({
 			200: okDataUnknown('Database reset and demo seed completed'),
 			403: clientError('Brak roli ADMIN albo ALLOW_DB_RESET !== true'),

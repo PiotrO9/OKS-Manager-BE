@@ -9,6 +9,7 @@ export type ScheduleLessonItemDto = {
 	status: string;
 	startTime: string;
 	endTime: string;
+	categoryCode?: string | null;
 	instructor?: {
 		id: string;
 		firstName: string;
@@ -38,6 +39,7 @@ export type ScheduleInstructorEventItemDto = {
 	status: EventStatus;
 	startTime: string;
 	endTime: string;
+	categoryCode?: string | null;
 	capacity: number | null;
 	participantCount: number;
 	instructor?: {
@@ -65,6 +67,10 @@ export type LessonRow = {
 	status: string;
 	startTime: Date;
 	endTime: Date;
+	course: {
+		category: string;
+		courseType: { code: string };
+	};
 	instructorProfile: {
 		id: string;
 		user: {
@@ -100,6 +106,10 @@ export type EventRow = {
 	status: EventStatus;
 	startTime: Date;
 	endTime: Date;
+	course: {
+		category: string;
+		courseType: { code: string };
+	} | null;
 	capacity: number | null;
 	instructor: {
 		id: string;

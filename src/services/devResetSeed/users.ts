@@ -7,12 +7,14 @@ import {
 import { randomUUID } from 'node:crypto';
 import { buildSeedUsers } from './authUsers';
 import type { SeedContext, UserWithProfiles } from './types';
+import type { SeedPlan } from './seedPlan';
 
 export async function createUsers(
 	tx: Prisma.TransactionClient,
 	authUserIdsByEmail: ReadonlyMap<string, string>,
+	seedPlan: SeedPlan,
 ): Promise<SeedContext> {
-	const seedUsers = buildSeedUsers();
+	const seedUsers = buildSeedUsers(seedPlan);
 	const usersToCreate: Prisma.UserCreateManyInput[] = [];
 	const userProfiles: Prisma.UserProfileCreateManyInput[] = [];
 	const userSettings: Prisma.UserSettingsCreateManyInput[] = [];
@@ -110,5 +112,6 @@ export async function createUsers(
 		),
 		courseTypes: [],
 		vehicles: [],
+		seedPlan,
 	};
 }

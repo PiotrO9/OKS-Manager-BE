@@ -28,6 +28,7 @@ export function mapLesson(
 		includeRating?: boolean;
 	},
 ): ScheduleLessonItemDto {
+	const categoryCode = row.course?.courseType.code || row.course?.category;
 	const item: ScheduleLessonItemDto = {
 		kind: 'lesson',
 		id: row.id,
@@ -35,6 +36,7 @@ export function mapLesson(
 		status: row.status,
 		startTime: row.startTime.toISOString(),
 		endTime: row.endTime.toISOString(),
+		...(categoryCode ? { categoryCode } : {}),
 	};
 	if (opts.includeInstructor) {
 		item.instructor = {
@@ -99,6 +101,7 @@ export function mapInstructorEvent(
 	row: EventRow,
 	opts: { includeInstructor: boolean; includeStudents: boolean },
 ): ScheduleInstructorEventItemDto {
+	const categoryCode = row.course?.courseType.code || row.course?.category;
 	const item: ScheduleInstructorEventItemDto = {
 		kind: 'instructor_event',
 		id: row.id,
@@ -107,6 +110,7 @@ export function mapInstructorEvent(
 		status: row.status,
 		startTime: row.startTime.toISOString(),
 		endTime: row.endTime.toISOString(),
+		...(categoryCode ? { categoryCode } : {}),
 		capacity: row.capacity,
 		participantCount: row.participants.length,
 	};

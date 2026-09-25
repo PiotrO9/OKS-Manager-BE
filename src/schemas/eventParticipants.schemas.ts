@@ -33,6 +33,44 @@ export type ReplaceEventStudentsBody = z.infer<
 	typeof replaceEventStudentsBodySchema
 >;
 
+export const eventStudentsAvailabilityCheckBodySchema =
+	replaceEventStudentsBodySchema
+		.extend({
+			startTime: z.string().datetime().optional(),
+			endTime: z.string().datetime().optional(),
+		})
+		.superRefine((data, ctx) => {
+			const hasStart = data.startTime !== undefined;
+			const hasEnd = data.endTime !== undefined;
+
+			if (hasStart !== hasEnd) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message:
+						'Both startTime and endTime are required when overriding the event window',
+					path: hasStart ? ['endTime'] : ['startTime'],
+				});
+				return;
+			}
+
+			if (
+				hasStart &&
+				hasEnd &&
+				new Date(data.startTime!).getTime() >=
+					new Date(data.endTime!).getTime()
+			) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: 'startTime must be before endTime',
+					path: ['startTime'],
+				});
+			}
+		});
+
+export type EventStudentsAvailabilityCheckBody = z.infer<
+	typeof eventStudentsAvailabilityCheckBodySchema
+>;
+
 export function parseReplaceEventStudentsBody(
 	body: unknown,
 ): { ok: true; data: ReplaceEventStudentsBody } | { ok: false; error: string } {

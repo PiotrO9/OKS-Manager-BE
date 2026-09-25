@@ -1,4 +1,4 @@
-import { EventType, LessonStatus, Prisma } from '@prisma/client';
+import { EventStatus, EventType, LessonStatus, Prisma } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { assertInstructorTimeWindowAvailable } from '../instructor-availability.service';
 import { findStudentProfileIdsWithScheduleConflictsForEventWindow } from './conflicts';
@@ -43,6 +43,7 @@ export async function assertInstructorEventWindowAvailable(
 			instructorId: params.instructorId,
 			...(params.eventId ? { id: { not: params.eventId } } : {}),
 			isActive: true,
+			status: { not: EventStatus.CANCELLED },
 			startTime: { lt: params.end },
 			endTime: { gt: params.start },
 		},
@@ -89,6 +90,7 @@ export async function assertVehicleAvailableForEventWindow(
 			type: EventType.DRIVE,
 			...(params.eventId ? { id: { not: params.eventId } } : {}),
 			isActive: true,
+			status: { not: EventStatus.CANCELLED },
 			startTime: { lt: params.end },
 			endTime: { gt: params.start },
 		},
