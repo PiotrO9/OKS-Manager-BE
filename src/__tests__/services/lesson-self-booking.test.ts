@@ -81,8 +81,8 @@ const studentProfileId = '44444444-4444-4444-8444-444444444444';
 const instructorId = '55555555-5555-4555-8555-555555555555';
 const defaultVehicleId = '66666666-6666-4666-8666-666666666666';
 const fallbackVehicleId = '77777777-7777-4777-8777-777777777777';
-const startTime = '2099-06-20T08:00:00.000Z';
-const endTime = '2099-06-20T09:00:00.000Z';
+const startTime = '2099-06-22T08:00:00.000Z';
+const endTime = '2099-06-22T09:00:00.000Z';
 
 function mockCourse(kind: CourseKind = CourseKind.PRACTICAL) {
 	prismaMock.course.findFirst.mockResolvedValue({

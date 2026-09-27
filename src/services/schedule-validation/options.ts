@@ -21,6 +21,7 @@ import { assertCourseEligibleForInstructorEvent } from '../event/courseEligibili
 import { resolveInstructorEventSchoolId } from '../event/writeModel';
 import { assertActorCanBookLessonForCourse } from '../lesson/bookingAccess';
 import { assertLessonDateInsideBookingWindow } from '../lesson/bookingRules';
+import { assertLessonIsEditable } from '../lesson/editability';
 import { subtractStudentScheduleConflicts } from './conflicts';
 import {
 	AVAILABILITY_OPTION_STEP_MINUTES,
@@ -43,6 +44,14 @@ export async function getScheduleAvailabilityOptions(
 	options: ScheduleAvailabilityOption[];
 	availableVehicleIds?: string[];
 	policy: { minDurationMinutes: number; maxDurationMinutes: number };
+	emptyReason?:
+		| 'SCHOOL_CLOSED'
+		| 'DATE_NOT_BOOKABLE'
+		| 'INSTRUCTOR_UNAVAILABLE'
+		| 'COURSE_LIMIT_EXCEEDED'
+		| 'STUDENT_BUSY'
+		| 'VEHICLE_UNAVAILABLE'
+		| 'NO_FREE_TIME';
 }> {
 	if (body.intent === 'event_edit') {
 		return getEventEditAvailabilityOptions(actor, body);
@@ -217,6 +226,7 @@ async function getLessonEditAvailabilityOptions(
 		select: {
 			id: true,
 			status: true,
+			endTime: true,
 			studentId: true,
 			course: {
 				select: {
@@ -232,9 +242,7 @@ async function getLessonEditAvailabilityOptions(
 	});
 
 	if (!lesson) throw AppError.notFound('Lesson not found');
-	if (lesson.status !== LessonStatus.SCHEDULED) {
-		throw AppError.badRequest('Only scheduled lessons can be edited');
-	}
+	assertLessonIsEditable(lesson.status, lesson.endTime);
 
 	await assertActorCanBookLessonForCourse(actor, lesson.course.schoolId);
 	const [, instructorLink] = await Promise.all([
@@ -260,7 +268,7 @@ async function getLessonEditAvailabilityOptions(
 	);
 
 	const date = yyyymmddToDate(body.date);
-	const [optionsPolicy, packageMinutes, dateAllowed, dayWindows] =
+	const [optionsPolicy, packageMinutes, dateIssue, dayWindows] =
 		await Promise.all([
 			resolveScheduleOptionsPolicy(
 				prisma,
@@ -275,7 +283,7 @@ async function getLessonEditAvailabilityOptions(
 				lesson.course.totalHours,
 				lesson.id,
 			),
-			isLessonDateInsideBookingWindow(date, lesson.course.schoolId),
+			getLessonDateIssue(date, lesson.course.schoolId),
 			computeDayWindows(
 				body.instructorId,
 				date,
@@ -300,11 +308,27 @@ async function getLessonEditAvailabilityOptions(
 			packageMinutes,
 		),
 	};
-	if (!dateAllowed) {
-		return buildOptionsResponse([], policy, startStepMinutes, []);
+	if (dateIssue) {
+		return {
+			...buildOptionsResponse([], policy, startStepMinutes, []),
+			emptyReason: dateIssue,
+		};
+	}
+	if (dayWindows === null) {
+		return {
+			...buildOptionsResponse([], policy, startStepMinutes, []),
+			emptyReason: 'INSTRUCTOR_UNAVAILABLE' as const,
+		};
+	}
+	if (policy.maxDurationMinutes < policy.minDurationMinutes) {
+		return {
+			...buildOptionsResponse([], policy, startStepMinutes, []),
+			emptyReason: 'COURSE_LIMIT_EXCEEDED' as const,
+		};
 	}
 
-	let windows = dayWindows ?? [];
+	let windows = dayWindows;
+	const instructorHasFreeTime = windows.length > 0;
 
 	windows = await subtractStudentScheduleConflicts(
 		lesson.studentId,
@@ -312,6 +336,7 @@ async function getLessonEditAvailabilityOptions(
 		windows,
 		{ excludeLessonId: lesson.id },
 	);
+	const studentHasFreeTime = windows.length > 0;
 	if (body.date === polishTodayYyyymmdd()) {
 		const nowMinutes = instantToPolishDateTime(new Date()).minutes;
 
@@ -335,12 +360,24 @@ async function getLessonEditAvailabilityOptions(
 
 	windows = body.vehicleId ? (vehicleWindows.get(body.vehicleId) ?? []) : [];
 
-	return buildOptionsResponse(
+	const response = buildOptionsResponse(
 		windows,
 		policy,
 		startStepMinutes,
 		availableVehicleIds,
 	);
+	if (response.options.length > 0) return response;
+
+	return {
+		...response,
+		emptyReason: !instructorHasFreeTime
+			? ('INSTRUCTOR_UNAVAILABLE' as const)
+			: !studentHasFreeTime
+				? ('STUDENT_BUSY' as const)
+				: body.vehicleId && !vehicleWindows.has(body.vehicleId)
+					? ('VEHICLE_UNAVAILABLE' as const)
+					: ('NO_FREE_TIME' as const),
+	};
 }
 
 async function resolveRemainingCourseMinutes(
@@ -376,18 +413,20 @@ async function resolveRemainingCourseMinutes(
 	return Math.max(0, totalHours * 60 - usedMinutes);
 }
 
-async function isLessonDateInsideBookingWindow(
+async function getLessonDateIssue(
 	date: Date,
 	schoolId: string,
-): Promise<boolean> {
+): Promise<'SCHOOL_CLOSED' | 'DATE_NOT_BOOKABLE' | null> {
 	try {
 		await assertLessonDateInsideBookingWindow(date, schoolId);
 
-		return true;
+		return null;
 	} catch (error) {
 		if (!(error instanceof AppError)) throw error;
 
-		return false;
+		return error.message === 'Driving school is closed on this day'
+			? 'SCHOOL_CLOSED'
+			: 'DATE_NOT_BOOKABLE';
 	}
 }
 

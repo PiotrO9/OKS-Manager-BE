@@ -1,4 +1,4 @@
-import { LessonStatus, Role } from '@prisma/client';
+import { Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { assertInstructorQualifiedForCourseType } from '../../lib/instructorCourseQualification';
 import { getPrisma } from '../../lib/prisma';
@@ -9,6 +9,7 @@ import {
 	assertLessonTimeIsBookable,
 } from './bookingRules';
 import { mapLessonRowToDto, type LessonDto } from './dtoMappers';
+import { assertLessonIsEditable } from './editability';
 import { assertLessonSchedulingWindowAvailable } from './scheduleConflicts';
 import { vehicleHasBookingConflict } from './vehicleAvailability';
 import { assertScheduleDurationAllowed } from '../schedule-validation/policy';
@@ -55,9 +56,7 @@ export async function updateLesson(
 
 	await assertActorCanBookLessonForCourse(actor, existing.course.schoolId);
 
-	if (existing.status !== LessonStatus.SCHEDULED) {
-		throw AppError.badRequest('Only scheduled lessons can be edited');
-	}
+	assertLessonIsEditable(existing.status, existing.endTime);
 
 	const start =
 		body.startTime !== undefined

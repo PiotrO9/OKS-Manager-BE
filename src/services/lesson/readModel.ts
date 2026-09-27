@@ -28,7 +28,29 @@ export async function getLessonById(
 			endTime: true,
 			status: true,
 			createdAt: true,
-			course: { select: { schoolId: true } },
+			course: {
+				select: {
+					schoolId: true,
+					school: {
+						select: {
+							settings: {
+								select: {
+									bookingMaxDaysAhead: true,
+									workingDaysMask: true,
+								},
+							},
+						},
+					},
+					instructor: {
+						select: {
+							id: true,
+							user: {
+								select: { firstName: true, lastName: true },
+							},
+						},
+					},
+				},
+			},
 			vehicle: {
 				select: {
 					id: true,
@@ -91,6 +113,7 @@ export async function getLessonById(
 		lesson: {
 			id: base.id,
 			courseId: base.courseId,
+			schoolId: existing.course.schoolId,
 			lessonType: base.lessonType,
 			startTime: base.startTime,
 			endTime: base.endTime,
@@ -101,6 +124,16 @@ export async function getLessonById(
 			vehicle: existing.vehicle
 				? mapVehicleToLessonDetailDto(existing.vehicle)
 				: null,
+			assignedCourseInstructor: existing.course.instructor
+				? {
+						id: existing.course.instructor.id,
+						name: `${existing.course.instructor.user.firstName} ${existing.course.instructor.user.lastName}`.trim(),
+					}
+				: null,
+			bookingMaxDaysAhead:
+				existing.course.school.settings?.bookingMaxDaysAhead ?? 30,
+			schoolWorkingDaysMask:
+				existing.course.school.settings?.workingDaysMask || 62,
 		},
 	};
 }

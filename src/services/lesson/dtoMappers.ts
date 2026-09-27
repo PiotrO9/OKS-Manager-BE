@@ -49,9 +49,13 @@ export type LessonWithDetailsDto = Omit<
 	LessonDto,
 	'studentId' | 'instructorId' | 'vehicleId'
 > & {
+	schoolId: string;
 	instructor: LessonPersonDetailDto;
 	student: LessonPersonDetailDto;
 	vehicle: LessonVehicleDetailDto | null;
+	assignedCourseInstructor: { id: string; name: string } | null;
+	bookingMaxDaysAhead: number;
+	schoolWorkingDaysMask: number;
 };
 
 export function mapLessonRowToDto(row: {

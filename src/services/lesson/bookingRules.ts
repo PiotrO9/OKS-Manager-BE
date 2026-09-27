@@ -1,5 +1,6 @@
 import { LessonType, Prisma, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
+import { instantToPolishDateTime } from '../../lib/polishScheduleTime';
 import { getPrisma } from '../../lib/prisma';
 import type {
 	BookLessonBody,
@@ -57,7 +58,7 @@ export async function assertLessonDateInsideBookingWindow(
 ): Promise<void> {
 	const settings = await prisma.schoolSettings.findUnique({
 		where: { schoolId: courseSchoolId },
-		select: { bookingMaxDaysAhead: true },
+		select: { bookingMaxDaysAhead: true, workingDaysMask: true },
 	});
 	const bookingMaxDaysAhead = settings?.bookingMaxDaysAhead ?? 30;
 	const lessonDay = formatYYYYMMDD(start);
@@ -68,6 +69,11 @@ export async function assertLessonDateInsideBookingWindow(
 	}
 	if (compareYyyymmdd(lessonDay, maxBookable) > 0) {
 		throw AppError.badRequest('Lesson date is outside booking window');
+	}
+	const workingDaysMask = settings?.workingDaysMask || 62;
+	const weekday = instantToPolishDateTime(start).dayOfWeek;
+	if ((workingDaysMask & (1 << weekday)) === 0) {
+		throw AppError.badRequest('Driving school is closed on this day');
 	}
 }
 

@@ -1,4 +1,4 @@
-import { EventType, LessonStatus, Role } from '@prisma/client';
+import { EventType, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { assertInstructorQualifiedForCourseType } from '../../lib/instructorCourseQualification';
 import { getPrisma } from '../../lib/prisma';
@@ -26,6 +26,7 @@ import {
 	type CourseForBooking,
 } from '../lesson/bookingAccess';
 import { assertLessonTimeIsBookable } from '../lesson/bookingRules';
+import { assertLessonIsEditable } from '../lesson/editability';
 import { assertLessonSchedulingWindowAvailable } from '../lesson/scheduleConflicts';
 import {
 	assertVehicleAvailableForBooking,
@@ -289,9 +290,7 @@ async function checkLessonEditAvailability(
 		throw AppError.notFound('Lesson not found');
 	}
 	await assertActorCanBookLessonForCourse(actor, existing.course.schoolId);
-	if (existing.status !== LessonStatus.SCHEDULED) {
-		throw AppError.badRequest('Only scheduled lessons can be edited');
-	}
+	assertLessonIsEditable(existing.status, existing.endTime);
 
 	const { start, end, durationMinutes } = parsePolishScheduleWindow(body);
 	const timeChanged =

@@ -153,8 +153,8 @@ describe('schedule availability check', () => {
 			studentId: 'student-1',
 			instructorId,
 			vehicleId,
-			startTime: new Date('2026-09-26T08:00:00.000Z'),
-			endTime: new Date('2026-09-26T09:00:00.000Z'),
+			startTime: new Date('2099-09-26T08:00:00.000Z'),
+			endTime: new Date('2099-09-26T09:00:00.000Z'),
 			course: {
 				id: 'course-1',
 				schoolId: 'school-1',
@@ -354,7 +354,7 @@ describe('schedule availability check', () => {
 				lessonId,
 				instructorId,
 				vehicleId,
-				date: '2026-09-26',
+				date: '2099-09-26',
 				startTime: '10:00',
 				endTime: '11:00',
 			}),
@@ -376,7 +376,7 @@ describe('schedule availability check', () => {
 			lessonId,
 			instructorId,
 			vehicleId,
-			date: '2026-09-26',
+			date: '2099-09-26',
 			startTime: '11:00',
 			endTime: '12:00',
 		});
@@ -413,7 +413,7 @@ describe('schedule availability check', () => {
 			lessonId,
 			instructorId,
 			vehicleId,
-			date: '2026-09-26',
+			date: '2099-09-26',
 			startTime: '11:00',
 			endTime: '11:30',
 		});
