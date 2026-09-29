@@ -5,6 +5,7 @@ import { instructorIdParamsSchema } from '../lib/validation/uuid';
 import {
 	instructorLessonRatingsQuerySchema,
 	listLessonRatingsQuerySchema,
+	ownLessonRatingsQuerySchema,
 } from '../schemas/lesson-rating.schemas';
 import {
 	listInstructorLessonRatingsForManager,
@@ -48,7 +49,12 @@ async function listInstructorLessonRatingsHandler(req: Request, res: Response) {
 
 async function listOwnLessonRatingsHandler(req: Request, res: Response) {
 	const user = requireUser(req);
-	const data = await listOwnLessonRatingsForInstructor(user);
+	const query = parseRequestPart(
+		ownLessonRatingsQuerySchema,
+		req.query,
+		'query',
+	);
+	const data = await listOwnLessonRatingsForInstructor(user, query);
 	return sendJsonSuccess(res, data, 200);
 }
 

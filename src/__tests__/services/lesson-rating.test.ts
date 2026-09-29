@@ -520,16 +520,32 @@ describe('listOwnLessonRatingsForInstructor', () => {
 
 	it('returns own instructor ratings without student data', async () => {
 		await expect(
-			listOwnLessonRatingsForInstructor({
-				id: '99999999-9999-4999-8999-999999999999',
-				role: Role.INSTRUCTOR,
-			}),
+			listOwnLessonRatingsForInstructor(
+				{
+					id: '99999999-9999-4999-8999-999999999999',
+					role: Role.INSTRUCTOR,
+				},
+				{
+					period: 'all',
+					page: 1,
+					limit: 20,
+				},
+			),
 		).resolves.toEqual({
 			ratings: [
 				expect.not.objectContaining({
 					student: expect.anything(),
 				}),
 			],
+			summary: {
+				averageRating: 4.33,
+				totalCount: 3,
+			},
+			pagination: {
+				page: 1,
+				limit: 20,
+				totalPages: 1,
+			},
 		});
 
 		expect(prismaMock.lessonRating.findMany).toHaveBeenCalledWith(
@@ -537,14 +553,51 @@ describe('listOwnLessonRatingsForInstructor', () => {
 				where: expect.objectContaining({
 					instructorId: instructorProfileId,
 				}),
-				take: 100,
+				skip: 0,
+				take: 20,
 			}),
 		);
 	});
 
+	it('filters own ratings to the last month', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-09-29T12:00:00.000Z'));
+
+		try {
+			await listOwnLessonRatingsForInstructor(
+				{
+					id: '99999999-9999-4999-8999-999999999999',
+					role: Role.INSTRUCTOR,
+				},
+				{
+					period: 'last30days',
+					page: 1,
+					limit: 20,
+				},
+			);
+
+			expect(prismaMock.lessonRating.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						createdAt: {
+							gte: new Date('2026-08-30T00:00:00.000Z'),
+							lt: new Date('2026-09-30T00:00:00.000Z'),
+						},
+					}),
+				}),
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('throws 403 for non-instructor actor', async () => {
 		await expect(
-			listOwnLessonRatingsForInstructor(managerActor),
+			listOwnLessonRatingsForInstructor(managerActor, {
+				period: 'all',
+				page: 1,
+				limit: 20,
+			}),
 		).rejects.toMatchObject({
 			statusCode: 403,
 			message: 'Forbidden',

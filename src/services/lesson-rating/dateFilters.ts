@@ -17,7 +17,7 @@ function dateOnlyToUtcStart(date: string): Date {
 }
 
 export function resolveCreatedAtFilter(query: {
-	period: 'latest' | 'yesterday' | 'last7days' | 'all';
+	period: 'latest' | 'yesterday' | 'last7days' | 'last30days' | 'all';
 	dateFrom?: string;
 	dateTo?: string;
 }): Prisma.DateTimeFilter | undefined {
@@ -37,6 +37,10 @@ export function resolveCreatedAtFilter(query: {
 
 	if (query.period === 'last7days') {
 		return { gte: addDays(today, -7), lt: addDays(today, 1) };
+	}
+
+	if (query.period === 'last30days') {
+		return { gte: addDays(today, -30), lt: addDays(today, 1) };
 	}
 
 	return undefined;

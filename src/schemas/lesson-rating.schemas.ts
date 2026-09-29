@@ -25,6 +25,7 @@ export const lessonRatingsPeriodSchema = z.enum([
 	'latest',
 	'yesterday',
 	'last7days',
+	'last30days',
 	'all',
 ]);
 
@@ -78,6 +79,22 @@ export const instructorLessonRatingsQuerySchema = lessonRatingsBaseQuerySchema
 	.omit({ instructorId: true })
 	.superRefine(refineDateRange);
 
+export const ownLessonRatingsQuerySchema = z
+	.object({
+		period: zodPreprocessQueryFirst(
+			lessonRatingsPeriodSchema.default('all'),
+		),
+		dateFrom: optionalDateQueryValue,
+		dateTo: optionalDateQueryValue,
+		page: zodPreprocessQueryFirst(
+			z.coerce.number().int().min(1).default(1),
+		),
+		limit: zodPreprocessQueryFirst(
+			z.coerce.number().int().min(1).max(100).default(20),
+		),
+	})
+	.superRefine(refineDateRange);
+
 export type ListLessonRatingsQuery = z.infer<
 	typeof listLessonRatingsQuerySchema
 >;
@@ -85,3 +102,5 @@ export type ListLessonRatingsQuery = z.infer<
 export type InstructorLessonRatingsQuery = z.infer<
 	typeof instructorLessonRatingsQuerySchema
 >;
+
+export type OwnLessonRatingsQuery = z.infer<typeof ownLessonRatingsQuerySchema>;

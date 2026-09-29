@@ -63,6 +63,7 @@ import {
 import {
 	instructorLessonRatingsQuerySchema,
 	listLessonRatingsQuerySchema,
+	ownLessonRatingsQuerySchema,
 } from '../../schemas/lesson-rating.schemas';
 import {
 	createDrivingSchoolBodySchema,
@@ -289,6 +290,7 @@ export {
 	lessonRatingParamsSchema,
 	instructorLessonRatingsQuerySchema,
 	listLessonRatingsQuerySchema,
+	ownLessonRatingsQuerySchema,
 	createDrivingSchoolBodySchema,
 	setDefaultVehicleBodySchema,
 	updateDrivingSchoolBodySchema,

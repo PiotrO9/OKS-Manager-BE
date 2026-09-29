@@ -10,6 +10,7 @@ import {
 	lessonRatingDtoSchema,
 	lessonRatingParamsSchema,
 	listLessonRatingsQuerySchema,
+	ownLessonRatingsQuerySchema,
 	okDataSchema,
 	okDataUnknown,
 	stdBearerResponses,
@@ -193,8 +194,13 @@ export function registerLessonPaths(registry: OpenAPIRegistry): void {
 		description:
 			'Instruktor widzi opinie o swoich zakończonych lekcjach praktycznych. Odpowiedź nie zawiera danych kursanta.',
 		security: [{ bearerAuth: [] }],
+		request: {
+			query: ownLessonRatingsQuerySchema,
+		},
 		responses: stdBearerResponses({
-			200: okDataUnknown('Lista opinii instruktora'),
+			200: okDataUnknown(
+				'Lista opinii instruktora + summary i paginacja',
+			),
 		}),
 	});
 

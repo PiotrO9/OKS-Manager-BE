@@ -3,6 +3,7 @@ import { getPrisma } from '../../lib/prisma';
 import type {
 	InstructorLessonRatingsQuery,
 	ListLessonRatingsQuery,
+	OwnLessonRatingsQuery,
 } from '../../schemas/lesson-rating.schemas';
 import {
 	assertManagerCanAccessSchool,
@@ -45,7 +46,7 @@ function buildManagerRatingsWhere(
 async function fetchRatingsWithSummary(
 	where: Prisma.LessonRatingWhereInput,
 	limit: number,
-	options: { includeStudent: boolean },
+	options: { includeStudent: boolean; skip?: number },
 ): Promise<{
 	ratings: LessonRatingListItemDto[];
 	summary: LessonRatingsSummaryDto;
@@ -54,6 +55,7 @@ async function fetchRatingsWithSummary(
 		prisma.lessonRating.findMany({
 			where,
 			orderBy: { createdAt: 'desc' },
+			...(options.skip !== undefined ? { skip: options.skip } : {}),
 			take: limit,
 			include: {
 				lesson: {
@@ -150,11 +152,18 @@ export async function listInstructorLessonRatingsForManager(
 
 export async function listOwnLessonRatingsForInstructor(
 	actor: Actor,
-): Promise<{ ratings: LessonRatingListItemDto[] }> {
+	query: OwnLessonRatingsQuery,
+): Promise<{
+	ratings: LessonRatingListItemDto[];
+	summary: LessonRatingsSummaryDto;
+	pagination: { page: number; limit: number; totalPages: number };
+}> {
 	const instructorId = await resolveActiveInstructorProfileId(actor);
+	const createdAt = resolveCreatedAtFilter(query);
 
 	const where: Prisma.LessonRatingWhereInput = {
 		instructorId,
+		...(createdAt ? { createdAt } : {}),
 		lesson: {
 			deletedAt: null,
 			lessonType: LessonType.PRACTICE,
@@ -162,9 +171,25 @@ export async function listOwnLessonRatingsForInstructor(
 		},
 	};
 
-	const { ratings } = await fetchRatingsWithSummary(where, 100, {
-		includeStudent: false,
-	});
+	const { ratings, summary } = await fetchRatingsWithSummary(
+		where,
+		query.limit,
+		{
+			includeStudent: false,
+			skip: (query.page - 1) * query.limit,
+		},
+	);
 
-	return { ratings };
+	return {
+		ratings,
+		summary,
+		pagination: {
+			page: query.page,
+			limit: query.limit,
+			totalPages: Math.max(
+				1,
+				Math.ceil(summary.totalCount / query.limit),
+			),
+		},
+	};
 }
