@@ -23,6 +23,25 @@ export type LessonRatingLessonDto = {
 	id: string;
 	startTime: string;
 	endTime: string;
+	sequenceNumber: number;
+	completedMinutesAfterLesson: number;
+	course: {
+		id: string;
+		name: string;
+		category: string;
+		totalHours: number;
+		courseType: {
+			code: string;
+			name: string;
+		};
+	};
+	vehicle: {
+		id: string;
+		name: string;
+		registrationNumber: string;
+		brand: string | null;
+		model: string | null;
+	} | null;
 };
 
 export type LessonRatingListItemDto = {
@@ -46,8 +65,30 @@ export type RatingWithRelations = Prisma.LessonRatingGetPayload<{
 		lesson: {
 			select: {
 				id: true;
+				courseId: true;
+				studentId: true;
 				startTime: true;
 				endTime: true;
+				course: {
+					select: {
+						id: true;
+						name: true;
+						category: true;
+						totalHours: true;
+						courseType: {
+							select: { code: true; name: true };
+						};
+					};
+				};
+				vehicle: {
+					select: {
+						id: true;
+						name: true;
+						registrationNumber: true;
+						brand: true;
+						model: true;
+					};
+				};
 			};
 		};
 		instructor: {

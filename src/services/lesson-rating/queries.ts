@@ -19,6 +19,85 @@ import type {
 
 const prisma = getPrisma();
 
+function lessonCourseStudentKey(courseId: string, studentId: string): string {
+	return `${courseId}:${studentId}`;
+}
+
+type LessonProgress = {
+	sequenceNumber: number;
+	completedMinutesAfterLesson: number;
+};
+
+async function resolveLessonProgress(
+	rows: Array<{
+		lesson: { id: string; courseId: string; studentId: string };
+	}>,
+): Promise<Map<string, LessonProgress>> {
+	if (rows.length === 0) {
+		return new Map();
+	}
+
+	const uniquePairs = new Map<
+		string,
+		{ courseId: string; studentId: string }
+	>();
+
+	for (const row of rows) {
+		const pair = {
+			courseId: row.lesson.courseId,
+			studentId: row.lesson.studentId,
+		};
+
+		uniquePairs.set(
+			lessonCourseStudentKey(pair.courseId, pair.studentId),
+			pair,
+		);
+	}
+
+	const completedLessons = await prisma.lesson.findMany({
+		where: {
+			OR: [...uniquePairs.values()],
+			deletedAt: null,
+			lessonType: LessonType.PRACTICE,
+			status: LessonStatus.COMPLETED,
+		},
+		select: {
+			id: true,
+			courseId: true,
+			studentId: true,
+			startTime: true,
+			endTime: true,
+		},
+		orderBy: [{ startTime: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+	});
+	const counters = new Map<string, number>();
+	const completedMinutesByCourseStudent = new Map<string, number>();
+	const progressByLessonId = new Map<string, LessonProgress>();
+
+	for (const lesson of completedLessons) {
+		const key = lessonCourseStudentKey(lesson.courseId, lesson.studentId);
+		const sequenceNumber = (counters.get(key) ?? 0) + 1;
+		const durationMinutes = Math.max(
+			0,
+			Math.round(
+				(lesson.endTime.getTime() - lesson.startTime.getTime()) /
+					60_000,
+			),
+		);
+		const completedMinutesAfterLesson =
+			(completedMinutesByCourseStudent.get(key) ?? 0) + durationMinutes;
+
+		counters.set(key, sequenceNumber);
+		completedMinutesByCourseStudent.set(key, completedMinutesAfterLesson);
+		progressByLessonId.set(lesson.id, {
+			sequenceNumber,
+			completedMinutesAfterLesson,
+		});
+	}
+
+	return progressByLessonId;
+}
+
 function buildManagerRatingsWhere(
 	schoolId: string,
 	query: Pick<
@@ -61,8 +140,30 @@ async function fetchRatingsWithSummary(
 				lesson: {
 					select: {
 						id: true,
+						courseId: true,
+						studentId: true,
 						startTime: true,
 						endTime: true,
+						course: {
+							select: {
+								id: true,
+								name: true,
+								category: true,
+								totalHours: true,
+								courseType: {
+									select: { code: true, name: true },
+								},
+							},
+						},
+						vehicle: {
+							select: {
+								id: true,
+								name: true,
+								registrationNumber: true,
+								brand: true,
+								model: true,
+							},
+						},
 					},
 				},
 				instructor: {
@@ -99,11 +200,29 @@ async function fetchRatingsWithSummary(
 			_avg: { rating: true },
 		}),
 	]);
+	const progressByLessonId = await resolveLessonProgress(rows);
 
 	const average = aggregate._avg.rating;
 
 	return {
-		ratings: rows.map((row) => mapRatingListItem(row, options)),
+		ratings: rows.map((row) => {
+			const progress = progressByLessonId.get(row.lesson.id);
+
+			return mapRatingListItem(row, {
+				includeStudent: options.includeStudent,
+				sequenceNumber: progress?.sequenceNumber ?? 1,
+				completedMinutesAfterLesson:
+					progress?.completedMinutesAfterLesson ??
+					Math.max(
+						0,
+						Math.round(
+							(row.lesson.endTime.getTime() -
+								row.lesson.startTime.getTime()) /
+								60_000,
+						),
+					),
+			});
+		}),
 		summary: {
 			averageRating:
 				typeof average === 'number'
@@ -120,14 +239,33 @@ export async function listLessonRatingsForManager(
 ): Promise<{
 	ratings: LessonRatingListItemDto[];
 	summary: LessonRatingsSummaryDto;
+	pagination: { page: number; limit: number; totalPages: number };
 }> {
 	await assertManagerCanAccessSchool(actor, query.schoolId);
 
 	const where = buildManagerRatingsWhere(query.schoolId, query);
 
-	return fetchRatingsWithSummary(where, query.limit, {
-		includeStudent: true,
-	});
+	const { ratings, summary } = await fetchRatingsWithSummary(
+		where,
+		query.limit,
+		{
+			includeStudent: true,
+			skip: (query.page - 1) * query.limit,
+		},
+	);
+
+	return {
+		ratings,
+		summary,
+		pagination: {
+			page: query.page,
+			limit: query.limit,
+			totalPages: Math.max(
+				1,
+				Math.ceil(summary.totalCount / query.limit),
+			),
+		},
+	};
 }
 
 export async function listInstructorLessonRatingsForManager(
@@ -137,6 +275,7 @@ export async function listInstructorLessonRatingsForManager(
 ): Promise<{
 	ratings: LessonRatingListItemDto[];
 	summary: LessonRatingsSummaryDto;
+	pagination: { page: number; limit: number; totalPages: number };
 }> {
 	await assertManagerCanAccessSchool(actor, query.schoolId);
 
@@ -145,9 +284,27 @@ export async function listInstructorLessonRatingsForManager(
 		instructorId,
 	});
 
-	return fetchRatingsWithSummary(where, query.limit, {
-		includeStudent: true,
-	});
+	const { ratings, summary } = await fetchRatingsWithSummary(
+		where,
+		query.limit,
+		{
+			includeStudent: true,
+			skip: (query.page - 1) * query.limit,
+		},
+	);
+
+	return {
+		ratings,
+		summary,
+		pagination: {
+			page: query.page,
+			limit: query.limit,
+			totalPages: Math.max(
+				1,
+				Math.ceil(summary.totalCount / query.limit),
+			),
+		},
+	};
 }
 
 export async function listOwnLessonRatingsForInstructor(

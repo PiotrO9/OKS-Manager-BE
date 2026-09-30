@@ -36,7 +36,7 @@ export function resolveCreatedAtFilter(query: {
 	}
 
 	if (query.period === 'last7days') {
-		return { gte: addDays(today, -7), lt: addDays(today, 1) };
+		return { gte: addDays(today, -6), lt: addDays(today, 1) };
 	}
 
 	if (query.period === 'last30days') {

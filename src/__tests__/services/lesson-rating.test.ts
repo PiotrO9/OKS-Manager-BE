@@ -23,6 +23,7 @@ const { prismaMock } = vi.hoisted(() => ({
 		},
 		lesson: {
 			findFirst: vi.fn(),
+			findMany: vi.fn(),
 		},
 		lessonRating: {
 			aggregate: vi.fn(),
@@ -43,6 +44,7 @@ const actor = {
 const lessonId = '22222222-2222-4222-8222-222222222222';
 const studentProfileId = '33333333-3333-4333-8333-333333333333';
 const instructorProfileId = '44444444-4444-4444-8444-444444444444';
+const courseId = '55555555-5555-4555-8555-555555555556';
 const managerActor = {
 	id: '66666666-6666-4666-8666-666666666666',
 	role: Role.MANAGER,
@@ -130,8 +132,24 @@ function mockRatingListRow(overrides: Partial<LessonRating> = {}) {
 		...overrides,
 		lesson: {
 			id: lessonId,
+			courseId,
+			studentId: studentProfileId,
 			startTime: new Date('2026-06-16T08:00:00.000Z'),
 			endTime: new Date('2026-06-16T09:00:00.000Z'),
+			course: {
+				id: courseId,
+				name: 'Kurs prawa jazdy B',
+				category: 'B',
+				totalHours: 30,
+				courseType: { code: 'B', name: 'Kategoria B' },
+			},
+			vehicle: {
+				id: 'vehicle-1',
+				name: 'Toyota Yaris',
+				registrationNumber: 'WA 12345',
+				brand: 'Toyota',
+				model: 'Yaris',
+			},
 		},
 		instructor: {
 			id: instructorProfileId,
@@ -162,6 +180,29 @@ function mockManagerSchoolAccess() {
 
 function mockRatingsQueryResult() {
 	prismaMock.lessonRating.findMany.mockResolvedValue([mockRatingListRow()]);
+	prismaMock.lesson.findMany.mockResolvedValue([
+		{
+			id: 'lesson-previous-1',
+			courseId,
+			studentId: studentProfileId,
+			startTime: new Date('2026-06-14T08:00:00.000Z'),
+			endTime: new Date('2026-06-14T09:00:00.000Z'),
+		},
+		{
+			id: 'lesson-previous-2',
+			courseId,
+			studentId: studentProfileId,
+			startTime: new Date('2026-06-15T08:00:00.000Z'),
+			endTime: new Date('2026-06-15T09:30:00.000Z'),
+		},
+		{
+			id: lessonId,
+			courseId,
+			studentId: studentProfileId,
+			startTime: new Date('2026-06-16T08:00:00.000Z'),
+			endTime: new Date('2026-06-16T09:00:00.000Z'),
+		},
+	]);
 	prismaMock.lessonRating.aggregate.mockResolvedValue({
 		_count: { _all: 3 },
 		_avg: { rating: 4.3333 },
@@ -415,6 +456,7 @@ describe('listLessonRatingsForManager', () => {
 				schoolId,
 				instructorId: instructorProfileId,
 				period: 'all',
+				page: 2,
 				limit: 50,
 			}),
 		).resolves.toEqual({
@@ -429,6 +471,25 @@ describe('listLessonRatingsForManager', () => {
 						id: lessonId,
 						startTime: '2026-06-16T08:00:00.000Z',
 						endTime: '2026-06-16T09:00:00.000Z',
+						sequenceNumber: 3,
+						completedMinutesAfterLesson: 210,
+						course: {
+							id: courseId,
+							name: 'Kurs prawa jazdy B',
+							category: 'B',
+							totalHours: 30,
+							courseType: {
+								code: 'B',
+								name: 'Kategoria B',
+							},
+						},
+						vehicle: {
+							id: 'vehicle-1',
+							name: 'Toyota Yaris',
+							registrationNumber: 'WA 12345',
+							brand: 'Toyota',
+							model: 'Yaris',
+						},
 					},
 					instructor: {
 						id: instructorProfileId,
@@ -450,6 +511,11 @@ describe('listLessonRatingsForManager', () => {
 				averageRating: 4.33,
 				totalCount: 3,
 			},
+			pagination: {
+				page: 2,
+				limit: 50,
+				totalPages: 1,
+			},
 		});
 
 		expect(prismaMock.lessonRating.findMany).toHaveBeenCalledWith(
@@ -463,9 +529,30 @@ describe('listLessonRatingsForManager', () => {
 					}),
 				}),
 				orderBy: { createdAt: 'desc' },
+				skip: 50,
 				take: 50,
 			}),
 		);
+		expect(prismaMock.lesson.findMany).toHaveBeenCalledWith({
+			where: {
+				OR: [{ courseId, studentId: studentProfileId }],
+				deletedAt: null,
+				lessonType: LessonType.PRACTICE,
+				status: LessonStatus.COMPLETED,
+			},
+			select: {
+				id: true,
+				courseId: true,
+				studentId: true,
+				startTime: true,
+				endTime: true,
+			},
+			orderBy: [
+				{ startTime: 'asc' },
+				{ createdAt: 'asc' },
+				{ id: 'asc' },
+			],
+		});
 	});
 
 	it('throws 403 when manager does not own the school', async () => {
@@ -479,6 +566,7 @@ describe('listLessonRatingsForManager', () => {
 			listLessonRatingsForManager(managerActor, {
 				schoolId,
 				period: 'all',
+				page: 1,
 				limit: 50,
 			}),
 		).rejects.toMatchObject({
@@ -493,6 +581,7 @@ describe('listLessonRatingsForManager', () => {
 			period: 'latest',
 			dateFrom: '2026-06-10',
 			dateTo: '2026-06-11',
+			page: 1,
 			limit: 20,
 		});
 

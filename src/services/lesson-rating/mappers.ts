@@ -18,7 +18,11 @@ export function mapLessonRatingToDto(row: LessonRating): LessonRatingDto {
 
 export function mapRatingListItem(
 	row: RatingWithRelations,
-	options: { includeStudent: boolean },
+	options: {
+		includeStudent: boolean;
+		sequenceNumber: number;
+		completedMinutesAfterLesson: number;
+	},
 ): LessonRatingListItemDto {
 	const item: LessonRatingListItemDto = {
 		id: row.id,
@@ -30,6 +34,16 @@ export function mapRatingListItem(
 			id: row.lesson.id,
 			startTime: row.lesson.startTime.toISOString(),
 			endTime: row.lesson.endTime.toISOString(),
+			sequenceNumber: options.sequenceNumber,
+			completedMinutesAfterLesson: options.completedMinutesAfterLesson,
+			course: {
+				id: row.lesson.course.id,
+				name: row.lesson.course.name,
+				category: row.lesson.course.category,
+				totalHours: row.lesson.course.totalHours,
+				courseType: row.lesson.course.courseType,
+			},
+			vehicle: row.lesson.vehicle,
 		},
 		instructor: {
 			id: row.instructor.id,
