@@ -7,6 +7,7 @@ const { prismaMock } = vi.hoisted(() => ({
 		lesson: {
 			findFirst: vi.fn(),
 			update: vi.fn(),
+			updateManyAndReturn: vi.fn(),
 		},
 		user: {
 			findUnique: vi.fn(),
@@ -57,6 +58,7 @@ function mockLesson(
 		studentId: string;
 		lessonType: LessonType;
 		status: LessonStatus;
+		startTime: Date;
 	}> = {},
 ) {
 	prismaMock.lesson.findFirst.mockResolvedValue({
@@ -64,22 +66,25 @@ function mockLesson(
 		studentId: overrides.studentId ?? studentProfileId,
 		lessonType: overrides.lessonType ?? LessonType.PRACTICE,
 		status: overrides.status ?? LessonStatus.SCHEDULED,
+		startTime: overrides.startTime ?? new Date('2099-06-20T08:00:00.000Z'),
 	});
 }
 
 function mockCancelledLessonUpdate() {
-	prismaMock.lesson.update.mockResolvedValue({
-		id: lessonId,
-		courseId,
-		studentId: studentProfileId,
-		instructorId,
-		vehicleId,
-		lessonType: LessonType.PRACTICE,
-		startTime: new Date('2099-06-20T08:00:00.000Z'),
-		endTime: new Date('2099-06-20T09:00:00.000Z'),
-		status: LessonStatus.CANCELLED,
-		createdAt: new Date('2099-06-18T12:00:00.000Z'),
-	});
+	prismaMock.lesson.updateManyAndReturn.mockResolvedValue([
+		{
+			id: lessonId,
+			courseId,
+			studentId: studentProfileId,
+			instructorId,
+			vehicleId,
+			lessonType: LessonType.PRACTICE,
+			startTime: new Date('2099-06-20T08:00:00.000Z'),
+			endTime: new Date('2099-06-20T09:00:00.000Z'),
+			status: LessonStatus.CANCELLED,
+			createdAt: new Date('2099-06-18T12:00:00.000Z'),
+		},
+	]);
 }
 
 describe('cancelOwnLesson', () => {
@@ -101,9 +106,17 @@ describe('cancelOwnLesson', () => {
 			},
 		});
 
-		expect(prismaMock.lesson.update).toHaveBeenCalledWith(
+		expect(prismaMock.lesson.updateManyAndReturn).toHaveBeenCalledWith(
 			expect.objectContaining({
-				where: { id: lessonId },
+				where: expect.objectContaining({
+					id: lessonId,
+					studentId: studentProfileId,
+					lessonType: LessonType.PRACTICE,
+					status: LessonStatus.SCHEDULED,
+					startTime: expect.objectContaining({
+						gt: expect.any(Date),
+					}),
+				}),
 				data: { status: LessonStatus.CANCELLED },
 			}),
 		);
@@ -115,7 +128,7 @@ describe('cancelOwnLesson', () => {
 		).rejects.toMatchObject({ statusCode: 403 });
 
 		expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
-		expect(prismaMock.lesson.update).not.toHaveBeenCalled();
+		expect(prismaMock.lesson.updateManyAndReturn).not.toHaveBeenCalled();
 	});
 
 	it('rejects when authenticated user has no student profile', async () => {
@@ -142,7 +155,7 @@ describe('cancelOwnLesson', () => {
 			statusCode: 404,
 		});
 
-		expect(prismaMock.lesson.update).not.toHaveBeenCalled();
+		expect(prismaMock.lesson.updateManyAndReturn).not.toHaveBeenCalled();
 	});
 
 	it('rejects lessons owned by another student', async () => {
@@ -153,7 +166,7 @@ describe('cancelOwnLesson', () => {
 			statusCode: 403,
 		});
 
-		expect(prismaMock.lesson.update).not.toHaveBeenCalled();
+		expect(prismaMock.lesson.updateManyAndReturn).not.toHaveBeenCalled();
 	});
 
 	it('rejects non-practice lessons', async () => {
@@ -183,6 +196,29 @@ describe('cancelOwnLesson', () => {
 		await expect(cancelOwnLesson(actor, lessonId)).rejects.toMatchObject({
 			statusCode: 400,
 			message: 'Lesson is already cancelled',
+		});
+	});
+
+	it('rejects scheduled practice lessons that have already started', async () => {
+		mockStudentProfile();
+		mockLesson({ startTime: new Date('2000-01-01T08:00:00.000Z') });
+
+		await expect(cancelOwnLesson(actor, lessonId)).rejects.toMatchObject({
+			statusCode: 400,
+			message: 'Cannot cancel a lesson that has already started',
+		});
+
+		expect(prismaMock.lesson.updateManyAndReturn).not.toHaveBeenCalled();
+	});
+
+	it('rejects when the lesson becomes non-cancellable before the atomic update', async () => {
+		mockStudentProfile();
+		mockLesson();
+		prismaMock.lesson.updateManyAndReturn.mockResolvedValue([]);
+
+		await expect(cancelOwnLesson(actor, lessonId)).rejects.toMatchObject({
+			statusCode: 400,
+			message: 'Lesson is no longer cancellable',
 		});
 	});
 });

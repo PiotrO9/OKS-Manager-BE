@@ -79,6 +79,7 @@ export async function cancelOwnLesson(
 			status: true,
 			studentId: true,
 			lessonType: true,
+			startTime: true,
 		},
 	});
 
@@ -103,9 +104,23 @@ export async function cancelOwnLesson(
 	if (existing.status !== LessonStatus.SCHEDULED) {
 		throw AppError.badRequest('Only scheduled lessons can be cancelled');
 	}
+	const now = new Date();
 
-	const row = await prisma.lesson.update({
-		where: { id: lessonId },
+	if (existing.startTime <= now) {
+		throw AppError.badRequest(
+			'Cannot cancel a lesson that has already started',
+		);
+	}
+
+	const rows = await prisma.lesson.updateManyAndReturn({
+		where: {
+			id: lessonId,
+			studentId: studentProfileId,
+			lessonType: LessonType.PRACTICE,
+			status: LessonStatus.SCHEDULED,
+			startTime: { gt: now },
+			deletedAt: null,
+		},
 		data: { status: LessonStatus.CANCELLED },
 		select: {
 			id: true,
@@ -120,6 +135,11 @@ export async function cancelOwnLesson(
 			createdAt: true,
 		},
 	});
+	const row = rows[0];
+
+	if (!row) {
+		throw AppError.badRequest('Lesson is no longer cancellable');
+	}
 
 	return { lesson: mapLessonRowToDto(row) };
 }
