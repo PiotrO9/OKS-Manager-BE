@@ -197,15 +197,15 @@ export async function getScheduleForTarget(
 			include: lessonInclude,
 			orderBy: { startTime: 'asc' },
 		}),
-			prisma.instructorEvent.findMany({
-				where: {
-					...eventWhere,
-					isActive: true,
-					participants: { some: { studentId: query.studentId! } },
-					schoolId,
-					school: { deletedAt: null },
-				},
-				include: eventInclude,
+		prisma.instructorEvent.findMany({
+			where: {
+				...eventWhere,
+				isActive: true,
+				participants: { some: { studentId: query.studentId! } },
+				schoolId,
+				school: { deletedAt: null },
+			},
+			include: eventInclude,
 			orderBy: { startTime: 'asc' },
 		}),
 	]);

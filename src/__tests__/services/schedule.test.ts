@@ -110,7 +110,9 @@ describe('schedule service', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		prismaMock.drivingSchool.findFirst.mockResolvedValue({ id: schoolId });
-		prismaMock.instructorSchool.findFirst.mockResolvedValue({ id: 'link-1' });
+		prismaMock.instructorSchool.findFirst.mockResolvedValue({
+			id: 'link-1',
+		});
 		prismaMock.instructorEvent.findMany.mockResolvedValue([]);
 		prismaMock.lesson.findMany.mockResolvedValue([]);
 		prismaMock.studentProfile.findUnique.mockResolvedValue({
