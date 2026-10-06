@@ -19,6 +19,37 @@ function jsonSchemaFor(
 }
 
 describe('OpenAPI critical response contracts', () => {
+	it('documents the date-only instructor registration field', () => {
+		const spec = getOpenApiSpec() as {
+			paths: Record<
+				string,
+				Record<
+					string,
+					{
+						requestBody: {
+							content: Record<
+								string,
+								{
+									schema: {
+										properties: Record<string, unknown>;
+									};
+								}
+							>;
+						};
+					}
+				>
+			>;
+		};
+		expect(
+			spec.paths['/auth/register']!.post!.requestBody.content[
+				'application/json'
+			]!.schema.properties.birthDate,
+		).toMatchObject({
+			type: 'string',
+			nullable: true,
+			pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+		});
+	});
 	it('describes the optional dev seed configuration body', () => {
 		const spec = getOpenApiSpec() as {
 			paths: Record<string, Record<string, Record<string, unknown>>>;

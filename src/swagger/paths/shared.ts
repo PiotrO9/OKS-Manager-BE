@@ -101,6 +101,14 @@ export const registerBodySchema = z
 		lastName: z.string().min(1),
 		phone: z.string().optional().nullable(),
 		licenseNumber: z.string().optional().nullable(),
+		birthDate: z
+			.string()
+			.regex(/^\d{4}-\d{2}-\d{2}$/)
+			.optional()
+			.nullable()
+			.describe(
+				'Required for INSTRUCTOR after rollout; calendar date YYYY-MM-DD, not in the future.',
+			),
 		schoolId: uuidSchema.optional().nullable(),
 	})
 	.describe('Szczegóły: context/auth.md — zależności pól od roli');

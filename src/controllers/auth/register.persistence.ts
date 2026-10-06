@@ -20,6 +20,7 @@ type PersistRegisteredUserInput = {
 	targetRole: Role;
 	phone: RegisterBody['phone'];
 	instructorLicenseTrimmed: string | null;
+	instructorBirthDate: Date | null;
 	validatedInstructorSchoolId?: string;
 	validatedStudentSchoolId?: string;
 };
@@ -45,6 +46,7 @@ async function updateRegisteredUserInTx(
 		input.authUserId,
 		input.targetRole,
 		input.instructorLicenseTrimmed,
+		input.instructorBirthDate,
 	);
 	await attachRoleSchoolInTx(tx, input);
 }
@@ -139,6 +141,7 @@ export async function persistRegisteredUser(
 		profileFields,
 		input.targetRole,
 		input.instructorLicenseTrimmed,
+		input.instructorBirthDate,
 	);
 
 	try {

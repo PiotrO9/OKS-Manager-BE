@@ -5,6 +5,7 @@ import { AppError } from '../../lib/http/AppError';
 import { logger } from '../../lib/logger';
 import { canInvokerRegisterUserWithRole } from '../../lib/registerRolePolicy';
 import { getSupabaseClient } from '../../lib/supabase';
+import { parseInstructorBirthDate } from '../../lib/validation/instructorBirthDate';
 import {
 	logAuthSignUpError,
 	mapAuthSignUpErrorForClient,
@@ -65,11 +66,15 @@ export async function register(req: Request, res: Response) {
 	}
 
 	const emailTrimmed = String(email).trim();
+	let instructorBirthDate: Date | null = null;
 
 	let registrationSchoolIds: Awaited<
 		ReturnType<typeof resolveRegistrationSchoolIds>
 	>;
 	try {
+		if (targetRole === Role.INSTRUCTOR) {
+			instructorBirthDate = parseInstructorBirthDate(body.birthDate);
+		}
 		registrationSchoolIds = await resolveRegistrationSchoolIds(
 			actor,
 			body,
@@ -112,6 +117,7 @@ export async function register(req: Request, res: Response) {
 			targetRole,
 			phone,
 			instructorLicenseTrimmed,
+			instructorBirthDate,
 			...registrationSchoolIds,
 		});
 	} catch (err) {

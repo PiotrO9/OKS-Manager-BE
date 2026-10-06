@@ -77,6 +77,7 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 | `email`, `password`, `role`, `firstName`, `lastName` | tak | `role`: `STUDENT` lub `INSTRUCTOR` |
 | `phone` | nie | |
 | `licenseNumber` | tak, gdy `role` = `INSTRUCTOR` | W modelu `InstructorProfile` pole `license_number` jest wymagane — brak → **400** (`licenseNumber is required when role is INSTRUCTOR`) |
+| `birthDate` | tak, gdy `role` = `INSTRUCTOR` (po rollout) | Data kalendarzowa `YYYY-MM-DD`, bez czasu; nie może być w przyszłości według `Europe/Warsaw`. Walidacja przed `signUp`. Nie dotyczy rejestracji kursanta. |
 | `schoolId` | zależnie od `role` i wywołującego | Patrz poniżej (INSTRUCTOR vs STUDENT). |
 
 **`schoolId` gdy `role` = `INSTRUCTOR`:** w praktyce rejestruje **`ADMIN`** lub **`MANAGER`**. UUID OSK — jak wcześniej: dla **`MANAGER`** bez `schoolId` używana jest **`defaultOskId`** (brak → **400** `Manager has no default school assigned`); dla **`ADMIN`** brak `schoolId` → **400** `schoolId is required when role is INSTRUCTOR`. Nieprawidłowy UUID / nieaktywna OSK → **400** `Invalid schoolId`; brak prawa do szkoły → **403**.
@@ -94,6 +95,15 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 Jeśli rekord `users` z tym samym **`email`** ma już profil instruktora z co najmniej jednym wpisem w **`instructor_schools`** → **409** (`Instructor is already assigned to a driving school`) — nadal **przed** `signUp` (jeśli uda się to stwierdzić z bazy).
 
 **Domyślne godziny pracy** (`instructor_working_hours_default`): z `school_settings` danej OSK (`working_days_mask`, godziny rozpoczęcia/końca); bit `d` maski odpowiada `Date.getDay()` (0 = niedziela … 6 = sobota). Gdy brak ustawień, pusta maska lub `end <= start`, używany jest fallback **pn–pt 8:00–18:00**.
+
+### Data urodzenia instruktora i rollout W22
+
+- `InstructorProfile.birthDate` jest mapowane na nullable `instructor_profiles.birth_date` typu PostgreSQL `DATE`. Migracja `20261005120000_add_instructor_birth_date` nie uzupełnia historycznych rekordów fikcyjnymi datami.
+- Backend przyjmuje tylko istniejącą datę kalendarzową w dokładnym formacie `YYYY-MM-DD`; brak, niepoprawna lub przyszła data daje **400**. Nie wprowadzamy minimalnego wieku. Wewnątrz Prisma przekazujemy północ UTC, bez przeliczania daty urodzenia na lokalny timestamp.
+- Każda ścieżka rejestracji zapisuje datę: nowy profil, brakujący profil istniejącego użytkownika oraz odzyskiwanie po konflikcie `P2002`. Istniejąca data może zostać uzupełniona tylko, gdy jest `null`; identyczna jest akceptowana. Inna data daje **409** `Instructor birthDate already set to a different value`, bez nadpisania (warunkowy zapis w transakcji).
+- Kolejność wdrożenia: migracja i backend z `INSTRUCTOR_BIRTH_DATE_REQUIRED=false`, frontend wymagający i wysyłający datę, następnie backend z `INSTRUCTOR_BIRTH_DATE_REQUIRED=true` (domyślna wartość). W fazie opcjonalnej brak daty nie kasuje daty już zapisanej, ale podana niepoprawna data nadal jest odrzucana.
+- Przed wdrożeniem backendu należy zastosować migrację w docelowej bazie i wykonać `prisma generate`. Migracja jest przygotowana w repozytorium; jej dodanie nie oznacza wykonania na zdalnej bazie.
+- Zakres tej zmiany obejmuje tworzenie konta. Nie rozszerza DTO listy/szczegółów W10 ani endpointów edycji profilu o datę urodzenia.
 
 ### Sukces (`data`)
 

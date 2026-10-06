@@ -4,6 +4,7 @@ import { Prisma, Role } from '@prisma/client';
 import { sendJsonError, sendJsonSuccess } from '../../lib/apiResponse';
 import { logger } from '../../lib/logger';
 import { getPrisma } from '../../lib/prisma';
+import { AppError } from '../../lib/http/AppError';
 import type { RegisterBody } from './types';
 
 export const REGISTRATION_TARGET_ROLES: ReadonlySet<Role> = new Set([
@@ -42,6 +43,7 @@ export function buildUserCreateWithRoleProfiles(
 	profileFields: ReturnType<typeof registerDbProfileFromRequest>,
 	targetRole: Role,
 	instructorLicenseTrimmed: string | null,
+	instructorBirthDate: Date | null = null,
 ): Prisma.UserCreateInput {
 	const base: Prisma.UserCreateInput = {
 		id: authUserId,
@@ -58,7 +60,10 @@ export function buildUserCreateWithRoleProfiles(
 		...base,
 		profile: { create: {} },
 		instructorProfile: {
-			create: { licenseNumber: instructorLicenseTrimmed! },
+			create: {
+				licenseNumber: instructorLicenseTrimmed!,
+				birthDate: instructorBirthDate,
+			},
 		},
 	};
 }
@@ -68,6 +73,7 @@ export async function ensureRoleProfilesAfterUserUpsert(
 	userId: string,
 	targetRole: Role,
 	instructorLicenseTrimmed: string | null,
+	instructorBirthDate: Date | null = null,
 ) {
 	const user = await tx.user.findUnique({
 		where: { id: userId },
@@ -96,8 +102,30 @@ export async function ensureRoleProfilesAfterUserUpsert(
 			);
 		}
 		await tx.instructorProfile.create({
-			data: { userId, licenseNumber: instructorLicenseTrimmed },
+			data: {
+				userId,
+				licenseNumber: instructorLicenseTrimmed,
+				birthDate: instructorBirthDate,
+			},
 		});
+	}
+	if (
+		targetRole === Role.INSTRUCTOR &&
+		user.instructorProfile &&
+		instructorBirthDate
+	) {
+		const { count } = await tx.instructorProfile.updateMany({
+			where: {
+				userId,
+				OR: [{ birthDate: null }, { birthDate: instructorBirthDate }],
+			},
+			data: { birthDate: instructorBirthDate },
+		});
+		if (count !== 1) {
+			throw AppError.conflict(
+				'Instructor birthDate already set to a different value',
+			);
+		}
 	}
 }
 

@@ -10,6 +10,8 @@ export type RegisterBody = {
 	phone?: string | null;
 	/** Wymagane przy role === INSTRUCTOR (profil w bazie wymaga numeru licencji). */
 	licenseNumber?: string | null;
+	/** Date-only YYYY-MM-DD; required for new instructors after rollout. */
+	birthDate?: string | null;
 	/** Wymagane przy role === INSTRUCTOR; dla innych rĂłl ignorowane. */
 	schoolId?: string | null;
 };
