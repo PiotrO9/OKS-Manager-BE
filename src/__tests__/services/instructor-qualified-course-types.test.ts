@@ -8,6 +8,7 @@ import type { InstructorQualifiedCourseType } from '../../services/instructor/ty
 
 const { prismaMock } = vi.hoisted(() => ({
 	prismaMock: {
+		$transaction: vi.fn(),
 		courseType: {
 			count: vi.fn(),
 		},
@@ -93,6 +94,9 @@ describe('getInstructorByIdForUser qualifiedCourseTypes', () => {
 describe('updateInstructorForManagerOrAdmin qualifiedCourseTypeIds', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		prismaMock.$transaction.mockImplementation(async (callback) =>
+			callback(prismaMock),
+		);
 		prismaMock.instructorProfile.update.mockResolvedValue({});
 	});
 

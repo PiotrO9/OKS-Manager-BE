@@ -84,64 +84,66 @@ export async function updateInstructorForManagerOrAdmin(
 	await assertQualifiedCourseTypeIdsExist(patch.qualifiedCourseTypeIds);
 	const profileUpdateData = buildInstructorProfileUpdate(patch);
 
-	if (hasProfileUpdate) {
-		const { count } = await prisma.instructorProfile.updateMany({
+	return prisma.$transaction(async (tx) => {
+		if (hasProfileUpdate) {
+			const { count } = await tx.instructorProfile.updateMany({
+				where: activeInstructorProfileWhere(instructorId),
+				data: profileUpdateData,
+			});
+			if (count === 0) {
+				throw AppError.notFound('Instructor not found');
+			}
+		}
+
+		if (hasUserUpdate) {
+			const { count } = await tx.user.updateMany({
+				where: activeInstructorUserByIdWhere(profile.userId),
+				data: userUpdate,
+			});
+			if (count === 0) {
+				throw AppError.notFound('Instructor not found');
+			}
+		}
+
+		if (hasQualifiedCourseTypesUpdate) {
+			await tx.instructorProfile.update({
+				where: { id: instructorId },
+				data: {
+					qualifiedCourseTypes: {
+						set: (patch.qualifiedCourseTypeIds ?? []).map((id) => ({
+							id,
+						})),
+					},
+				},
+			});
+		}
+
+		const fresh = await tx.instructorProfile.findFirst({
 			where: activeInstructorProfileWhere(instructorId),
-			data: profileUpdateData,
-		});
-		if (count === 0) {
-			throw AppError.notFound('Instructor not found');
-		}
-	}
-
-	if (hasUserUpdate) {
-		const { count } = await prisma.user.updateMany({
-			where: activeInstructorUserByIdWhere(profile.userId),
-			data: userUpdate,
-		});
-		if (count === 0) {
-			throw AppError.notFound('Instructor not found');
-		}
-	}
-
-	if (hasQualifiedCourseTypesUpdate) {
-		await prisma.instructorProfile.update({
-			where: { id: instructorId },
-			data: {
+			select: {
+				id: true,
+				experienceYears: true,
+				qualifications: true,
+				user: {
+					select: {
+						firstName: true,
+						lastName: true,
+						email: true,
+					},
+				},
 				qualifiedCourseTypes: {
-					set: (patch.qualifiedCourseTypeIds ?? []).map((id) => ({
-						id,
-					})),
+					select: qualifiedCourseTypesSelect,
+					orderBy: { code: 'asc' },
 				},
 			},
 		});
-	}
 
-	const fresh = await prisma.instructorProfile.findFirst({
-		where: activeInstructorProfileWhere(instructorId),
-		select: {
-			id: true,
-			experienceYears: true,
-			qualifications: true,
-			user: {
-				select: {
-					firstName: true,
-					lastName: true,
-					email: true,
-				},
-			},
-			qualifiedCourseTypes: {
-				select: qualifiedCourseTypesSelect,
-				orderBy: { code: 'asc' },
-			},
-		},
+		if (!fresh) {
+			throw AppError.notFound('Instructor not found');
+		}
+
+		return mapInstructorPatchResult(fresh);
 	});
-
-	if (!fresh) {
-		throw AppError.notFound('Instructor not found');
-	}
-
-	return mapInstructorPatchResult(fresh);
 }
 
 export async function assignInstructorToSchoolForManagerOrAdmin(
