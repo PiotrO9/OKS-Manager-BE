@@ -6,6 +6,7 @@ import {
 	attachStudentToSchoolReplaceInTx,
 } from '../../lib/studentSchoolRegistration';
 import { assertActorCanPatchStudentPkk } from './access';
+import { loadActiveStudentProfileId } from './activeStudent';
 import type {
 	AssignStudentDrivingSchoolResult,
 	PatchStudentPkkResult,
@@ -24,28 +25,7 @@ export async function assignStudentDrivingSchoolForAdminOrManager(
 		throw AppError.forbidden('Forbidden');
 	}
 
-	const studentUser = await prisma.user.findUnique({
-		where: { id: studentUserId },
-		select: {
-			id: true,
-			role: true,
-			deletedAt: true,
-			isActive: true,
-			studentProfile: { select: { id: true } },
-		},
-	});
-
-	if (!studentUser || studentUser.deletedAt !== null) {
-		throw AppError.notFound('User not found');
-	}
-
-	if (!studentUser.isActive) {
-		throw AppError.forbidden('Account is disabled');
-	}
-
-	if (studentUser.role !== Role.STUDENT || !studentUser.studentProfile) {
-		throw AppError.badRequest('User is not a student');
-	}
+	await loadActiveStudentProfileId(studentUserId);
 
 	await assertActorCanAssignStudentToSchoolForAdminOrManager(
 		prisma,
@@ -83,28 +63,7 @@ export async function patchStudentPkkForStaff(
 	studentUserId: string,
 	pkkNumber: string | null,
 ): Promise<PatchStudentPkkResult> {
-	const studentUser = await prisma.user.findUnique({
-		where: { id: studentUserId },
-		select: {
-			id: true,
-			role: true,
-			deletedAt: true,
-			isActive: true,
-			studentProfile: { select: { id: true } },
-		},
-	});
-
-	if (!studentUser || studentUser.deletedAt !== null) {
-		throw AppError.notFound('User not found');
-	}
-
-	if (!studentUser.isActive) {
-		throw AppError.forbidden('Account is disabled');
-	}
-
-	if (studentUser.role !== Role.STUDENT || !studentUser.studentProfile) {
-		throw AppError.badRequest('User is not a student');
-	}
+	await loadActiveStudentProfileId(studentUserId);
 
 	await assertActorCanPatchStudentPkk(actorId, actorRole, studentUserId);
 
@@ -132,28 +91,7 @@ export async function patchStudentForStaff(
 	studentUserId: string,
 	data: { notes: string | null },
 ): Promise<PatchStudentResult> {
-	const studentUser = await prisma.user.findUnique({
-		where: { id: studentUserId },
-		select: {
-			id: true,
-			role: true,
-			deletedAt: true,
-			isActive: true,
-			studentProfile: { select: { id: true } },
-		},
-	});
-
-	if (!studentUser || studentUser.deletedAt !== null) {
-		throw AppError.notFound('User not found');
-	}
-
-	if (!studentUser.isActive) {
-		throw AppError.forbidden('Account is disabled');
-	}
-
-	if (studentUser.role !== Role.STUDENT || !studentUser.studentProfile) {
-		throw AppError.badRequest('User is not a student');
-	}
+	await loadActiveStudentProfileId(studentUserId);
 
 	await assertActorCanPatchStudentPkk(actorId, actorRole, studentUserId);
 
