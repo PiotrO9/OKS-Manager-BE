@@ -1,4 +1,4 @@
-import { CourseKind, LessonStatus, Prisma } from '@prisma/client';
+import { CourseKind, EventStatus, LessonStatus, Prisma } from '@prisma/client';
 import { AppError } from './http/AppError';
 
 type Tx = Prisma.TransactionClient;
@@ -60,6 +60,8 @@ export async function assertStudentNoScheduleOverlap(
 		where: {
 			studentId: studentProfileId,
 			event: {
+				isActive: true,
+				status: { not: EventStatus.CANCELLED },
 				startTime: { lt: end },
 				endTime: { gt: start },
 			},

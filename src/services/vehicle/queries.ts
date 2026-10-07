@@ -1,4 +1,4 @@
-import { EventType, LessonStatus } from '@prisma/client';
+import { EventStatus, EventType, LessonStatus } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 import {
@@ -62,6 +62,7 @@ export async function listVehiclesBySchoolForUser(
 						vehicleId: { in: ids },
 						type: EventType.DRIVE,
 						isActive: true,
+						status: { not: EventStatus.CANCELLED },
 						startTime: { lt: end },
 						endTime: { gt: start },
 					},

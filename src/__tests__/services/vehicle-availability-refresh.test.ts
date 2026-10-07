@@ -1,4 +1,8 @@
-import { VehicleAvailabilityStatus } from '@prisma/client';
+import {
+	EventStatus,
+	EventType,
+	VehicleAvailabilityStatus,
+} from '@prisma/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { vehicleService } from '../../services/vehicle.service';
 
@@ -169,4 +173,77 @@ describe('vehicle availability read repair', () => {
 			},
 		});
 	});
+
+	it.each([
+		{
+			name: 'planned overlapping DRIVE',
+			status: EventStatus.PLANNED,
+			isActive: true,
+			eventStart: new Date('2026-10-07T10:30:00.000Z'),
+			eventEnd: new Date('2026-10-07T11:30:00.000Z'),
+			available: false,
+		},
+		{
+			name: 'cancelled overlapping DRIVE',
+			status: EventStatus.CANCELLED,
+			isActive: true,
+			eventStart: new Date('2026-10-07T10:30:00.000Z'),
+			eventEnd: new Date('2026-10-07T11:30:00.000Z'),
+			available: true,
+		},
+		{
+			name: 'inactive overlapping DRIVE',
+			status: EventStatus.PLANNED,
+			isActive: false,
+			eventStart: new Date('2026-10-07T10:30:00.000Z'),
+			eventEnd: new Date('2026-10-07T11:30:00.000Z'),
+			available: true,
+		},
+		{
+			name: 'planned DRIVE touching the interval boundary',
+			status: EventStatus.PLANNED,
+			isActive: true,
+			eventStart: new Date('2026-10-07T11:00:00.000Z'),
+			eventEnd: new Date('2026-10-07T12:00:00.000Z'),
+			available: true,
+		},
+	])(
+		'$name availability',
+		async ({ status, isActive, eventStart, eventEnd, available }) => {
+			const vehicle = vehicleRow(
+				'88888888-8888-8888-8888-888888888888',
+				VehicleAvailabilityStatus.ACTIVE,
+				null,
+			);
+			prismaMock.vehicle.findMany.mockResolvedValue([vehicle]);
+			prismaMock.lesson.findMany.mockResolvedValue([]);
+			prismaMock.instructorEvent.findMany.mockImplementation(
+				({ where }) => {
+					const matches =
+						where.vehicleId.in.includes(vehicle.id) &&
+						where.type === EventType.DRIVE &&
+						(isActive === where.isActive ||
+							where.isActive === undefined) &&
+						(status !== where.status?.not ||
+							where.status === undefined) &&
+						eventStart < where.startTime.lt &&
+						eventEnd > where.endTime.gt;
+					return matches ? [{ vehicleId: vehicle.id }] : [];
+				},
+			);
+
+			const result = await vehicleService.listVehiclesBySchoolForUser(
+				userId,
+				schoolId,
+				{
+					start: new Date('2026-10-07T10:00:00.000Z'),
+					end: new Date('2026-10-07T11:00:00.000Z'),
+				},
+			);
+
+			expect(result.vehicles.map(({ id }) => id)).toEqual(
+				available ? [vehicle.id] : [],
+			);
+		},
+	);
 });
