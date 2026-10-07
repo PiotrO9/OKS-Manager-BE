@@ -1,5 +1,9 @@
 import { EventType, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
+import {
+	ScheduleDomainError,
+	type ScheduleDomainReason,
+} from '../../lib/http/ScheduleDomainError';
 import { assertInstructorQualifiedForCourseType } from '../../lib/instructorCourseQualification';
 import { getPrisma } from '../../lib/prisma';
 import { parsePolishScheduleWindow } from '../../lib/polishScheduleTime';
@@ -64,12 +68,59 @@ export interface ScheduleAvailabilityIssue {
 		| 'courseId';
 }
 
-function instructorWindowIssueCode(
-	error: AppError,
-): 'INSTRUCTOR_BUSY' | 'OUTSIDE_INSTRUCTOR_HOURS' {
-	return error.message === 'Slot outside instructor availability'
-		? 'OUTSIDE_INSTRUCTOR_HOURS'
-		: 'INSTRUCTOR_BUSY';
+function expectedClientError(error: unknown): AppError {
+	if (
+		error instanceof AppError &&
+		error.statusCode >= 400 &&
+		error.statusCode < 500
+	) {
+		return error;
+	}
+	throw error;
+}
+
+function expectedScheduleReason(
+	error: unknown,
+	reasons: readonly ScheduleDomainReason[],
+): ScheduleDomainError {
+	if (
+		error instanceof ScheduleDomainError &&
+		reasons.includes(error.reason)
+	) {
+		return error;
+	}
+	throw error;
+}
+
+function scheduleIssueCode(
+	error: unknown,
+	reasons: readonly Extract<
+		ScheduleAvailabilityIssueCode,
+		ScheduleDomainReason
+	>[],
+): Extract<ScheduleAvailabilityIssueCode, ScheduleDomainReason> {
+	return expectedScheduleReason(error, reasons).reason as Extract<
+		ScheduleAvailabilityIssueCode,
+		ScheduleDomainReason
+	>;
+}
+
+function lessonScheduleIssue(error: unknown): ScheduleAvailabilityIssue {
+	const code = scheduleIssueCode(error, [
+		'STUDENT_BUSY',
+		'COURSE_LIMIT_EXCEEDED',
+		'INSTRUCTOR_BUSY',
+		'OUTSIDE_INSTRUCTOR_HOURS',
+	]);
+	return {
+		code,
+		field:
+			code === 'STUDENT_BUSY'
+				? 'studentId'
+				: code === 'COURSE_LIMIT_EXCEEDED'
+					? 'courseId'
+					: 'instructorId',
+	};
 }
 
 export async function checkScheduleAvailability(
@@ -123,7 +174,7 @@ async function checkLessonCreateAvailability(
 		studentProfileId = await loadStudentProfileIdForUser(body.studentId);
 		await assertStudentParticipatesInCourse(course.id, studentProfileId);
 	} catch (error) {
-		if (!(error instanceof AppError)) throw error;
+		expectedClientError(error);
 		issues.push({ code: 'STUDENT_NOT_ELIGIBLE', field: 'studentId' });
 	}
 
@@ -158,11 +209,11 @@ async function checkLessonCreateAvailability(
 				end,
 			);
 		} catch (error) {
-			if (!(error instanceof AppError)) throw error;
 			issues.push({
-				code: error.message.includes('already in use')
-					? 'VEHICLE_BUSY'
-					: 'VEHICLE_UNAVAILABLE',
+				code: scheduleIssueCode(error, [
+					'VEHICLE_BUSY',
+					'VEHICLE_UNAVAILABLE',
+				]),
 				field: 'vehicleId',
 			});
 		}
@@ -194,7 +245,7 @@ async function checkLessonSelfBookAvailability(
 	try {
 		assertCourseCanBeSelfBooked(course);
 	} catch (error) {
-		if (!(error instanceof AppError)) throw error;
+		expectedClientError(error);
 		issues.push({ code: 'COURSE_NOT_ELIGIBLE', field: 'courseId' });
 		return { available: false, issues, policy };
 	}
@@ -209,7 +260,7 @@ async function checkLessonSelfBookAvailability(
 			requireActive: true,
 		});
 	} catch (error) {
-		if (!(error instanceof AppError)) throw error;
+		expectedClientError(error);
 		studentEligible = false;
 		issues.push({ code: 'STUDENT_NOT_ELIGIBLE', field: 'studentId' });
 	}
@@ -244,7 +295,7 @@ async function checkLessonSelfBookAvailability(
 				end,
 			);
 		} catch (error) {
-			if (!(error instanceof AppError)) throw error;
+			scheduleIssueCode(error, ['NO_VEHICLE_AVAILABLE']);
 			issues.push({
 				code: 'NO_VEHICLE_AVAILABLE',
 				field: 'vehicleId',
@@ -315,7 +366,10 @@ async function checkLessonEditAvailability(
 		try {
 			await assertLessonTimeIsBookable(start, existing.course.schoolId);
 		} catch (error) {
-			if (!(error instanceof AppError)) throw error;
+			expectedScheduleReason(error, [
+				'DATE_NOT_BOOKABLE',
+				'SCHOOL_CLOSED',
+			]);
 			issues.push({ code: 'DATE_NOT_BOOKABLE', field: 'date' });
 		}
 	}
@@ -343,7 +397,7 @@ async function checkLessonEditAvailability(
 				existing.course.courseTypeId,
 			);
 		} catch (error) {
-			if (!(error instanceof AppError)) throw error;
+			expectedClientError(error);
 			issues.push({
 				code: 'INSTRUCTOR_NOT_ELIGIBLE',
 				field: 'instructorId',
@@ -361,7 +415,10 @@ async function checkLessonEditAvailability(
 			select: { id: true },
 		});
 		if (!vehicleInSchool) {
-			throw AppError.badRequest('Vehicle is not for this driving school');
+			throw ScheduleDomainError.badRequestFor(
+				'VEHICLE_UNAVAILABLE',
+				'Vehicle is not for this driving school',
+			);
 		}
 		await validateVehicleForInstructor(
 			body.instructorId,
@@ -370,7 +427,7 @@ async function checkLessonEditAvailability(
 			{ requireAvailable: true },
 		);
 	} catch (error) {
-		if (!(error instanceof AppError)) throw error;
+		scheduleIssueCode(error, ['VEHICLE_UNAVAILABLE']);
 		issues.push({ code: 'VEHICLE_UNAVAILABLE', field: 'vehicleId' });
 	}
 
@@ -388,21 +445,7 @@ async function checkLessonEditAvailability(
 					excludeLessonId: existing.id,
 				});
 			} catch (error) {
-				if (!(error instanceof AppError)) throw error;
-				const code = error.message.includes('Student')
-					? 'STUDENT_BUSY'
-					: error.message.includes('package limit')
-						? 'COURSE_LIMIT_EXCEEDED'
-						: instructorWindowIssueCode(error);
-				issues.push({
-					code,
-					field:
-						code === 'STUDENT_BUSY'
-							? 'studentId'
-							: code === 'COURSE_LIMIT_EXCEEDED'
-								? 'courseId'
-								: 'instructorId',
-				});
+				issues.push(lessonScheduleIssue(error));
 			}
 		}
 
@@ -451,7 +494,7 @@ async function checkEventCreateAvailability(
 				body.courseId,
 			);
 		} catch (error) {
-			if (!(error instanceof AppError)) throw error;
+			expectedClientError(error);
 			issues.push({ code: 'COURSE_NOT_ELIGIBLE', field: 'courseId' });
 		}
 	}
@@ -465,7 +508,7 @@ async function checkEventCreateAvailability(
 				{ requireAvailable: true },
 			);
 		} catch (error) {
-			if (!(error instanceof AppError)) throw error;
+			scheduleIssueCode(error, ['VEHICLE_UNAVAILABLE']);
 			issues.push({ code: 'VEHICLE_UNAVAILABLE', field: 'vehicleId' });
 		}
 	}
@@ -478,9 +521,12 @@ async function checkEventCreateAvailability(
 				end,
 			});
 		} catch (error) {
-			if (!(error instanceof AppError)) throw error;
+			const code = scheduleIssueCode(error, [
+				'INSTRUCTOR_BUSY',
+				'OUTSIDE_INSTRUCTOR_HOURS',
+			]);
 			issues.push({
-				code: instructorWindowIssueCode(error),
+				code,
 				field: 'instructorId',
 			});
 		}
@@ -493,7 +539,7 @@ async function checkEventCreateAvailability(
 					end,
 				});
 			} catch (error) {
-				if (!(error instanceof AppError)) throw error;
+				scheduleIssueCode(error, ['VEHICLE_BUSY']);
 				issues.push({ code: 'VEHICLE_BUSY', field: 'vehicleId' });
 			}
 		}
@@ -586,7 +632,7 @@ async function checkEventEditAvailability(
 				current.courseId,
 			);
 		} catch (error) {
-			if (!(error instanceof AppError)) throw error;
+			expectedClientError(error);
 			issues.push({ code: 'COURSE_NOT_ELIGIBLE', field: 'courseId' });
 		}
 	}
@@ -600,7 +646,7 @@ async function checkEventEditAvailability(
 				{ requireAvailable: true },
 			);
 		} catch (error) {
-			if (!(error instanceof AppError)) throw error;
+			scheduleIssueCode(error, ['VEHICLE_UNAVAILABLE']);
 			issues.push({ code: 'VEHICLE_UNAVAILABLE', field: 'vehicleId' });
 		}
 	}
@@ -616,11 +662,13 @@ async function checkEventEditAvailability(
 					checkExistingParticipantsForEventId: current.id,
 				});
 			} catch (error) {
-				if (!(error instanceof AppError)) throw error;
+				const code = scheduleIssueCode(error, [
+					'PARTICIPANT_BUSY',
+					'INSTRUCTOR_BUSY',
+					'OUTSIDE_INSTRUCTOR_HOURS',
+				]);
 				issues.push({
-					code: error.message.includes('participant schedules')
-						? 'PARTICIPANT_BUSY'
-						: instructorWindowIssueCode(error),
+					code,
 					field: 'instructorId',
 				});
 			}
@@ -635,7 +683,7 @@ async function checkEventEditAvailability(
 					eventId: current.id,
 				});
 			} catch (error) {
-				if (!(error instanceof AppError)) throw error;
+				scheduleIssueCode(error, ['VEHICLE_BUSY']);
 				issues.push({ code: 'VEHICLE_BUSY', field: 'vehicleId' });
 			}
 		}
@@ -664,7 +712,7 @@ async function pushLessonDateIssue(
 	try {
 		await assertLessonTimeIsBookable(start, schoolId);
 	} catch (error) {
-		if (!(error instanceof AppError)) throw error;
+		expectedScheduleReason(error, ['DATE_NOT_BOOKABLE', 'SCHOOL_CLOSED']);
 		issues.push({ code: 'DATE_NOT_BOOKABLE', field: 'date' });
 	}
 }
@@ -678,7 +726,7 @@ async function pushLessonInstructorIssue(
 		await assertInstructorCanBookCourse(instructorId, course);
 		return true;
 	} catch (error) {
-		if (!(error instanceof AppError)) throw error;
+		expectedClientError(error);
 		issues.push({
 			code: 'INSTRUCTOR_NOT_ELIGIBLE',
 			field: 'instructorId',
@@ -694,20 +742,6 @@ async function pushLessonScheduleIssue(
 	try {
 		await check();
 	} catch (error) {
-		if (!(error instanceof AppError)) throw error;
-		const code = error.message.includes('Student')
-			? 'STUDENT_BUSY'
-			: error.message.includes('package limit')
-				? 'COURSE_LIMIT_EXCEEDED'
-				: instructorWindowIssueCode(error);
-		issues.push({
-			code,
-			field:
-				code === 'STUDENT_BUSY'
-					? 'studentId'
-					: code === 'COURSE_LIMIT_EXCEEDED'
-						? 'courseId'
-						: 'instructorId',
-		});
+		issues.push(lessonScheduleIssue(error));
 	}
 }

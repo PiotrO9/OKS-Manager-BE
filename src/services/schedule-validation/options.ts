@@ -1,5 +1,6 @@
 import { CourseKind, EventType, LessonStatus, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
+import { ScheduleDomainError } from '../../lib/http/ScheduleDomainError';
 import { assertInstructorQualifiedForCourseType } from '../../lib/instructorCourseQualification';
 import {
 	instantToPolishDateTime,
@@ -422,12 +423,17 @@ async function getLessonDateIssue(
 
 		return null;
 	} catch (error) {
-		if (!(error instanceof AppError)) throw error;
-
-		return error.message === 'Driving school is closed on this day'
-			? 'SCHOOL_CLOSED'
-			: 'DATE_NOT_BOOKABLE';
+		return mapLessonDateError(error);
 	}
+}
+
+export function mapLessonDateError(
+	error: unknown,
+): 'SCHOOL_CLOSED' | 'DATE_NOT_BOOKABLE' {
+	if (!(error instanceof ScheduleDomainError)) throw error;
+	if (error.reason === 'SCHOOL_CLOSED') return 'SCHOOL_CLOSED';
+	if (error.reason === 'DATE_NOT_BOOKABLE') return 'DATE_NOT_BOOKABLE';
+	throw error;
 }
 
 function buildOptionsResponse(

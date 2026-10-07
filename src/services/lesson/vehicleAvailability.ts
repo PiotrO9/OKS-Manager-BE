@@ -6,7 +6,7 @@ import {
 	PrismaClient,
 	VehicleAvailabilityStatus,
 } from '@prisma/client';
-import { AppError } from '../../lib/http/AppError';
+import { ScheduleDomainError } from '../../lib/http/ScheduleDomainError';
 import { validateVehicleForInstructor } from '../../lib/vehicle.helpers';
 import { refreshExpiredVehicleUnavailabilitiesForSchool } from '../vehicle/availabilityRefresh';
 
@@ -71,7 +71,10 @@ export async function assertVehicleAvailableForBooking(
 		select: { id: true },
 	});
 	if (!vehicleInSchool) {
-		throw AppError.badRequest('Vehicle is not for this driving school');
+		throw ScheduleDomainError.badRequestFor(
+			'VEHICLE_UNAVAILABLE',
+			'Vehicle is not for this driving school',
+		);
 	}
 	await validateVehicleForInstructor(instructorId, vehicleId, db);
 
@@ -85,7 +88,10 @@ export async function assertVehicleAvailableForBooking(
 		},
 	);
 	if (hasConflict) {
-		throw AppError.conflict('Vehicle is already in use');
+		throw ScheduleDomainError.conflictFor(
+			'VEHICLE_BUSY',
+			'Vehicle is already in use',
+		);
 	}
 }
 
@@ -133,5 +139,8 @@ export async function findAvailableVehicleIdForStudentBooking(
 		}
 	}
 
-	throw AppError.conflict('No available vehicle for this time slot');
+	throw ScheduleDomainError.conflictFor(
+		'NO_VEHICLE_AVAILABLE',
+		'No available vehicle for this time slot',
+	);
 }

@@ -1,5 +1,6 @@
 import { CourseKind, EventStatus, LessonStatus, Prisma } from '@prisma/client';
 import { AppError } from './http/AppError';
+import { ScheduleDomainError } from './http/ScheduleDomainError';
 
 type Tx = Prisma.TransactionClient;
 
@@ -51,7 +52,8 @@ export async function assertStudentNoScheduleOverlap(
 		select: { id: true },
 	});
 	if (lessonHit) {
-		throw AppError.conflict(
+		throw ScheduleDomainError.conflictFor(
+			'STUDENT_BUSY',
 			'Student already has a driving lesson at this time',
 		);
 	}
@@ -69,7 +71,8 @@ export async function assertStudentNoScheduleOverlap(
 		select: { id: true },
 	});
 	if (eventHit) {
-		throw AppError.conflict(
+		throw ScheduleDomainError.conflictFor(
+			'STUDENT_BUSY',
 			'Student is already assigned to another instructor block at this time',
 		);
 	}
@@ -117,7 +120,8 @@ export async function assertCourseDrivingPackageHoursAllowNewLesson(
 
 	const allowedMinutes = totalHours * 60;
 	if (usedMinutes + newMinutes > allowedMinutes) {
-		throw AppError.conflict(
+		throw ScheduleDomainError.conflictFor(
+			'COURSE_LIMIT_EXCEEDED',
 			`Course driving hours would exceed the package limit (${totalHours}h)`,
 		);
 	}

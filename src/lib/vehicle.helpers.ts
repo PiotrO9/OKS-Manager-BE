@@ -1,5 +1,5 @@
 import { VehicleAvailabilityStatus, type Prisma } from '@prisma/client';
-import { AppError } from './http/AppError';
+import { ScheduleDomainError } from './http/ScheduleDomainError';
 import { polishTodayYyyymmdd } from './polishScheduleTime';
 import { getPrisma } from './prisma';
 
@@ -24,7 +24,10 @@ export async function validateVehicleForInstructor(
 		},
 	});
 	if (!vehicle) {
-		throw AppError.notFound('Vehicle not found');
+		throw ScheduleDomainError.notFoundFor(
+			'VEHICLE_UNAVAILABLE',
+			'Vehicle not found',
+		);
 	}
 	const unavailableUntil = vehicle.unavailableUntil
 		? vehicle.unavailableUntil.toISOString().slice(0, 10)
@@ -49,14 +52,18 @@ export async function validateVehicleForInstructor(
 		vehicle.availabilityStatus !== VehicleAvailabilityStatus.ACTIVE &&
 		!expiredTemporaryUnavailability
 	) {
-		throw AppError.badRequest('Vehicle is unavailable');
+		throw ScheduleDomainError.badRequestFor(
+			'VEHICLE_UNAVAILABLE',
+			'Vehicle is unavailable',
+		);
 	}
 	const link = await db.instructorSchool.findFirst({
 		where: { instructorId, schoolId: vehicle.schoolId },
 		select: { id: true },
 	});
 	if (!link) {
-		throw AppError.badRequest(
+		throw ScheduleDomainError.badRequestFor(
+			'VEHICLE_UNAVAILABLE',
 			'Vehicle is not in a school assigned to this instructor',
 		);
 	}

@@ -1,5 +1,6 @@
 import { EventStatus, EventType, LessonStatus, Prisma } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
+import { ScheduleDomainError } from '../../lib/http/ScheduleDomainError';
 import { assertInstructorTimeWindowAvailable } from '../instructor-availability.service';
 import { findStudentProfileIdsWithScheduleConflictsForEventWindow } from './conflicts';
 
@@ -27,7 +28,10 @@ export async function assertInstructorEventWindowAvailable(
 		select: { id: true },
 	});
 	if (lessonConflict) {
-		throw AppError.conflict('Time slot conflicts with a lesson');
+		throw ScheduleDomainError.conflictFor(
+			'INSTRUCTOR_BUSY',
+			'Time slot conflicts with a lesson',
+		);
 	}
 
 	const eventConflict = await tx.instructorEvent.findFirst({
@@ -42,7 +46,10 @@ export async function assertInstructorEventWindowAvailable(
 		select: { id: true },
 	});
 	if (eventConflict) {
-		throw AppError.conflict('Time slot conflicts with a scheduled block');
+		throw ScheduleDomainError.conflictFor(
+			'INSTRUCTOR_BUSY',
+			'Time slot conflicts with a scheduled block',
+		);
 	}
 
 	await assertInstructorTimeWindowAvailable(
@@ -81,7 +88,10 @@ export async function assertVehicleAvailableForEventWindow(
 		select: { id: true },
 	});
 	if (vehicleLessonConflict) {
-		throw AppError.conflict('Vehicle is already in use');
+		throw ScheduleDomainError.conflictFor(
+			'VEHICLE_BUSY',
+			'Vehicle is already in use',
+		);
 	}
 
 	const vehicleEventConflict = await tx.instructorEvent.findFirst({
@@ -97,7 +107,10 @@ export async function assertVehicleAvailableForEventWindow(
 		select: { id: true },
 	});
 	if (vehicleEventConflict) {
-		throw AppError.conflict('Vehicle is already in use');
+		throw ScheduleDomainError.conflictFor(
+			'VEHICLE_BUSY',
+			'Vehicle is already in use',
+		);
 	}
 }
 
@@ -142,7 +155,8 @@ async function assertExistingParticipantsHaveFreeWindow(
 			candidateProfileIds: existingParticipants.map((p) => p.studentId),
 		});
 	if (conflicting.size > 0) {
-		throw AppError.conflict(
+		throw ScheduleDomainError.conflictFor(
+			'PARTICIPANT_BUSY',
 			'Time change conflicts with existing participant schedules',
 		);
 	}

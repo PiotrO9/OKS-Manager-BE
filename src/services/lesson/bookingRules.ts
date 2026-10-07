@@ -1,5 +1,6 @@
 import { LessonType, Prisma, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
+import { ScheduleDomainError } from '../../lib/http/ScheduleDomainError';
 import { instantToPolishDateTime } from '../../lib/polishScheduleTime';
 import { getPrisma } from '../../lib/prisma';
 import type {
@@ -46,7 +47,10 @@ export function assertLessonTimeIsBookable(
 	courseSchoolId: string,
 ): Promise<void> {
 	if (start.getTime() < Date.now()) {
-		throw AppError.badRequest('Lesson time must be in the future');
+		throw ScheduleDomainError.badRequestFor(
+			'DATE_NOT_BOOKABLE',
+			'Lesson time must be in the future',
+		);
 	}
 
 	return assertLessonDateInsideBookingWindow(start, courseSchoolId);
@@ -65,15 +69,24 @@ export async function assertLessonDateInsideBookingWindow(
 	const today = utcTodayYyyymmdd();
 	const maxBookable = addDaysYyyymmdd(today, bookingMaxDaysAhead);
 	if (compareYyyymmdd(lessonDay, today) < 0) {
-		throw AppError.badRequest('Lesson date cannot be in the past');
+		throw ScheduleDomainError.badRequestFor(
+			'DATE_NOT_BOOKABLE',
+			'Lesson date cannot be in the past',
+		);
 	}
 	if (compareYyyymmdd(lessonDay, maxBookable) > 0) {
-		throw AppError.badRequest('Lesson date is outside booking window');
+		throw ScheduleDomainError.badRequestFor(
+			'DATE_NOT_BOOKABLE',
+			'Lesson date is outside booking window',
+		);
 	}
 	const workingDaysMask = settings?.workingDaysMask || 62;
 	const weekday = instantToPolishDateTime(start).dayOfWeek;
 	if ((workingDaysMask & (1 << weekday)) === 0) {
-		throw AppError.badRequest('Driving school is closed on this day');
+		throw ScheduleDomainError.badRequestFor(
+			'SCHOOL_CLOSED',
+			'Driving school is closed on this day',
+		);
 	}
 }
 

@@ -1,5 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import { buildScheduleAvailabilityOptions } from '../../services/schedule-validation/options';
+import { AppError } from '../../lib/http/AppError';
+import { ScheduleDomainError } from '../../lib/http/ScheduleDomainError';
+import {
+	buildScheduleAvailabilityOptions,
+	mapLessonDateError,
+} from '../../services/schedule-validation/options';
+
+describe('lesson date issue mapping', () => {
+	it('uses the reason rather than the public message', () => {
+		expect(
+			mapLessonDateError(
+				ScheduleDomainError.badRequestFor(
+					'SCHOOL_CLOSED',
+					'changed message',
+				),
+			),
+		).toBe('SCHOOL_CLOSED');
+		expect(
+			mapLessonDateError(
+				ScheduleDomainError.badRequestFor(
+					'DATE_NOT_BOOKABLE',
+					'changed message',
+				),
+			),
+		).toBe('DATE_NOT_BOOKABLE');
+	});
+
+	it('lets an internal error reach the HTTP error handler', () => {
+		const error = AppError.internal('database offline');
+		expect(() => mapLessonDateError(error)).toThrow(error);
+	});
+});
 
 describe('buildScheduleAvailabilityOptions', () => {
 	it('creates starts and ends only inside free windows', () => {

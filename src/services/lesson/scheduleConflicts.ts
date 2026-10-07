@@ -1,5 +1,5 @@
 import { CourseKind, EventStatus, LessonStatus, Prisma } from '@prisma/client';
-import { AppError } from '../../lib/http/AppError';
+import { ScheduleDomainError } from '../../lib/http/ScheduleDomainError';
 import {
 	assertCourseDrivingPackageHoursAllowNewLesson,
 	assertStudentNoScheduleOverlap,
@@ -55,7 +55,10 @@ export async function assertLessonSchedulingWindowAvailable(
 		select: { id: true },
 	});
 	if (lessonConflict) {
-		throw AppError.conflict('Time slot conflicts with a lesson');
+		throw ScheduleDomainError.conflictFor(
+			'INSTRUCTOR_BUSY',
+			'Time slot conflicts with a lesson',
+		);
 	}
 
 	const eventConflict = await tx.instructorEvent.findFirst({
@@ -69,7 +72,10 @@ export async function assertLessonSchedulingWindowAvailable(
 		select: { id: true },
 	});
 	if (eventConflict) {
-		throw AppError.conflict('Time slot conflicts with a scheduled block');
+		throw ScheduleDomainError.conflictFor(
+			'INSTRUCTOR_BUSY',
+			'Time slot conflicts with a scheduled block',
+		);
 	}
 
 	await assertInstructorTimeWindowAvailable(

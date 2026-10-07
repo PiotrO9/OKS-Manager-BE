@@ -1,5 +1,6 @@
 import { EventStatus, LessonStatus } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
+import { ScheduleDomainError } from '../../lib/http/ScheduleDomainError';
 import { getPrisma } from '../../lib/prisma';
 import { instantToPolishDateTime } from '../../lib/polishScheduleTime';
 import {
@@ -213,12 +214,18 @@ export async function assertInstructorTimeWindowAvailable(
 		excludeLessonId,
 	);
 	if (free === null) {
-		throw AppError.conflict('Slot outside instructor availability');
+		throw ScheduleDomainError.conflictFor(
+			'OUTSIDE_INSTRUCTOR_HOURS',
+			'Slot outside instructor availability',
+		);
 	}
 	const reqStart = instantToPolishDateTime(startTime).minutes;
 	const reqEnd = instantToPolishDateTime(endTime).minutes;
 	const ok = free.some((w) => reqStart >= w.start && reqEnd <= w.end);
 	if (!ok) {
-		throw AppError.conflict('Slot outside instructor availability');
+		throw ScheduleDomainError.conflictFor(
+			'OUTSIDE_INSTRUCTOR_HOURS',
+			'Slot outside instructor availability',
+		);
 	}
 }
