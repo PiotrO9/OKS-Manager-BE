@@ -21,15 +21,6 @@ export async function assertLessonSchedulingWindowAvailable(
 		excludeLessonId?: string;
 	},
 ): Promise<void> {
-	await assertInstructorTimeWindowAvailable(
-		params.instructorId,
-		params.start,
-		params.end,
-		tx,
-		undefined,
-		params.excludeLessonId,
-	);
-
 	await assertStudentNoScheduleOverlap(
 		tx,
 		params.studentProfileId,
@@ -80,4 +71,13 @@ export async function assertLessonSchedulingWindowAvailable(
 	if (eventConflict) {
 		throw AppError.conflict('Time slot conflicts with a scheduled block');
 	}
+
+	await assertInstructorTimeWindowAvailable(
+		params.instructorId,
+		params.start,
+		params.end,
+		tx,
+		undefined,
+		params.excludeLessonId,
+	);
 }

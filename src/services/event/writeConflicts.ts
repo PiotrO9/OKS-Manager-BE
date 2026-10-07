@@ -17,14 +17,6 @@ export async function assertInstructorEventWindowAvailable(
 	tx: TransactionClient,
 	params: EventWindowParams,
 ): Promise<void> {
-	await assertInstructorTimeWindowAvailable(
-		params.instructorId,
-		params.start,
-		params.end,
-		tx,
-		params.eventId,
-	);
-
 	const lessonConflict = await tx.lesson.findFirst({
 		where: {
 			instructorId: params.instructorId,
@@ -52,6 +44,14 @@ export async function assertInstructorEventWindowAvailable(
 	if (eventConflict) {
 		throw AppError.conflict('Time slot conflicts with a scheduled block');
 	}
+
+	await assertInstructorTimeWindowAvailable(
+		params.instructorId,
+		params.start,
+		params.end,
+		tx,
+		params.eventId,
+	);
 
 	if (params.checkExistingParticipantsForEventId) {
 		await assertExistingParticipantsHaveFreeWindow(tx, {

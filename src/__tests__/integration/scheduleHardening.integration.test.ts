@@ -191,6 +191,7 @@ describe('schedule write hardening with PostgreSQL', () => {
 				theoryMinDurationMinutes: 45,
 				theoryMaxDurationMinutes: 90,
 				bookingMaxDaysAhead: 30,
+				workingDaysMask: 127,
 			},
 		});
 		await prisma.courseType.create({
@@ -474,6 +475,37 @@ describe('schedule write hardening with PostgreSQL', () => {
 		).resolves.toEqual({
 			available: true,
 			issues: [],
+			policy: { minDurationMinutes: 60, maxDurationMinutes: 120 },
+		});
+	});
+
+	it('reports an instructor conflict for another student booking a lesson', async () => {
+		await prisma.lesson.create({
+			data: {
+				courseId: ids.courseId,
+				studentId: ids.studentId,
+				instructorId: ids.instructorId,
+				vehicleId: ids.vehicleId,
+				lessonType: LessonType.PRACTICE,
+				startTime: instant('12:00', earlyCheckDate),
+				endTime: instant('13:00', earlyCheckDate),
+			},
+		});
+
+		await expect(
+			checkScheduleAvailability(actor, {
+				intent: 'lesson_create',
+				courseId: ids.courseId,
+				studentId: ids.secondStudentUserId,
+				instructorId: ids.instructorId,
+				vehicleId: ids.secondVehicleId,
+				date: earlyCheckDate,
+				startTime: '12:00',
+				endTime: '13:00',
+			}),
+		).resolves.toEqual({
+			available: false,
+			issues: [{ code: 'INSTRUCTOR_BUSY', field: 'instructorId' }],
 			policy: { minDurationMinutes: 60, maxDurationMinutes: 120 },
 		});
 	});
