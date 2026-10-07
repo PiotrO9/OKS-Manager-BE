@@ -3,6 +3,10 @@
 	"version": "0.1.0",
 	"private": true,
 	"main": "dist/server.js",
+	"engines": {
+		"node": ">=24.11 <25",
+		"npm": ">=11 <12"
+	},
 	"scripts": {
 		"postinstall": "prisma generate",
 		"dev": "ts-node-dev --respawn --transpile-only src/server.ts",
