@@ -10,10 +10,6 @@ export function formatYYYYMMDD(date: Date): string {
 	return `${y}-${mo}-${d}`;
 }
 
-export function utcTodayYyyymmdd(): string {
-	return formatYYYYMMDD(new Date());
-}
-
 export function timeToMinutes(hhmm: string): number {
 	const [h, m] = hhmm.split(':').map(Number);
 	return (h ?? 0) * 60 + (m ?? 0);

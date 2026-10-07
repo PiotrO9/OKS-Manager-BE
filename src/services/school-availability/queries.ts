@@ -2,6 +2,7 @@ import { Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { filterInstructorIdsQualifiedForCourseType } from '../../lib/instructorCourseQualification';
 import { getPrisma } from '../../lib/prisma';
+import { polishTodayYyyymmdd } from '../../lib/polishScheduleTime';
 import type { SchoolAvailabilitySlotsQuery } from '../../schemas/school-availability.schemas';
 import { generateSlotsInternal } from '../instructor-availability.service';
 import { loadSchoolAndAssertSlotAccess } from './access';
@@ -11,7 +12,6 @@ import {
 	compareYyyymmdd,
 	slotOverlapsLesson,
 	timeToMinutes,
-	utcTodayYyyymmdd,
 	yyyymmddToDate,
 } from './dateHelpers';
 import { loadSchoolInstructorSelection } from './instructors';
@@ -28,15 +28,14 @@ export async function listSchoolAvailabilitySlots(
 
 	let effectiveDateFrom = query.dateFrom;
 	const effectiveDateToInput = query.dateTo;
+	const today = polishTodayYyyymmdd();
 
 	if (actor.role === Role.STUDENT) {
-		const today = utcTodayYyyymmdd();
 		if (compareYyyymmdd(effectiveDateFrom, today) < 0) {
 			effectiveDateFrom = today;
 		}
 	}
 
-	const today = utcTodayYyyymmdd();
 	const maxBookable = addDaysYyyymmdd(today, school.bookingMaxDaysAhead);
 	let effectiveDateTo = effectiveDateToInput;
 	if (compareYyyymmdd(effectiveDateTo, maxBookable) > 0) {
