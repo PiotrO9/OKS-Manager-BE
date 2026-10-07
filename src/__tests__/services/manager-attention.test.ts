@@ -13,6 +13,9 @@ const { prismaMock } = vi.hoisted(() => ({
 		instructorProfile: {
 			findMany: vi.fn(),
 		},
+		instructorLeave: {
+			findFirst: vi.fn(),
+		},
 		lessonRating: {
 			findMany: vi.fn(),
 		},
@@ -113,6 +116,7 @@ describe('manager attention service', () => {
 				userId: 'instructor-user-1',
 				user: user('Anna', 'Nowak'),
 				workingHours: [],
+				workingHoursDefault: [],
 			},
 		]);
 		prismaMock.lessonRating.findMany.mockResolvedValue([
@@ -165,6 +169,51 @@ describe('manager attention service', () => {
 		});
 	});
 
+	it('alerts only instructors without dated or recurring hours, regardless of leave', async () => {
+		prismaMock.instructorLeave.findFirst.mockResolvedValue({
+			id: 'leave-1',
+		});
+		prismaMock.instructorProfile.findMany.mockResolvedValue([
+			{
+				id: 'default-only',
+				user: user('Anna', 'Nowak'),
+				workingHours: [],
+				workingHoursDefault: [{ id: 'default-1' }],
+			},
+			{
+				id: 'dated-only',
+				user: user('Ewa', 'Kowalska'),
+				workingHours: [{ id: 'dated-1' }],
+				workingHoursDefault: [],
+			},
+			{
+				id: 'dated-day-off',
+				user: user('Jan', 'Lis'),
+				workingHours: [{ id: 'day-off-1', isDayOff: true }],
+				workingHoursDefault: [],
+			},
+			{
+				id: 'no-hours-on-leave',
+				user: user('Piotr', 'Zielinski'),
+				workingHours: [],
+				workingHoursDefault: [],
+			},
+		]);
+
+		const result = await listManagerAttentionItems(
+			actorId,
+			Role.MANAGER,
+			schoolId,
+			{ today },
+		);
+
+		expect(result.items.map((item) => item.entityId)).toEqual([
+			'no-hours-on-leave',
+		]);
+		expect(result.total).toBe(1);
+		expect(prismaMock.instructorLeave.findFirst).not.toHaveBeenCalled();
+	});
+
 	it('limits dashboard items to 10 and reports hidden count', async () => {
 		prismaMock.studentProfile.findMany.mockResolvedValue(
 			Array.from({ length: 12 }, (_, index) => ({
@@ -176,6 +225,20 @@ describe('manager attention service', () => {
 				lessons: [{ id: `lesson-${index}` }],
 			})),
 		);
+		prismaMock.instructorProfile.findMany.mockResolvedValue([
+			{
+				id: 'default-only',
+				user: user('Anna', 'Nowak'),
+				workingHours: [],
+				workingHoursDefault: [{ id: 'default-1' }],
+			},
+			{
+				id: 'missing-hours',
+				user: user('Piotr', 'Zielinski'),
+				workingHours: [],
+				workingHoursDefault: [],
+			},
+		]);
 
 		const result = await listManagerAttentionItems(
 			actorId,
@@ -184,9 +247,12 @@ describe('manager attention service', () => {
 			{ today },
 		);
 
-		expect(result.total).toBe(12);
+		expect(result.total).toBe(13);
 		expect(result.items).toHaveLength(10);
-		expect(result.hiddenCount).toBe(2);
+		expect(
+			result.items.every((item) => item.type === 'student_missing_pkk'),
+		).toBe(true);
+		expect(result.hiddenCount).toBe(3);
 	});
 
 	it('rejects non-manager roles and managers outside the school', async () => {
@@ -269,6 +335,10 @@ describe('manager attention service', () => {
 						select: { id: true },
 						take: 1,
 					}),
+					workingHoursDefault: {
+						select: { id: true },
+						take: 1,
+					},
 				}),
 			}),
 		);

@@ -285,11 +285,19 @@ export async function buildInstructorItems(
 				select: { id: true },
 				take: 1,
 			},
+			workingHoursDefault: {
+				select: { id: true },
+				take: 1,
+			},
 		},
 	});
 
 	return instructors
-		.filter((instructor) => instructor.workingHours.length === 0)
+		.filter(
+			(instructor) =>
+				instructor.workingHours.length === 0 &&
+				instructor.workingHoursDefault.length === 0,
+		)
 		.map((instructor) => {
 			const label = personName(instructor.user);
 
