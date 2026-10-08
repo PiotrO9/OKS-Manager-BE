@@ -48,6 +48,10 @@ docker compose up -d --build
 
 ## Reset And Seed
 
+The audit reset workflow is documented in [AUDIT_DATA_TOOLING.md](AUDIT_DATA_TOOLING.md).
+Both reset APIs are intended only for an isolated test project. Never point them
+at the shared DEV project while another task is using it.
+
 The manual reset endpoint is:
 
 ```text
@@ -75,12 +79,17 @@ It requires:
 
 - a valid Bearer access token,
 - a user with role `ADMIN`,
-- `ALLOW_DB_RESET=true` in the backend environment.
+- `ALLOW_DB_RESET=true` and `ALLOW_DB_FULL_RESET=true`,
+- `NODE_ENV` different from `production`,
+- a 32-character or longer `AUDIT_RESET_CONFIRM_SECRET`,
+- `AUDIT_RESET_TARGET_FINGERPRINT` matching the current database target,
+- the HTTP header `x-audit-full-confirmation: WIPE AUDIT DATABASE`.
 
 After using it, set:
 
 ```env
 ALLOW_DB_RESET=false
+ALLOW_DB_FULL_RESET=false
 ```
 
 and restart the backend.

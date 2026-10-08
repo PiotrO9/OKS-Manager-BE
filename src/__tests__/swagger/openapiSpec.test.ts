@@ -122,6 +122,8 @@ describe('getOpenApiSpec', () => {
 			['get', '/schedule'],
 			['post', '/schedule/availability-options'],
 			['post', '/dev/reset-and-seed'],
+			['post', '/dev/audit/preview'],
+			['post', '/dev/audit/execute'],
 		];
 
 		for (const [method, path] of expectedDocumentedRoutes) {
