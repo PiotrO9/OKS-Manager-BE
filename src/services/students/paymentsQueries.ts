@@ -48,12 +48,23 @@ export async function listStudentPayments(
 	};
 
 	if (query.schoolId) {
-		studentWhere.studentSchools = {
-			some: {
-				schoolId: query.schoolId,
-				school: { deletedAt: null },
+		studentWhere.OR = [
+			{
+				studentSchools: {
+					some: {
+						schoolId: query.schoolId,
+						school: { deletedAt: null },
+					},
+				},
 			},
-		};
+			{
+				courseParticipants: {
+					some: {
+						course: { schoolId: query.schoolId, deletedAt: null },
+					},
+				},
+			},
+		];
 	}
 
 	const student = await prisma.studentProfile.findFirst({

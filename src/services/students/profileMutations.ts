@@ -25,16 +25,47 @@ export async function assignStudentDrivingSchoolForAdminOrManager(
 		throw AppError.forbidden('Forbidden');
 	}
 
-	await loadActiveStudentProfileId(studentUserId);
-
-	await assertActorCanAssignStudentToSchoolForAdminOrManager(
-		prisma,
-		actorRole,
-		actorId,
-		schoolId,
-	);
+	const studentProfileId = await loadActiveStudentProfileId(studentUserId);
 
 	await prisma.$transaction(async (tx) => {
+		await tx.$queryRaw`SELECT id FROM users WHERE id = ${studentUserId}::uuid FOR UPDATE`;
+		const pendingAccountChange = await tx.accountAction.count({
+			where: {
+				targetId: studentUserId,
+				OR: [
+					{
+						status: {
+							in: ['PENDING', 'AUTH_UPDATED', 'REPAIR_REQUIRED'],
+						},
+					},
+					{
+						action: 'PASSWORD_RESET_REQUEST',
+						status: 'REQUESTING',
+						createdAt: { gt: new Date(Date.now() - 5 * 60_000) },
+					},
+				],
+			},
+		});
+		if (pendingAccountChange) {
+			throw AppError.conflict('Account change already in progress');
+		}
+		await tx.$queryRaw`SELECT id FROM student_profiles WHERE id = ${studentProfileId}::uuid FOR UPDATE`;
+		await assertActorCanAssignStudentToSchoolForAdminOrManager(
+			tx,
+			actorRole,
+			actorId,
+			schoolId,
+		);
+		if (actorRole === Role.MANAGER) {
+			const currentLink = await tx.studentSchool.findFirst({
+				where: {
+					student: { userId: studentUserId },
+					school: { ownerId: actorId, deletedAt: null },
+				},
+				select: { id: true },
+			});
+			if (!currentLink) throw AppError.notFound('Student not found');
+		}
 		await attachStudentToSchoolReplaceInTx(tx, studentUserId, schoolId);
 	});
 

@@ -12,6 +12,10 @@ import {
 import { sendJsonError } from '../lib/apiResponse';
 import { asyncHandler } from '../lib/http/asyncHandler';
 import { authMiddleware } from '../middleware/auth.middleware';
+import {
+	completePasswordRecovery,
+	requestPasswordRecovery,
+} from '../controllers/auth/recovery.handlers';
 
 const profileAvatarUpload = multer({
 	storage: multer.memoryStorage(),
@@ -23,6 +27,14 @@ function createAuthRouter() {
 
 	router.post('/register', authMiddleware, register);
 	router.post('/login', login);
+	router.post(
+		'/password-recovery/request',
+		asyncHandler(requestPasswordRecovery),
+	);
+	router.post(
+		'/password-recovery/complete',
+		asyncHandler(completePasswordRecovery),
+	);
 	router.post('/refresh', refresh);
 	// Logout: Bearer (authMiddleware) + po stronie klienta credentials przy żądaniu,
 	// inaczej przeglądarka nie zastosuje nagłówków kasujących ciasteczko refresh_token.

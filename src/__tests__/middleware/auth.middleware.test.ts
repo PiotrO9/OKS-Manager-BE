@@ -4,6 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
 	getClaims: vi.fn(),
 	findUnique: vi.fn(),
+	isSessionAllowed: vi.fn(),
+}));
+
+vi.mock('../../lib/accountSessions', () => ({
+	isAccountSessionAllowed: mocks.isSessionAllowed,
+	sessionIdFromToken: () => '22222222-2222-4222-8222-222222222222',
 }));
 
 vi.mock('../../lib/supabase', () => ({
@@ -35,6 +41,7 @@ function createResponse(): Response {
 describe('authMiddleware', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		mocks.isSessionAllowed.mockResolvedValue(true);
 	});
 
 	it('verifies asymmetric JWT claims locally before loading the app user', async () => {
@@ -66,6 +73,10 @@ describe('authMiddleware', () => {
 			include: { profile: true },
 		});
 		expect(req.user).toBe(user);
+		expect(mocks.isSessionAllowed).toHaveBeenCalledWith(
+			user.id,
+			'22222222-2222-4222-8222-222222222222',
+		);
 		expect(next).toHaveBeenCalledOnce();
 	});
 

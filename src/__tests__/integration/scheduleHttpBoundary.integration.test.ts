@@ -6,8 +6,14 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 const authFixture = vi.hoisted(() => ({
 	managerUserId: 'ed53af7e-e3f6-4da6-b6db-42935e32993f',
 	studentUserId: '39866ac1-97fd-4fdf-b705-fe31037143d4',
+	managerSessionId: globalThis.crypto.randomUUID(),
+	studentSessionId: globalThis.crypto.randomUUID(),
 	currentUserId: 'ed53af7e-e3f6-4da6-b6db-42935e32993f',
 }));
+
+function tokenForSession(sessionId: string): string {
+	return `header.${Buffer.from(JSON.stringify({ session_id: sessionId })).toString('base64url')}.signature`;
+}
 
 vi.mock('../../lib/supabase', () => ({
 	getSupabaseClient: () => ({
@@ -47,6 +53,18 @@ describe('schedule availability HTTP boundary', () => {
 				},
 			],
 		});
+		await prisma.accountSession.createMany({
+			data: [
+				{
+					userId: authFixture.managerUserId,
+					sessionId: authFixture.managerSessionId,
+				},
+				{
+					userId: authFixture.studentUserId,
+					sessionId: authFixture.studentSessionId,
+				},
+			],
+		});
 
 		server = createApp().listen(0, '127.0.0.1');
 		await new Promise<void>((resolve, reject) => {
@@ -77,7 +95,7 @@ describe('schedule availability HTTP boundary', () => {
 		const response = await fetch(`${baseUrl}/schedule/availability-check`, {
 			method: 'POST',
 			headers: {
-				authorization: 'Bearer header.payload.signature',
+				authorization: `Bearer ${tokenForSession(authFixture.managerSessionId)}`,
 				'content-type': 'application/json',
 			},
 			body: JSON.stringify({ intent: 'event_create' }),
@@ -99,7 +117,7 @@ describe('schedule availability HTTP boundary', () => {
 				{
 					method: 'POST',
 					headers: {
-						authorization: 'Bearer header.payload.signature',
+						authorization: `Bearer ${tokenForSession(authFixture.studentSessionId)}`,
 						'content-type': 'application/json',
 					},
 					body: JSON.stringify({ intent: 'lesson_self_book' }),

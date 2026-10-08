@@ -35,6 +35,8 @@ Mounted in `src/server.ts` at `/auth`, routes in `src/routes/auth.routes.ts`.
 | --- | --- | --- | --- | --- |
 | POST | `/auth/register` | `register` | bearer, any authenticated user | 200/201 depending role flow |
 | POST | `/auth/login` | `login` | public | 200 |
+| POST | `/auth/password-recovery/request` | `requestPasswordRecovery` | public | 200 |
+| POST | `/auth/password-recovery/complete` | `completePasswordRecovery` | recovery session | 200 |
 | POST | `/auth/refresh` | `refresh` | refresh cookie | 200 |
 | POST | `/auth/logout` | `logout` | bearer | 200 |
 | GET | `/auth/me` | `getMe` | bearer | 200 |
@@ -199,6 +201,14 @@ Mounted at `/manager`, routes in `src/routes/manager-attention.routes.ts`.
 | Method | Path | Handler | Auth | Success status |
 | --- | --- | --- | --- | --- |
 | GET | `/manager/attention-items` | `listAttentionItems` | bearer, min role `MANAGER` | 200 |
+| GET | `/manager/accounts` | `listManagerAccounts` | bearer, manager and owned school | 200 |
+| GET | `/manager/accounts/:userId` | `getManagerAccount` | bearer, manager and owned school | 200 |
+| PATCH | `/manager/accounts/:userId/profile` | `updateManagerAccountProfile` | bearer, manager and owned school | 200 |
+| PATCH | `/manager/accounts/:userId/email` | `changeManagerAccountEmail` | bearer, manager and owned school | 200 |
+| POST | `/manager/accounts/:userId/email/reconcile` | `reconcileManagerAccountEmail` | bearer, manager and owned school | 200 |
+| PATCH | `/manager/accounts/:userId/status` | `setManagerAccountActive` | bearer, manager and owned school | 200 |
+| POST | `/manager/accounts/:userId/archive` | `archiveManagerAccount` | bearer, manager and owned school | 200 |
+| POST | `/manager/accounts/:userId/password-reset` | `sendManagerAccountPasswordReset` | bearer, manager and owned school | 200 |
 
 ## Me
 

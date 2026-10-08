@@ -27,6 +27,7 @@ const ROUTE_MOUNTS: Array<{ file: string; mountPath: string }> = [
 	{ file: 'lessons.routes.ts', mountPath: '/lessons' },
 	{ file: 'lesson-ratings.routes.ts', mountPath: '/ratings' },
 	{ file: 'manager-attention.routes.ts', mountPath: '/manager' },
+	{ file: 'manager-accounts.routes.ts', mountPath: '/manager' },
 	{ file: 'me.routes.ts', mountPath: '/me' },
 	{ file: 'schedule.routes.ts', mountPath: '/schedule' },
 	{ file: 'dev.routes.ts', mountPath: '/dev' },

@@ -15,6 +15,7 @@ import { createInstructorsRouter } from './routes/instructors.routes';
 import { createLessonRatingsRouter } from './routes/lesson-ratings.routes';
 import { createLessonsRouter } from './routes/lessons.routes';
 import { createManagerAttentionRouter } from './routes/manager-attention.routes';
+import { createManagerAccountsRouter } from './routes/manager-accounts.routes';
 import { createMeRouter } from './routes/me.routes';
 import { createScheduleRouter } from './routes/schedule.routes';
 import { createStudentsRouter } from './routes/students.routes';
@@ -55,6 +56,7 @@ export function createApp() {
 	app.use('/lessons', createLessonsRouter());
 	app.use('/ratings', createLessonRatingsRouter());
 	app.use('/manager', createManagerAttentionRouter());
+	app.use('/manager', createManagerAccountsRouter());
 	app.use('/me', createMeRouter());
 	app.use('/schedule', createScheduleRouter());
 	app.use('/dev', createDevRouter());

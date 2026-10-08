@@ -61,10 +61,19 @@ export async function patchCourseParticipantStatusForStaff(
 		throw AppError.forbidden('Forbidden');
 	}
 
-	const studentProfileId = await loadActiveStudentProfileId(studentUserId);
+	const studentUser = await prisma.user.findUnique({
+		where: { id: studentUserId },
+		select: {
+			role: true,
+			studentProfile: { select: { id: true } },
+		},
+	});
+	if (!studentUser) throw AppError.notFound('User not found');
+	if (studentUser.role !== Role.STUDENT || !studentUser.studentProfile)
+		throw AppError.badRequest('User is not a student');
+	const studentProfileId = studentUser.studentProfile.id;
 	const schoolId = await loadCourseSchoolId(courseId);
 
-	await assertStudentBelongsToCourseSchool(studentUserId, schoolId);
 	await assertActorCanManageCourseParticipants(actorId, actorRole, schoolId);
 
 	const existing = await prisma.courseParticipant.findFirst({

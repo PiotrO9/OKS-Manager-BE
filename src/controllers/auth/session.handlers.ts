@@ -1,5 +1,10 @@
 import { Request, Response } from 'express';
 import { sendJsonError, sendJsonSuccess } from '../../lib/apiResponse';
+import {
+	isAccountSessionAllowed,
+	registerAccountSession,
+	sessionIdFromToken,
+} from '../../lib/accountSessions';
 import { logger } from '../../lib/logger';
 import { getPrisma } from '../../lib/prisma';
 import { getSupabaseClient } from '../../lib/supabase';
@@ -66,6 +71,9 @@ export async function login(req: Request, res: Response) {
 	if (!dbUser.role) {
 		return sendJsonError(res, 'User account is misconfigured', 500);
 	}
+	if (!(await registerAccountSession(authUserId, accessToken))) {
+		return sendJsonError(res, 'Account is unavailable', 403);
+	}
 
 	res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
 		...getRefreshTokenCookieOptions(),
@@ -108,6 +116,25 @@ export async function refresh(req: Request, res: Response) {
 	if (!accessToken) {
 		return sendJsonError(res, 'Failed to refresh session', 500);
 	}
+	const userId = data.user?.id;
+	const dbUser = userId
+		? await getPrisma().user.findUnique({
+				where: { id: userId },
+				select: { isActive: true, deletedAt: true },
+			})
+		: null;
+	if (
+		!userId ||
+		!dbUser?.isActive ||
+		dbUser.deletedAt ||
+		!(await isAccountSessionAllowed(
+			userId,
+			sessionIdFromToken(accessToken),
+		))
+	) {
+		res.clearCookie(REFRESH_TOKEN_COOKIE, getRefreshTokenCookieOptions());
+		return sendJsonError(res, 'SESSION_REVOKED', 401);
+	}
 
 	if (nextRefreshToken) {
 		res.cookie(REFRESH_TOKEN_COOKIE, nextRefreshToken, {
@@ -122,6 +149,18 @@ export async function refresh(req: Request, res: Response) {
 }
 
 export async function logout(req: Request, res: Response) {
+	const userId = req.user?.id;
+	if (userId) {
+		const sessionId = sessionIdFromToken(
+			req.headers.authorization?.replace(/^Bearer\s+/i, '') ?? '',
+		);
+		if (sessionId) {
+			await getPrisma().accountSession.updateMany({
+				where: { userId, sessionId, revokedAt: null },
+				data: { revokedAt: new Date() },
+			});
+		}
+	}
 	const refreshToken = readRefreshTokenCookie(req);
 	const cookieOpts = getRefreshTokenCookieOptions();
 
@@ -132,7 +171,9 @@ export async function logout(req: Request, res: Response) {
 				refresh_token: refreshToken,
 			});
 			if (!error && data.session) {
-				const { error: signOutError } = await supabase.auth.signOut();
+				const { error: signOutError } = await supabase.auth.signOut({
+					scope: 'local',
+				});
 				if (signOutError) {
 					logger.error('logout: supabase signOut failed', {
 						message: signOutError.message,

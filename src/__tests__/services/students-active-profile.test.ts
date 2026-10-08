@@ -29,6 +29,8 @@ const { db } = vi.hoisted(() => ({
 			update: vi.fn(),
 		},
 		$transaction: vi.fn(),
+		$queryRaw: vi.fn(),
+		accountAction: { count: vi.fn() },
 	},
 }));
 
@@ -74,20 +76,9 @@ const operations = [
 				courseId,
 			),
 	},
-	{
-		name: 'participant status',
-		run: () =>
-			patchCourseParticipantStatusForStaff(
-				actorId,
-				Role.MANAGER,
-				studentUserId,
-				courseId,
-				CourseParticipantStatus.FINISHED,
-			),
-	},
 ];
 
-describe('active student validation across five mutations', () => {
+describe('active student validation across four mutations', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		db.user.findUnique.mockResolvedValue({
@@ -115,6 +106,8 @@ describe('active student validation across five mutations', () => {
 			deletedAt: null,
 		});
 		db.drivingSchool.findFirst.mockResolvedValue({ id: schoolId });
+		db.$queryRaw.mockResolvedValue([{ id: studentUserId }]);
+		db.accountAction.count.mockResolvedValue(0);
 		db.course.findFirst.mockResolvedValue({ id: courseId, schoolId });
 		db.courseParticipant.findFirst.mockResolvedValue(null);
 		db.courseParticipant.create.mockResolvedValue({
@@ -349,6 +342,20 @@ describe('active student validation across five mutations', () => {
 		).resolves.toMatchObject({ userId: studentUserId });
 	});
 
+	it('rejects a manager transfer when the student currently belongs to another OSK', async () => {
+		db.studentSchool.findFirst.mockResolvedValue(null);
+		await expect(
+			assignStudentDrivingSchoolForAdminOrManager(
+				actorId,
+				Role.MANAGER,
+				studentUserId,
+				schoolId,
+			),
+		).rejects.toMatchObject({ statusCode: 404 });
+		expect(db.studentSchool.deleteMany).not.toHaveBeenCalled();
+		expect(db.studentSchool.create).not.toHaveBeenCalled();
+	});
+
 	it('uses the profile ID for course assignment and status, with school access checked first', async () => {
 		await assignStudentToCourseForStaff(
 			actorId,
@@ -390,6 +397,28 @@ describe('active student validation across five mutations', () => {
 				courseId,
 			),
 		).rejects.toMatchObject({ statusCode: 403, message: 'Forbidden' });
+	});
+
+	it('allows closing a historical course participant after the account is blocked or transferred', async () => {
+		db.user.findUnique.mockResolvedValue({
+			id: studentUserId,
+			role: Role.STUDENT,
+			isActive: false,
+			deletedAt: null,
+			studentProfile: { id: studentProfileId },
+		});
+		db.studentSchool.findFirst.mockResolvedValue(null);
+		db.courseParticipant.findFirst.mockResolvedValue({ id: participantId });
+		await expect(
+			patchCourseParticipantStatusForStaff(
+				actorId,
+				Role.MANAGER,
+				studentUserId,
+				courseId,
+				CourseParticipantStatus.FINISHED,
+			),
+		).resolves.toMatchObject({ status: CourseParticipantStatus.FINISHED });
+		expect(db.studentSchool.findFirst).not.toHaveBeenCalled();
 	});
 
 	it('keeps manager and instructor school checks on course operations', async () => {

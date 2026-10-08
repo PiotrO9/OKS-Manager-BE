@@ -21,12 +21,18 @@ export async function assertManagerCanManageStudentPayments(
 		where: {
 			userId: studentUserId,
 			user: { deletedAt: null },
-			studentSchools: {
-				some: {
-					schoolId,
-					school: { deletedAt: null },
+			OR: [
+				{
+					studentSchools: {
+						some: { schoolId, school: { deletedAt: null } },
+					},
 				},
-			},
+				{
+					courseParticipants: {
+						some: { course: { schoolId, deletedAt: null } },
+					},
+				},
+			],
 		},
 		select: { id: true },
 	});

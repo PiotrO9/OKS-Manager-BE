@@ -9,6 +9,7 @@ import type { InstructorQualifiedCourseType } from '../../services/instructor/ty
 const { prismaMock } = vi.hoisted(() => ({
 	prismaMock: {
 		$transaction: vi.fn(),
+		$queryRaw: vi.fn(),
 		courseType: {
 			count: vi.fn(),
 		},
@@ -97,11 +98,13 @@ describe('updateInstructorForManagerOrAdmin qualifiedCourseTypeIds', () => {
 		prismaMock.$transaction.mockImplementation(async (callback) =>
 			callback(prismaMock),
 		);
+		prismaMock.$queryRaw.mockResolvedValue([{ id: instructorUserId }]);
 		prismaMock.instructorProfile.update.mockResolvedValue({});
 	});
 
 	it('replaces qualified course types after validating existing CourseType ids', async () => {
 		prismaMock.instructorProfile.findFirst
+			.mockResolvedValueOnce(instructorProfile())
 			.mockResolvedValueOnce(instructorProfile())
 			.mockResolvedValueOnce(
 				instructorProfile([
@@ -147,6 +150,7 @@ describe('updateInstructorForManagerOrAdmin qualifiedCourseTypeIds', () => {
 					{ id: courseTypeIdA, code: 'A', name: 'Kategoria A' },
 				]),
 			)
+			.mockResolvedValueOnce(instructorProfile())
 			.mockResolvedValueOnce(instructorProfile([]));
 
 		await expect(
@@ -191,5 +195,20 @@ describe('updateInstructorForManagerOrAdmin qualifiedCourseTypeIds', () => {
 		expect(prismaMock.instructorProfile.update).not.toHaveBeenCalled();
 		expect(prismaMock.instructorProfile.updateMany).not.toHaveBeenCalled();
 		expect(prismaMock.user.updateMany).not.toHaveBeenCalled();
+	});
+
+	it('rejects an update when the instructor moved to another manager’s school', async () => {
+		prismaMock.instructorProfile.findFirst
+			.mockResolvedValueOnce(instructorProfile())
+			.mockResolvedValueOnce(instructorProfile([], otherManagerId));
+
+		await expect(
+			updateInstructorForManagerOrAdmin(
+				{ id: managerId, role: Role.MANAGER },
+				instructorId,
+				{ qualifiedCourseTypeIds: [] },
+			),
+		).rejects.toMatchObject({ statusCode: 403 });
+		expect(prismaMock.instructorProfile.update).not.toHaveBeenCalled();
 	});
 });

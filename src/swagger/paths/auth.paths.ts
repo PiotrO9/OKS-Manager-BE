@@ -58,6 +58,52 @@ export function registerAuthPaths(registry: OpenAPIRegistry): void {
 
 	registry.registerPath({
 		method: 'post',
+		path: '/auth/password-recovery/request',
+		tags: ['Auth'],
+		summary: 'Wysłanie linku do odzyskania hasła',
+		request: {
+			body: {
+				content: {
+					'application/json': {
+						schema: z.object({ email: z.string().email() }),
+					},
+				},
+			},
+		},
+		responses: {
+			200: okDataUnknown('Żądanie przyjęte'),
+			400: clientError(),
+		},
+	});
+
+	registry.registerPath({
+		method: 'post',
+		path: '/auth/password-recovery/complete',
+		tags: ['Auth'],
+		summary: 'Ustawienie hasła z sesji odzyskiwania',
+		request: {
+			body: {
+				content: {
+					'application/json': {
+						schema: z.object({
+							accessToken: z.string(),
+							refreshToken: z.string(),
+							password: z.string().min(8),
+						}),
+					},
+				},
+			},
+		},
+		responses: {
+			200: okDataUnknown('Hasło zmieniono'),
+			400: clientError(),
+			401: clientError(),
+			403: clientError(),
+		},
+	});
+
+	registry.registerPath({
+		method: 'post',
 		path: '/auth/refresh',
 		tags: ['Auth'],
 		summary: 'Odświeżenie access token (cookie refresh_token)',

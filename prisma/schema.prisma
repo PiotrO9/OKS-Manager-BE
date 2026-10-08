@@ -92,6 +92,9 @@ model User {
   studentProfile      StudentProfile?
   drivingSchoolsOwned DrivingSchool[]    @relation("OwnerDrivingSchools")
   defaultOsk          DrivingSchool?     @relation("DefaultOSK", fields: [defaultOskId], references: [id])
+  accountSessions     AccountSession[]
+  accountActionsMade  AccountAction[]     @relation("AccountActionActor")
+  accountActionsFor   AccountAction[]     @relation("AccountActionTarget")
 
   @@index([role], name: "idx_users_role")
   @@map("users")
@@ -145,6 +148,39 @@ model DrivingSchool {
   instructorEvents     InstructorEvent[]
 
   @@map("driving_schools")
+}
+
+model AccountSession {
+  sessionId String    @id @map("session_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt], name: "idx_account_sessions_user_revoked")
+  @@map("account_sessions")
+}
+
+model AccountAction {
+  id        String   @id @default(uuid()) @db.Uuid
+  actorId   String   @map("actor_id") @db.Uuid
+  targetId  String   @map("target_id") @db.Uuid
+  schoolId  String   @map("school_id") @db.Uuid
+  action    String
+  status    String
+  oldValue  String?  @map("old_value")
+  newValue  String?  @map("new_value")
+  requestId String?  @map("request_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  actor  User @relation("AccountActionActor", fields: [actorId], references: [id])
+  target User @relation("AccountActionTarget", fields: [targetId], references: [id])
+
+  @@index([targetId, status], name: "idx_account_actions_target_status")
+  @@index([schoolId, createdAt], name: "idx_account_actions_school_created")
+  @@map("account_actions")
 }
 
 model SchoolSettings {

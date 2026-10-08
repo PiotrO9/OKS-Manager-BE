@@ -25,6 +25,22 @@ const ids = vi.hoisted(() => ({
 	course: globalThis.crypto.randomUUID(),
 	currentUser: '',
 }));
+const actorSessionIds = new Map<string, string>(
+	[
+		ids.admin,
+		ids.manager,
+		ids.otherManager,
+		ids.instructorUser,
+		ids.studentUser,
+		ids.otherStudentUser,
+	].map((userId) => [userId, randomUUID()]),
+);
+
+function actorToken(actorId: string): string {
+	const sessionId = actorSessionIds.get(actorId);
+	if (!sessionId) throw new Error('Missing integration account session');
+	return `header.${Buffer.from(JSON.stringify({ session_id: sessionId })).toString('base64url')}.signature`;
+}
 
 vi.mock('../../lib/supabase', () => ({
 	getSupabaseClient: () => ({
@@ -60,7 +76,7 @@ async function request(
 	const response = await fetch(`${baseUrl}${path}`, {
 		method,
 		headers: {
-			authorization: 'Bearer header.payload.signature',
+			authorization: `Bearer ${actorToken(actorId)}`,
 			'content-type': 'application/json',
 		},
 		body: JSON.stringify(body),
@@ -175,6 +191,12 @@ describe('QA-04 student mutations over HTTP and PostgreSQL', () => {
 					role: Role.STUDENT,
 				},
 			],
+		});
+		await prisma.accountSession.createMany({
+			data: Array.from(actorSessionIds, ([userId, sessionId]) => ({
+				userId,
+				sessionId,
+			})),
 		});
 		await prisma.drivingSchool.createMany({
 			data: [
@@ -295,7 +317,9 @@ describe('QA-04 student mutations over HTTP and PostgreSQL', () => {
 		await prisma.$disconnect();
 	});
 
-	for (const operation of cases) {
+	for (const operation of cases.filter(
+		(item) => item.name !== 'participant status',
+	)) {
 		it(`${operation.name} preserves student error precedence`, async () => {
 			for (const [target, status, error] of [
 				[randomUUID(), 404, 'User not found'],

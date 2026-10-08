@@ -1,5 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { sendJsonError } from '../lib/apiResponse';
+import {
+	isAccountSessionAllowed,
+	sessionIdFromToken,
+} from '../lib/accountSessions';
 import { logger } from '../lib/logger';
 import { getPrisma } from '../lib/prisma';
 import { getSupabaseClient } from '../lib/supabase';
@@ -58,6 +62,11 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
 
 		if (!dbUser.isActive) {
 			return sendJsonError(res, 'Account is disabled', 403);
+		}
+		if (
+			!(await isAccountSessionAllowed(userId, sessionIdFromToken(token)))
+		) {
+			return sendJsonError(res, 'SESSION_REVOKED', 401);
 		}
 
 		req.user = dbUser;
