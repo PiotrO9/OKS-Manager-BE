@@ -514,6 +514,32 @@ describe('schedule availability check', () => {
 		);
 	});
 
+	it('allows a different qualified instructor on one lesson with a course instructor assigned', async () => {
+		const substituteId = '99999999-9999-4999-8999-999999999999';
+		const result = await checkScheduleAvailability(actor, {
+			intent: 'lesson_edit',
+			lessonId,
+			instructorId: substituteId,
+			vehicleId,
+			date: '2099-09-26',
+			startTime: '10:00',
+			endTime: '11:00',
+		});
+		expect(result.available).toBe(true);
+		expect(
+			mocks.assertInstructorQualifiedForCourseType,
+		).toHaveBeenCalledWith(substituteId, 'course-type-1');
+		expect(
+			mocks.assertLessonSchedulingWindowAvailable,
+		).toHaveBeenCalledWith(
+			prismaMock,
+			expect.objectContaining({
+				instructorId: substituteId,
+				excludeLessonId: lessonId,
+			}),
+		);
+	});
+
 	it('returns lesson-specific issues for an unavailable changed window', async () => {
 		mocks.assertLessonTimeIsBookable.mockRejectedValue(
 			ScheduleDomainError.badRequestFor(

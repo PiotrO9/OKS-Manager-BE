@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
 	cancelOwnLessonHandler,
 	getLessonHandler,
+	getLessonInstructorOptionsHandler,
 	getLessonRatingHandler,
 	patchLessonHandler,
 	postLessonHandler,
@@ -53,6 +54,12 @@ function createLessonsRouter() {
 		asyncHandler(getLessonRatingHandler),
 	);
 
+	router.get(
+		'/:id/instructor-options',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(getLessonInstructorOptionsHandler),
+	);
 	router.get(
 		'/:id',
 		authMiddleware,

@@ -216,8 +216,13 @@ Jak przy **POST `/lessons`** (`MANAGER` lub `ADMIN` z dostępem do OSK kursu).
 | `endTime` | string | opcjonalne; ISO 8601 datetime; jeśli podane, wymagane jest też **`startTime`** |
 | `instructorId` | string | opcjonalne; UUID (`InstructorProfile.id`) |
 | `vehicleId` | string | opcjonalne; UUID pojazdu |
+| `expectedLessonState` | object | wymagane przy podaniu `instructorId`: identyfikator instruktora, czas początku i końca oraz pojazd (`UUID` lub `null`) z ostatnio odczytanej lekcji |
 
-**Reguły:** tylko gdy status to **`SCHEDULED`**. Nie można zmieniać kursu ani kursanta — tylko czas, instruktor i pojazd. Reguły biznesowe jak przy **POST `/lessons`** (okno rezerwacji przy zmianie **daty/czasu**; przyszły czas; grafik instruktora z wykluczeniem tej lekcji; brak kolizji kursanta/instruktora/pojazdu; limit godzin pakietu przy zmianie czasu lub instruktora). Idempotentne body bez realnej zmiany zwraca **200** z aktualnym rekordem.
+**Reguły:** tylko gdy status to **`SCHEDULED`**. Nie można zmieniać kursu ani kursanta — tylko czas, instruktor i pojazd. Zmiana instruktora dotyczy tylko tej jednej jazdy 1:1, bez zmiany `Course.instructorId`. Jest dozwolona tylko przed rozpoczęciem jazdy; nowy instruktor musi być aktywny, należeć do szkoły, mieć uprawnienia do kategorii kursu i być wolny przez cały termin. Reguły konfliktów są sprawdzane ponownie podczas zapisu w transakcji (grafik instruktora z wykluczeniem tej lekcji, kalendarz kursanta, pojazd, limit godzin). `expectedLessonState` chroni przed nadpisaniem zmian dokonanych równolegle; rozbieżność zwraca **409**. Przy zmianie daty/czasu dodatkowo obowiązuje okno rezerwacji i przyszły początek. Idempotentne body bez realnej zmiany zwraca **200** z aktualnym rekordem.
+
+### GET `/lessons/:id/instructor-options`
+
+Zwraca w `data.instructors` aktywnych instruktorów zastępczych z tej samej szkoły, którzy mają uprawnienia do kategorii kursu i są dostępni przez cały wybrany termin. Wymaga uprawnień `MANAGER` lub `ADMIN`; lekcja musi być zaplanowana i jeszcze się nie rozpocząć. Parametry query: `date` (`YYYY-MM-DD`), `startTime` i `endTime` (`HH:mm`) oraz `vehicleId` (UUID). Obecny instruktor lekcji nie jest zwracany jako zastępca. Wynik jest informacją na moment odczytu; zapis ponownie sprawdza dostępność.
 
 ### Odpowiedź (200)
 

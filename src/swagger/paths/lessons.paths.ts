@@ -2,17 +2,18 @@ import type { OpenAPIRegistry } from '@asteasolutions/zod-to-openapi';
 import {
 	bookLessonBodySchema,
 	bookOwnLessonBodySchema,
-	cancelLessonBodySchema,
 	clientError,
 	createLessonRatingBodySchema,
 	lessonDtoSchema,
 	lessonIdParamsSchema,
+	lessonInstructorOptionsQuerySchema,
 	lessonRatingDtoSchema,
 	lessonRatingParamsSchema,
 	listLessonRatingsQuerySchema,
 	ownLessonRatingsQuerySchema,
 	okDataSchema,
 	okDataUnknown,
+	patchLessonBodySchema,
 	stdBearerResponses,
 	z,
 } from './shared';
@@ -71,6 +72,29 @@ export function registerLessonPaths(registry: OpenAPIRegistry): void {
 			403: clientError('Kurs nie nalezy do zalogowanego kursanta'),
 			404: clientError('Kurs lub instruktor nie istnieje'),
 			409: clientError('Konflikt czasu, limitu godzin albo pojazdu'),
+		}),
+	});
+
+	registry.registerPath({
+		method: 'get',
+		path: '/lessons/{id}/instructor-options',
+		tags: ['Lessons'],
+		summary: 'Dostępni instruktorzy zastępczy dla jednej jazdy (MANAGER+)',
+		description:
+			'Zwraca aktywnych instruktorów z tej szkoły, uprawnionych do kategorii kursu i dostępnych przez cały podany termin z wybranym pojazdem. Lekcja musi być zaplanowana i nie może się jeszcze rozpocząć.',
+		security: [{ bearerAuth: [] }],
+		request: {
+			params: lessonIdParamsSchema,
+			query: lessonInstructorOptionsQuerySchema,
+		},
+		responses: stdBearerResponses({
+			200: okDataUnknown(
+				'Lista dostępnych instruktorów (data.instructors)',
+			),
+			400: clientError(
+				'Niepoprawny termin lub lekcja już się rozpoczęła',
+			),
+			404: clientError('Lekcja nie znaleziona'),
 		}),
 	});
 
@@ -208,16 +232,16 @@ export function registerLessonPaths(registry: OpenAPIRegistry): void {
 		method: 'patch',
 		path: '/lessons/{id}',
 		tags: ['Lessons'],
-		summary: 'Anulowanie jazdy (MANAGER+)',
+		summary: 'Edycja lub anulowanie pojedynczej jazdy (MANAGER+)',
 		description:
-			'Ustawia status CANCELLED. Tylko ze SCHEDULED. Anulowana jazda nie zużywa godzin pakietu; slot instruktora i pojazdu zwalniają się dla innych rezerwacji.',
+			'Edycja czasu, pojazdu lub instruktora pojedynczej zaplanowanej jazdy albo ustawienie statusu CANCELLED. Zmiana instruktora jest możliwa wyłącznie przed rozpoczęciem lekcji; wymaga expectedLessonState, aktywnego instruktora z uprawnieniami i dostępności przez cały termin. Przypisanie instruktora do kursu pozostaje bez zmian.',
 		security: [{ bearerAuth: [] }],
 		request: {
 			params: lessonIdParamsSchema,
 			body: {
 				content: {
 					'application/json': {
-						schema: cancelLessonBodySchema,
+						schema: patchLessonBodySchema,
 					},
 				},
 			},
@@ -227,10 +251,11 @@ export function registerLessonPaths(registry: OpenAPIRegistry): void {
 				'Zaktualizowana lekcja (data.lesson, status CANCELLED)',
 				z.object({ lesson: lessonDtoSchema }),
 			),
-			400: clientError(
-				'Nie można anulować (np. już COMPLETED/CANCELLED)',
-			),
+			400: clientError('Nie można edytować lub anulować tej lekcji'),
 			404: clientError('Lekcja nie znaleziona'),
+			409: clientError(
+				'Kolizja terminu, pojazdu albo zmiana lekcji od jej odczytu',
+			),
 		}),
 	});
 }

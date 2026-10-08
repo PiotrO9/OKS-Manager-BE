@@ -4,6 +4,7 @@ import { requireUser } from '../lib/http/requireUser';
 import { lessonIdParamsSchema } from '../lib/validation/uuid';
 import {
 	lessonRatingParamsSchema,
+	lessonInstructorOptionsQuerySchema,
 	parseBookLessonBody,
 	parseBookOwnLessonBody,
 	parseCreateLessonRatingBody,
@@ -23,12 +24,25 @@ import {
 	updateLesson,
 } from '../services/lesson.service';
 import { parseBodyWithParser, parseRequestPart } from './requestParsing';
+import { getLessonInstructorOptions } from '../services/lesson/instructorOptions';
 
 async function getLessonHandler(req: Request, res: Response) {
 	const user = requireUser(req);
 	const params = parseRequestPart(lessonIdParamsSchema, req.params, 'params');
 
 	const data = await getLessonById(user, params.id);
+	return sendJsonSuccess(res, data, 200);
+}
+
+async function getLessonInstructorOptionsHandler(req: Request, res: Response) {
+	const user = requireUser(req);
+	const params = parseRequestPart(lessonIdParamsSchema, req.params, 'params');
+	const query = parseRequestPart(
+		lessonInstructorOptionsQuerySchema,
+		req.query,
+		'query',
+	);
+	const data = await getLessonInstructorOptions(user, params.id, query);
 	return sendJsonSuccess(res, data, 200);
 }
 
@@ -104,6 +118,7 @@ async function patchLessonHandler(req: Request, res: Response) {
 }
 
 export {
+	getLessonInstructorOptionsHandler,
 	cancelOwnLessonHandler,
 	getLessonHandler,
 	getLessonRatingHandler,

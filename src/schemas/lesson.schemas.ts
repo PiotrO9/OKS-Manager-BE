@@ -128,6 +128,20 @@ export const updateLessonBodySchema = z
 			.string()
 			.regex(UUID_PARAM_RE, 'Invalid vehicleId')
 			.optional(),
+		expectedLessonState: z
+			.object({
+				instructorId: z
+					.string()
+					.regex(UUID_PARAM_RE, 'Invalid instructorId'),
+				startTime: z.string().datetime(),
+				endTime: z.string().datetime(),
+				vehicleId: z
+					.string()
+					.regex(UUID_PARAM_RE, 'Invalid vehicleId')
+					.nullable(),
+			})
+			.strict()
+			.optional(),
 	})
 	.strict()
 	.superRefine((data, ctx) => {
@@ -166,6 +180,27 @@ export const updateLessonBodySchema = z
 	});
 
 export type UpdateLessonBody = z.infer<typeof updateLessonBodySchema>;
+
+export const lessonInstructorOptionsQuerySchema = z
+	.object({
+		date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date'),
+		startTime: z
+			.string()
+			.regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Invalid startTime'),
+		endTime: z
+			.string()
+			.regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Invalid endTime'),
+		vehicleId: z.string().regex(UUID_PARAM_RE, 'Invalid vehicleId'),
+	})
+	.strict()
+	.refine(
+		(value) => value.startTime < value.endTime,
+		'startTime must be before endTime',
+	);
+
+export type LessonInstructorOptionsQuery = z.infer<
+	typeof lessonInstructorOptionsQuerySchema
+>;
 
 export const patchLessonBodySchema = z.union([
 	cancelLessonBodySchema,

@@ -18,6 +18,7 @@ import { createInstructorEvent } from '../../services/event/writeModel';
 import { replaceEventStudents } from '../../services/event/participants';
 import { bookLesson, bookOwnLesson } from '../../services/lesson/bookingRules';
 import { updateLesson } from '../../services/lesson/writeModel';
+import { getLessonInstructorOptions } from '../../services/lesson/instructorOptions';
 import { checkScheduleAvailability } from '../../services/schedule-validation/check';
 
 const prisma = getPrisma();
@@ -880,5 +881,100 @@ describe('schedule write hardening with PostgreSQL', () => {
 				lessonPayload('12:00', '13:00', { date: raceDate }),
 			),
 		).resolves.toBeDefined();
+	});
+
+	it('changes only one future lesson instructor after checking actual availability', async () => {
+		const changeDate = addDays(testDate, 3);
+		await prisma.course.update({
+			where: { id: ids.courseId },
+			data: { instructorId: ids.instructorId },
+		});
+		const original = await prisma.lesson.create({
+			data: {
+				courseId: ids.courseId,
+				studentId: ids.studentId,
+				instructorId: ids.instructorId,
+				vehicleId: ids.vehicleId,
+				lessonType: LessonType.PRACTICE,
+				startTime: instant('10:00', changeDate),
+				endTime: instant('11:00', changeDate),
+			},
+		});
+		const untouched = await prisma.lesson.create({
+			data: {
+				courseId: ids.courseId,
+				studentId: ids.secondStudentId,
+				instructorId: ids.instructorId,
+				vehicleId: ids.vehicleId,
+				lessonType: LessonType.PRACTICE,
+				startTime: instant('12:00', changeDate),
+				endTime: instant('13:00', changeDate),
+			},
+		});
+		const conflict = await prisma.lesson.create({
+			data: {
+				courseId: ids.courseId,
+				studentId: ids.secondStudentId,
+				instructorId: ids.secondInstructorId,
+				vehicleId: ids.secondVehicleId,
+				lessonType: LessonType.PRACTICE,
+				startTime: instant('10:00', changeDate),
+				endTime: instant('11:00', changeDate),
+			},
+		});
+		const expectedLessonState = {
+			instructorId: ids.instructorId,
+			startTime: original.startTime.toISOString(),
+			endTime: original.endTime.toISOString(),
+			vehicleId: ids.vehicleId,
+		};
+		const query = {
+			date: changeDate,
+			startTime: '10:00',
+			endTime: '11:00',
+			vehicleId: ids.vehicleId,
+		};
+
+		await expect(
+			getLessonInstructorOptions(actor, original.id, query),
+		).resolves.toEqual({ instructors: [] });
+		await expect(
+			updateLesson(actor, original.id, {
+				instructorId: ids.secondInstructorId,
+				expectedLessonState,
+			}),
+		).rejects.toMatchObject({ statusCode: 409 });
+
+		await prisma.lesson.delete({ where: { id: conflict.id } });
+		const options = await getLessonInstructorOptions(
+			actor,
+			original.id,
+			query,
+		);
+		expect(
+			options.instructors.map((instructor) => instructor.id),
+		).toContain(ids.secondInstructorId);
+
+		await updateLesson(actor, original.id, {
+			instructorId: ids.secondInstructorId,
+			expectedLessonState,
+		});
+		const [changed, other, course] = await Promise.all([
+			prisma.lesson.findUniqueOrThrow({ where: { id: original.id } }),
+			prisma.lesson.findUniqueOrThrow({ where: { id: untouched.id } }),
+			prisma.course.findUniqueOrThrow({ where: { id: ids.courseId } }),
+		]);
+		expect(changed.instructorId).toBe(ids.secondInstructorId);
+		expect(changed.startTime).toEqual(original.startTime);
+		expect(changed.endTime).toEqual(original.endTime);
+		expect(changed.vehicleId).toBe(ids.vehicleId);
+		expect(other.instructorId).toBe(ids.instructorId);
+		expect(course.instructorId).toBe(ids.instructorId);
+		await expect(
+			updateLesson(actor, original.id, {
+				instructorId: ids.instructorId,
+				expectedLessonState,
+			}),
+		).rejects.toMatchObject({ statusCode: 409 });
 	});
 });

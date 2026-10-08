@@ -22,7 +22,10 @@ import { assertCourseEligibleForInstructorEvent } from '../event/courseEligibili
 import { resolveInstructorEventSchoolId } from '../event/writeModel';
 import { assertActorCanBookLessonForCourse } from '../lesson/bookingAccess';
 import { assertLessonDateInsideBookingWindow } from '../lesson/bookingRules';
-import { assertLessonIsEditable } from '../lesson/editability';
+import {
+	assertLessonHasNotStarted,
+	assertLessonIsEditable,
+} from '../lesson/editability';
 import { subtractStudentScheduleConflicts } from './conflicts';
 import {
 	AVAILABILITY_OPTION_STEP_MINUTES,
@@ -227,6 +230,7 @@ async function getLessonEditAvailabilityOptions(
 		select: {
 			id: true,
 			status: true,
+			startTime: true,
 			endTime: true,
 			studentId: true,
 			course: {
@@ -244,6 +248,7 @@ async function getLessonEditAvailabilityOptions(
 
 	if (!lesson) throw AppError.notFound('Lesson not found');
 	assertLessonIsEditable(lesson.status, lesson.endTime);
+	assertLessonHasNotStarted(lesson.status, lesson.startTime);
 
 	await assertActorCanBookLessonForCourse(actor, lesson.course.schoolId);
 	const [, instructorLink] = await Promise.all([
@@ -256,11 +261,7 @@ async function getLessonEditAvailabilityOptions(
 			select: { id: true },
 		}),
 	]);
-	if (
-		!instructorLink ||
-		(lesson.course.instructorId != null &&
-			lesson.course.instructorId !== body.instructorId)
-	) {
+	if (!instructorLink) {
 		throw AppError.badRequest('Instructor is not eligible for this course');
 	}
 	await assertInstructorQualifiedForCourseType(

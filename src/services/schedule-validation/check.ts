@@ -30,7 +30,10 @@ import {
 	type CourseForBooking,
 } from '../lesson/bookingAccess';
 import { assertLessonTimeIsBookable } from '../lesson/bookingRules';
-import { assertLessonIsEditable } from '../lesson/editability';
+import {
+	assertLessonHasNotStarted,
+	assertLessonIsEditable,
+} from '../lesson/editability';
 import { assertLessonSchedulingWindowAvailable } from '../lesson/scheduleConflicts';
 import {
 	assertVehicleAvailableForBooking,
@@ -342,6 +345,7 @@ async function checkLessonEditAvailability(
 	}
 	await assertActorCanBookLessonForCourse(actor, existing.course.schoolId);
 	assertLessonIsEditable(existing.status, existing.endTime);
+	assertLessonHasNotStarted(existing.status, existing.startTime);
 
 	const { start, end, durationMinutes } = parsePolishScheduleWindow(body);
 	const timeChanged =
@@ -381,11 +385,7 @@ async function checkLessonEditAvailability(
 		},
 		select: { id: true },
 	});
-	if (
-		!instructorLink ||
-		(existing.course.instructorId != null &&
-			existing.course.instructorId !== body.instructorId)
-	) {
+	if (!instructorLink) {
 		issues.push({
 			code: 'INSTRUCTOR_NOT_ELIGIBLE',
 			field: 'instructorId',

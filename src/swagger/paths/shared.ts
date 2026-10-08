@@ -59,6 +59,8 @@ import {
 	cancelLessonBodySchema,
 	createLessonRatingBodySchema,
 	lessonRatingParamsSchema,
+	lessonInstructorOptionsQuerySchema,
+	patchLessonBodySchema,
 } from '../../schemas/lesson.schemas';
 import {
 	instructorLessonRatingsQuerySchema,
@@ -294,6 +296,8 @@ export {
 	bookLessonBodySchema,
 	bookOwnLessonBodySchema,
 	cancelLessonBodySchema,
+	lessonInstructorOptionsQuerySchema,
+	patchLessonBodySchema,
 	createLessonRatingBodySchema,
 	lessonRatingParamsSchema,
 	instructorLessonRatingsQuerySchema,

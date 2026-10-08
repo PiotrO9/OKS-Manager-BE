@@ -14,3 +14,18 @@ export function assertLessonIsEditable(
 		throw AppError.badRequest('Finished lessons cannot be edited');
 	}
 }
+
+export function assertLessonHasNotStarted(
+	status: LessonStatus,
+	startTime: Date,
+	now = new Date(),
+): void {
+	if (
+		status !== LessonStatus.SCHEDULED ||
+		startTime.getTime() <= now.getTime()
+	) {
+		throw AppError.badRequest(
+			'Only lessons that have not started can be changed',
+		);
+	}
+}
