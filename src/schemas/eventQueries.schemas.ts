@@ -5,20 +5,20 @@ import { UUID_PARAM_RE } from '../lib/validation/uuid';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const listEventsStatusQuery = z.preprocess(
-	(v) => {
-		if (v === undefined || v === '') {
+	(value) => {
+		if (value === undefined || value === '') {
 			return undefined;
 		}
-		if (Array.isArray(v)) {
-			return v;
+		if (Array.isArray(value)) {
+			return value;
 		}
-		if (typeof v === 'string') {
-			return v
+		if (typeof value === 'string') {
+			return value
 				.split(',')
-				.map((s) => s.trim())
+				.map((entry) => entry.trim())
 				.filter(Boolean);
 		}
-		return v;
+		return value;
 	},
 	z.array(z.nativeEnum(EventStatus)).min(1).max(4).optional(),
 );

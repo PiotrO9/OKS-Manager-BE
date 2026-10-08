@@ -20,7 +20,7 @@ export async function reconcileUserDefaultOskId(
 	schools: DefaultOskSchoolRow[],
 	storedDefaultId: string | null,
 ): Promise<string | null> {
-	const ownedIds = new Set(schools.map((s) => s.id));
+	const ownedIds = new Set(schools.map((school) => school.id));
 	const defaultIsValid =
 		storedDefaultId !== null && ownedIds.has(storedDefaultId);
 

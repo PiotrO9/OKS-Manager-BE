@@ -38,19 +38,19 @@ export async function listVehiclesBySchoolForUser(
 	);
 
 	const defaultVehicleId = school.defaultVehicleId ?? null;
-	let vehiclesWithDefault = refreshedVehicles.map((v) => ({
-		...v,
-		isDefault: defaultVehicleId !== null && v.id === defaultVehicleId,
+	let vehiclesWithDefault = refreshedVehicles.map((vehicle) => ({
+		...vehicle,
+		isDefault: defaultVehicleId !== null && vehicle.id === defaultVehicleId,
 	}));
 
 	if (timeRange) {
 		const { start, end } = timeRange;
-		const ids = vehiclesWithDefault.map((v) => v.id);
-		if (ids.length > 0) {
+		const vehicleIds = vehiclesWithDefault.map((vehicle) => vehicle.id);
+		if (vehicleIds.length > 0) {
 			const [busyLessons, busyEvents] = await Promise.all([
 				prisma.lesson.findMany({
 					where: {
-						vehicleId: { in: ids },
+						vehicleId: { in: vehicleIds },
 						status: { not: LessonStatus.CANCELLED },
 						startTime: { lt: end },
 						endTime: { gt: start },
@@ -59,7 +59,7 @@ export async function listVehiclesBySchoolForUser(
 				}),
 				prisma.instructorEvent.findMany({
 					where: {
-						vehicleId: { in: ids },
+						vehicleId: { in: vehicleIds },
 						type: EventType.DRIVE,
 						isActive: true,
 						status: { not: EventStatus.CANCELLED },
@@ -81,7 +81,7 @@ export async function listVehiclesBySchoolForUser(
 				}
 			}
 			vehiclesWithDefault = vehiclesWithDefault.filter(
-				(v) => !busy.has(v.id),
+				(vehicle) => !busy.has(vehicle.id),
 			);
 		}
 	}

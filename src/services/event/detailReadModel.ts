@@ -77,8 +77,8 @@ export async function getInstructorEventById(
 
 	await assertActorCanManageAvailability(actor, row.instructorId);
 
-	const students = row.participants.map((p) =>
-		mapPersonToLessonDetailDto(p.student),
+	const students = row.participants.map((participant) =>
+		mapPersonToLessonDetailDto(participant.student),
 	);
 
 	let freeWindows: { startTime: string; endTime: string }[] | undefined;

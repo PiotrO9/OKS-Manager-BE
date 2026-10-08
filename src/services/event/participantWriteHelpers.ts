@@ -79,12 +79,12 @@ export async function resolveStudentProfileIdsOrThrow(
 	const userIdToProfileId =
 		await loadActiveStudentUserIdToProfileIdMap(studentUserIds);
 
-	return studentUserIds.map((uid) => {
-		const pid = userIdToProfileId.get(uid);
-		if (!pid) {
+	return studentUserIds.map((studentUserId) => {
+		const studentProfileId = userIdToProfileId.get(studentUserId);
+		if (!studentProfileId) {
 			throw AppError.notFound('One or more students not found');
 		}
-		return pid;
+		return studentProfileId;
 	});
 }
 

@@ -22,7 +22,7 @@ export function mergeScheduleItems(
 
 export function mapLesson(
 	row: LessonRow,
-	opts: {
+	options: {
 		includeInstructor: boolean;
 		includeStudent: boolean;
 		includeRating?: boolean;
@@ -38,7 +38,7 @@ export function mapLesson(
 		endTime: row.endTime.toISOString(),
 		...(categoryCode ? { categoryCode } : {}),
 	};
-	if (opts.includeInstructor) {
+	if (options.includeInstructor) {
 		item.instructor = {
 			id: row.instructorProfile.id,
 			firstName: row.instructorProfile.user.firstName,
@@ -46,7 +46,7 @@ export function mapLesson(
 			avatarUrl: row.instructorProfile.user.profile?.avatarUrl ?? null,
 		};
 	}
-	if (opts.includeStudent) {
+	if (options.includeStudent) {
 		item.student = {
 			id: row.studentProfile.id,
 			firstName: row.studentProfile.user.firstName,
@@ -61,7 +61,7 @@ export function mapLesson(
 			registrationNumber: row.vehicle.registrationNumber,
 		};
 	}
-	if (opts.includeRating) {
+	if (options.includeRating) {
 		item.rating = row.lessonRating
 			? {
 					id: row.lessonRating.id,
@@ -74,8 +74,10 @@ export function mapLesson(
 	return item;
 }
 
-function eventTypeToCalendarLessonType(et: EventType): LessonType {
-	return et === EventType.THEORY ? LessonType.THEORY : LessonType.PRACTICE;
+function eventTypeToCalendarLessonType(eventType: EventType): LessonType {
+	return eventType === EventType.THEORY
+		? LessonType.THEORY
+		: LessonType.PRACTICE;
 }
 
 function sortParticipantsForSchedule(participants: EventRow['participants']): {
@@ -84,22 +86,22 @@ function sortParticipantsForSchedule(participants: EventRow['participants']): {
 	lastName: string;
 	avatarUrl: string | null;
 }[] {
-	const mapped = participants.map((p) => ({
-		id: p.student.id,
-		firstName: p.student.user.firstName,
-		lastName: p.student.user.lastName,
-		avatarUrl: p.student.user.profile?.avatarUrl ?? null,
+	const mapped = participants.map((participant) => ({
+		id: participant.student.id,
+		firstName: participant.student.user.firstName,
+		lastName: participant.student.user.lastName,
+		avatarUrl: participant.student.user.profile?.avatarUrl ?? null,
 	}));
 	return mapped.sort((a, b) => {
-		const ln = a.lastName.localeCompare(b.lastName);
-		if (ln !== 0) return ln;
+		const lastNameComparison = a.lastName.localeCompare(b.lastName);
+		if (lastNameComparison !== 0) return lastNameComparison;
 		return a.firstName.localeCompare(b.firstName);
 	});
 }
 
 export function mapInstructorEvent(
 	row: EventRow,
-	opts: { includeInstructor: boolean; includeStudents: boolean },
+	options: { includeInstructor: boolean; includeStudents: boolean },
 ): ScheduleInstructorEventItemDto {
 	const categoryCode = row.course?.courseType.code || row.course?.category;
 	const item: ScheduleInstructorEventItemDto = {
@@ -115,7 +117,7 @@ export function mapInstructorEvent(
 		participantCount: row.participants.length,
 	};
 	const includeInstructorEffective =
-		opts.includeInstructor || row.type === EventType.THEORY;
+		options.includeInstructor || row.type === EventType.THEORY;
 	if (includeInstructorEffective) {
 		item.instructor = {
 			id: row.instructor.id,
@@ -124,7 +126,7 @@ export function mapInstructorEvent(
 			avatarUrl: row.instructor.user.profile?.avatarUrl ?? null,
 		};
 	}
-	if (opts.includeStudents) {
+	if (options.includeStudents) {
 		item.students = sortParticipantsForSchedule(row.participants);
 	}
 	if (row.vehicle) {

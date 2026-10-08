@@ -12,12 +12,16 @@ import {
 import { buildMeResponsePayload } from './me.handlers';
 
 export async function patchProfile(req: Request, res: Response) {
-	const u = requireUser(req);
+	const user = requireUser(req);
 	const body = req.body as Record<string, unknown>;
 	const wantsNameField =
 		Object.prototype.hasOwnProperty.call(body, 'firstName') ||
 		Object.prototype.hasOwnProperty.call(body, 'lastName');
-	if (wantsNameField && u.role !== Role.MANAGER && u.role !== Role.ADMIN) {
+	if (
+		wantsNameField &&
+		user.role !== Role.MANAGER &&
+		user.role !== Role.ADMIN
+	) {
 		throw AppError.forbidden('Forbidden');
 	}
 
@@ -34,11 +38,11 @@ export async function patchProfile(req: Request, res: Response) {
 	if (Object.prototype.hasOwnProperty.call(body, 'lastName')) {
 		patch.lastName = body.lastName as string;
 	}
-	await userProfileService.patchProfileForUser(u.id, patch);
+	await userProfileService.patchProfileForUser(user.id, patch);
 
 	const prisma = getPrisma();
 	const updated = await prisma.user.findUnique({
-		where: { id: u.id },
+		where: { id: user.id },
 		include: { profile: true },
 	});
 	if (!updated) {
@@ -52,10 +56,10 @@ export async function patchProfile(req: Request, res: Response) {
 }
 
 export async function uploadProfileAvatar(req: Request, res: Response) {
-	const u = requireUser(req);
+	const user = requireUser(req);
 	const file = (req as Request & { file?: UploadedPhotoFile }).file;
 	const data = await userProfileService.uploadAvatarForUser(
-		u.id,
+		user.id,
 		file as UploadedPhotoFile,
 	);
 	return sendJsonSuccess(res, { photoUrl: data.avatarUrl });

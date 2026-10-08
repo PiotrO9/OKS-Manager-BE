@@ -66,7 +66,7 @@ export const updateDrivingSchoolBodySchema = z
 	})
 	.superRefine((data, ctx) => {
 		const keys = Object.keys(data).filter(
-			(k) => data[k as keyof typeof data] !== undefined,
+			(key) => data[key as keyof typeof data] !== undefined,
 		);
 		if (keys.length === 0) {
 			ctx.addIssue({
@@ -155,16 +155,16 @@ export const updateDrivingSchoolBodySchema = z
 			if (raw.city === null) {
 				out.city = null;
 			} else {
-				const t = (raw.city as string).trim();
-				out.city = t === '' ? null : t;
+				const trimmedValue = (raw.city as string).trim();
+				out.city = trimmedValue === '' ? null : trimmedValue;
 			}
 		}
 		if (raw.address !== undefined) {
 			if (raw.address === null) {
 				out.address = null;
 			} else {
-				const t = (raw.address as string).trim();
-				out.address = t === '' ? null : t;
+				const trimmedValue = (raw.address as string).trim();
+				out.address = trimmedValue === '' ? null : trimmedValue;
 			}
 		}
 		if (raw.enabledCourseKinds !== undefined) {

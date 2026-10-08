@@ -19,7 +19,7 @@ export async function getSchoolIdsForEventParticipantValidation(
 	if (actor.role !== Role.MANAGER && actor.role !== Role.ADMIN) {
 		throw AppError.forbidden('Forbidden');
 	}
-	const links = await prisma.instructorSchool.findMany({
+	const instructorSchools = await prisma.instructorSchool.findMany({
 		where: {
 			instructorId,
 			school:
@@ -29,15 +29,17 @@ export async function getSchoolIdsForEventParticipantValidation(
 		},
 		select: { schoolId: true },
 	});
-	return links.map((l) => l.schoolId);
+	return instructorSchools.map(
+		(instructorSchool) => instructorSchool.schoolId,
+	);
 }
 
 export async function assertStudentProfilesInAllowedSchools(
-	db: Prisma.TransactionClient | ReturnType<typeof getPrisma>,
-	profileIds: string[],
+	database: Prisma.TransactionClient | ReturnType<typeof getPrisma>,
+	studentProfileIds: string[],
 	allowedSchoolIds: string[],
 ): Promise<void> {
-	if (profileIds.length === 0) {
+	if (studentProfileIds.length === 0) {
 		return;
 	}
 	if (allowedSchoolIds.length === 0) {
@@ -45,16 +47,18 @@ export async function assertStudentProfilesInAllowedSchools(
 			'No driving school context available for participant validation',
 		);
 	}
-	const rows = await db.studentSchool.findMany({
+	const studentSchools = await database.studentSchool.findMany({
 		where: {
-			studentId: { in: profileIds },
+			studentId: { in: studentProfileIds },
 			schoolId: { in: allowedSchoolIds },
 		},
 		select: { studentId: true },
 	});
-	const covered = new Set(rows.map((r) => r.studentId));
-	for (const pid of profileIds) {
-		if (!covered.has(pid)) {
+	const coveredStudentProfileIds = new Set(
+		studentSchools.map((studentSchool) => studentSchool.studentId),
+	);
+	for (const studentProfileId of studentProfileIds) {
+		if (!coveredStudentProfileIds.has(studentProfileId)) {
 			throw AppError.unprocessableEntity(
 				'One or more students are not enrolled in a driving school linked to this event',
 			);
@@ -82,16 +86,16 @@ export async function loadActiveStudentUserIdToProfileIdMap(
 		throw AppError.notFound('One or more students not found');
 	}
 
-	const map = new Map<string, string>();
-	for (const u of users) {
+	const userIdToStudentProfileId = new Map<string, string>();
+	for (const user of users) {
 		if (
-			u.deletedAt !== null ||
-			u.role !== Role.STUDENT ||
-			!u.studentProfile
+			user.deletedAt !== null ||
+			user.role !== Role.STUDENT ||
+			!user.studentProfile
 		) {
 			throw AppError.notFound('One or more students not found');
 		}
-		map.set(u.id, u.studentProfile.id);
+		userIdToStudentProfileId.set(user.id, user.studentProfile.id);
 	}
-	return map;
+	return userIdToStudentProfileId;
 }

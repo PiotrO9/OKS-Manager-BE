@@ -152,7 +152,9 @@ async function assertExistingParticipantsHaveFreeWindow(
 			eventId: params.eventId,
 			start: params.start,
 			end: params.end,
-			candidateProfileIds: existingParticipants.map((p) => p.studentId),
+			candidateProfileIds: existingParticipants.map(
+				(participant) => participant.studentId,
+			),
 		});
 	if (conflicting.size > 0) {
 		throw ScheduleDomainError.conflictFor(

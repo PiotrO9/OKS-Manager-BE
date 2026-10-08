@@ -10,9 +10,9 @@ function extractBearerToken(header: string | undefined): string | null {
 	if (!header) {
 		return null;
 	}
-	const m = header.match(/^Bearer\s+(.+)$/i);
-	const raw = m?.[1]?.trim();
-	return raw || null;
+	const bearerMatch = header.match(/^Bearer\s+(.+)$/i);
+	const rawToken = bearerMatch?.[1]?.trim();
+	return rawToken || null;
 }
 
 async function authMiddleware(req: Request, res: Response, next: NextFunction) {

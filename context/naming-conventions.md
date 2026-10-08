@@ -13,6 +13,29 @@ Ten plik definiuje konwencje nazewnicze używane w projekcie — zarówno w wars
 - Backend/Prisma = PascalCase dla modeli, camelCase dla pól.
 - Mapuj pola modeli Prisma na kolumny DB przez `@map` i mapuj modele na tabele przez `@@map`.
 
+## Zmienne i funkcje TypeScript
+- Nazywaj wartości według ich roli: `studentProfileId`, `allowedEventIds`,
+  `courseParticipant`. Kolekcja powinna odróżniać się od elementu, np.
+  `participants` / `participant`.
+- W parserach rozróżniaj dane surowe, przetworzone i wynik: `registrationNumberRaw`,
+  `registrationNumber`, `parsedTimestamp`. W zapytaniach bazodanowych odróżniaj
+  `studentSchools` od pojedynczego `studentSchool`.
+- `id`, `db`, `url` i indeks pętli mogą pozostać krótkie, gdy znaczenie jest
+  oczywiste w małym zakresie. Nie stosuj mechanicznej reguły długości nazw.
+- Parametry `tx` i `db` są dopuszczalne w krótkich funkcjach, ale w dłuższej
+  logice używaj `transaction` lub `database`, jeśli ułatwia to czytanie.
+- Zachowuj pola odpowiedzi API, schemat Prisma, nazwy enumów oraz klucze
+  serializowanych obiektów. Ich zmiana wymaga planu migracji. Refaktoryzację
+  lokalnych nazw sprawdzaj testami, `npm run typecheck` i `npm run lint`.
+
+Inwentaryzacja 2026-10-07, aktualizacja 2026-10-08: poprawiono nazwy lokalne
+w walidacji pojazdów, szkoły i dostępności, usługach zdarzeń, harmonogramu,
+kursantów i instruktorów oraz w kontrolerach autoryzacji. Skan kodu aplikacyjnego
+nie wykazuje już lokalnych wystąpień `sid`, `uid`, `iid`, `pid`, `cp` ani `seq`
+poza testami. Pozostałe krótkie nazwy w małym zakresie (np. indeksy i części
+daty) są oceniane według zasad wyjątków powyżej. Wygenerowany klient Prisma i
+nazwy zewnętrznych kontraktów pozostają poza masowym przemianowaniem.
+
 ## Baza danych (Postgres)
 - Tabele: snake_case, plural — np. `users`, `driving_schools`, `instructor_profiles`.
 - Kolumny: snake_case — np. `created_at`, `instructor_id`, `start_time`.

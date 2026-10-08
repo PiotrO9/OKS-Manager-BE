@@ -52,8 +52,8 @@ const studentPaymentDateSchema = z.preprocess(
 		if (typeof val !== 'string') {
 			return val;
 		}
-		const t = val.trim();
-		return t.length > 0 ? t : null;
+		const trimmedValue = val.trim();
+		return trimmedValue.length > 0 ? trimmedValue : null;
 	},
 	z
 		.union([
@@ -71,8 +71,8 @@ const studentPaymentMethodSchema = z.preprocess(
 		if (typeof val !== 'string') {
 			return val;
 		}
-		const t = val.trim();
-		return t.length > 0 ? t : null;
+		const trimmedValue = val.trim();
+		return trimmedValue.length > 0 ? trimmedValue : null;
 	},
 	z.union([z.null(), z.string().max(80, 'Method is too long')]).optional(),
 );
@@ -202,8 +202,8 @@ export const patchStudentBodySchema = z.object({
 			if (typeof val !== 'string') {
 				return val;
 			}
-			const t = val.trim();
-			return t === '' ? null : t;
+			const trimmedValue = val.trim();
+			return trimmedValue === '' ? null : trimmedValue;
 		},
 		z.union([
 			z.null(),
@@ -221,8 +221,8 @@ export const patchStudentPkkBodySchema = z.object({
 			if (typeof val !== 'string') {
 				return val;
 			}
-			const t = val.trim();
-			return t === '' ? null : t;
+			const trimmedValue = val.trim();
+			return trimmedValue === '' ? null : trimmedValue;
 		},
 		z.union([
 			z.null(),

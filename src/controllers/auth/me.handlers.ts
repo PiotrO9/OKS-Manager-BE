@@ -7,8 +7,8 @@ import type { AuthRequestUser } from '../../types/express';
 
 function buildMeUserPayload(user: AuthRequestUser) {
 	const nameFromParts = [user.firstName, user.lastName]
-		.map((s) => String(s).trim())
-		.filter((s) => s.length > 0)
+		.map((namePart) => String(namePart).trim())
+		.filter((namePart) => namePart.length > 0)
 		.join(' ')
 		.trim();
 
@@ -36,13 +36,13 @@ export async function buildMeResponsePayload(user: AuthRequestUser) {
 		return base;
 	}
 	const prisma = getPrisma();
-	const sp = await prisma.studentProfile.findUnique({
+	const studentProfile = await prisma.studentProfile.findUnique({
 		where: { userId: user.id },
 		select: { pkkNumber: true },
 	});
 	return {
 		...base,
-		pkkNumber: sp?.pkkNumber ?? null,
+		pkkNumber: studentProfile?.pkkNumber ?? null,
 	};
 }
 

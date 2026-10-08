@@ -16,9 +16,9 @@ export function parseRegistrationTargetRole(raw: unknown): Role | null {
 	if (typeof raw !== 'string') {
 		return null;
 	}
-	const v = raw.trim();
-	if (v === Role.INSTRUCTOR || v === Role.STUDENT) {
-		return v as Role;
+	const trimmedValue = raw.trim();
+	if (trimmedValue === Role.INSTRUCTOR || trimmedValue === Role.STUDENT) {
+		return trimmedValue as Role;
 	}
 	return null;
 }
@@ -183,8 +183,8 @@ export async function completeRegisterSuccessResponse(
 	}
 
 	const nameFromParts = [firstName, lastName]
-		.map((s) => String(s).trim())
-		.filter((s) => s.length > 0)
+		.map((entry) => String(entry).trim())
+		.filter((entry) => entry.length > 0)
 		.join(' ')
 		.trim();
 

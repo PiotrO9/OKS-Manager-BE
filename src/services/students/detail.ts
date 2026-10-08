@@ -73,11 +73,11 @@ export async function getStudentDetail(
 		email: student.user.email,
 		pkkNumber: student.pkkNumber,
 		notes: student.notes,
-		courses: student.courseParticipants.map((cp) => ({
-			id: cp.course.id,
-			name: cp.course.name,
-			category: cp.course.category,
-			status: cp.status,
+		courses: student.courseParticipants.map((courseParticipant) => ({
+			id: courseParticipant.course.id,
+			name: courseParticipant.course.name,
+			category: courseParticipant.course.category,
+			status: courseParticipant.status,
 		})),
 	};
 }

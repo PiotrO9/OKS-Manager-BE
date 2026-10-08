@@ -39,11 +39,11 @@ export async function loadSchoolInstructorSelection(
 	});
 
 	const metaById = new Map<string, InstructorMeta>();
-	let instructorIds = rows.map((r) => {
-		const id = r.instructor.id;
+	let instructorIds = rows.map((instructorSchool) => {
+		const id = instructorSchool.instructor.id;
 		metaById.set(id, {
-			firstName: r.instructor.user.firstName,
-			lastName: r.instructor.user.lastName,
+			firstName: instructorSchool.instructor.user.firstName,
+			lastName: instructorSchool.instructor.user.lastName,
 		});
 		return id;
 	});

@@ -35,16 +35,16 @@ function validateNameField(
 	if (typeof raw !== 'string') {
 		throw AppError.badRequest(`${label} must be a string`);
 	}
-	const t = raw.trim();
-	if (t === '') {
+	const trimmedValue = raw.trim();
+	if (trimmedValue === '') {
 		throw AppError.badRequest(`${label} must not be empty`);
 	}
-	if (t.length > NAME_MAX_LENGTH) {
+	if (trimmedValue.length > NAME_MAX_LENGTH) {
 		throw AppError.badRequest(
 			`${label} too long (max ${NAME_MAX_LENGTH} characters)`,
 		);
 	}
-	return t;
+	return trimmedValue;
 }
 
 async function patchProfileForUser(
@@ -86,8 +86,8 @@ async function patchProfileForUser(
 		if (body.phone == null) {
 			phoneVal = null;
 		} else {
-			const t = String(body.phone).trim();
-			phoneVal = t === '' ? null : t;
+			const trimmedValue = String(body.phone).trim();
+			phoneVal = trimmedValue === '' ? null : trimmedValue;
 		}
 		userUpdate.phone = phoneVal;
 	}

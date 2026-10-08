@@ -118,14 +118,16 @@ export async function findAvailableVehicleIdForStudentBooking(
 		orderBy: { createdAt: 'asc' },
 	});
 
-	const ids = candidates.map((v) => v.id);
+	const vehicleIds = candidates.map((vehicle) => vehicle.id);
 	const orderedIds =
-		school?.defaultVehicleId && ids.includes(school.defaultVehicleId)
+		school?.defaultVehicleId && vehicleIds.includes(school.defaultVehicleId)
 			? [
 					school.defaultVehicleId,
-					...ids.filter((id) => id !== school.defaultVehicleId),
+					...vehicleIds.filter(
+						(id) => id !== school.defaultVehicleId,
+					),
 				]
-			: ids;
+			: vehicleIds;
 
 	for (const vehicleId of orderedIds) {
 		try {

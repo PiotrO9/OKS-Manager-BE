@@ -42,7 +42,7 @@ export async function getMySchedule(
 			query.dateTo,
 			false,
 		);
-		const [rows, eventRows] = await Promise.all([
+		const [lessonRows, eventRows] = await Promise.all([
 			prisma.lesson.findMany({
 				where: { ...where, instructorId: profile.id },
 				include: lessonInclude,
@@ -58,14 +58,14 @@ export async function getMySchedule(
 				orderBy: { startTime: 'asc' },
 			}),
 		]);
-		const lessonItems = rows.map((r) =>
-			mapLesson(r as LessonRow, {
+		const lessonItems = lessonRows.map((lessonRow) =>
+			mapLesson(lessonRow as LessonRow, {
 				includeInstructor: false,
 				includeStudent: true,
 			}),
 		);
-		const eventItems = eventRows.map((r) =>
-			mapInstructorEvent(r as EventRow, {
+		const eventItems = eventRows.map((eventRow) =>
+			mapInstructorEvent(eventRow as EventRow, {
 				includeInstructor: false,
 				includeStudents: true,
 			}),
@@ -86,7 +86,7 @@ export async function getMySchedule(
 			query.dateTo,
 			false,
 		);
-		const [rows, eventRows] = await Promise.all([
+		const [lessonRows, eventRows] = await Promise.all([
 			prisma.lesson.findMany({
 				where: { ...where, studentId: profile.id },
 				include: lessonInclude,
@@ -102,15 +102,15 @@ export async function getMySchedule(
 				orderBy: { startTime: 'asc' },
 			}),
 		]);
-		const lessonItems = rows.map((r) =>
-			mapLesson(r as LessonRow, {
+		const lessonItems = lessonRows.map((lessonRow) =>
+			mapLesson(lessonRow as LessonRow, {
 				includeInstructor: true,
 				includeStudent: false,
 				includeRating: true,
 			}),
 		);
-		const eventItems = eventRows.map((r) =>
-			mapInstructorEvent(r as EventRow, {
+		const eventItems = eventRows.map((eventRow) =>
+			mapInstructorEvent(eventRow as EventRow, {
 				includeInstructor: true,
 				includeStudents: false,
 			}),
@@ -139,7 +139,7 @@ export async function getScheduleForTarget(
 			actor.role === Role.MANAGER
 				? { ownerId: actor.id, deletedAt: null }
 				: undefined;
-		const [rows, eventRows] = await Promise.all([
+		const [lessonRows, eventRows] = await Promise.all([
 			prisma.lesson.findMany({
 				where: {
 					...where,
@@ -169,14 +169,14 @@ export async function getScheduleForTarget(
 				orderBy: { startTime: 'asc' },
 			}),
 		]);
-		const lessonItems = rows.map((r) =>
-			mapLesson(r as LessonRow, {
+		const lessonItems = lessonRows.map((lessonRow) =>
+			mapLesson(lessonRow as LessonRow, {
 				includeInstructor: false,
 				includeStudent: true,
 			}),
 		);
-		const eventItems = eventRows.map((r) =>
-			mapInstructorEvent(r as EventRow, {
+		const eventItems = eventRows.map((eventRow) =>
+			mapInstructorEvent(eventRow as EventRow, {
 				includeInstructor: false,
 				includeStudents: true,
 			}),
@@ -187,7 +187,7 @@ export async function getScheduleForTarget(
 	const schoolId = query.schoolId!;
 	await assertActorCanReadSchoolSchedule(actor, schoolId);
 
-	const [rows, eventRows] = await Promise.all([
+	const [lessonRows, eventRows] = await Promise.all([
 		prisma.lesson.findMany({
 			where: {
 				...where,
@@ -209,14 +209,14 @@ export async function getScheduleForTarget(
 			orderBy: { startTime: 'asc' },
 		}),
 	]);
-	const lessonItems = rows.map((r) =>
-		mapLesson(r as LessonRow, {
+	const lessonItems = lessonRows.map((lessonRow) =>
+		mapLesson(lessonRow as LessonRow, {
 			includeInstructor: true,
 			includeStudent: false,
 		}),
 	);
-	const eventItems = eventRows.map((r) =>
-		mapInstructorEvent(r as EventRow, {
+	const eventItems = eventRows.map((eventRow) =>
+		mapInstructorEvent(eventRow as EventRow, {
 			includeInstructor: true,
 			includeStudents: false,
 		}),

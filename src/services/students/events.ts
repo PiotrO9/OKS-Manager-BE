@@ -29,7 +29,7 @@ async function resolveSchoolIdForStudentEvents(
 	}
 
 	if (querySchoolId !== undefined) {
-		const ok = links.some((l) => l.schoolId === querySchoolId);
+		const ok = links.some((link) => link.schoolId === querySchoolId);
 		if (!ok) {
 			throw AppError.notFound('Student not found');
 		}

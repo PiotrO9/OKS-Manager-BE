@@ -15,16 +15,16 @@ export async function bulkUpdateEventStatus(
 
 	const uniqueIds = [...new Set(body.eventIds)];
 
-	const rows = await prisma.instructorEvent.findMany({
+	const events = await prisma.instructorEvent.findMany({
 		where: { id: { in: uniqueIds }, isActive: true },
 		select: { id: true, instructorId: true },
 	});
 
-	const allowed: string[] = [];
+	const allowedEventIds: string[] = [];
 
 	if (actor.role === Role.ADMIN) {
-		for (const r of rows) {
-			allowed.push(r.id);
+		for (const event of events) {
+			allowedEventIds.push(event.id);
 		}
 	} else if (actor.role === Role.INSTRUCTOR) {
 		const profile = await prisma.instructorProfile.findUnique({
@@ -34,9 +34,9 @@ export async function bulkUpdateEventStatus(
 		if (!profile) {
 			throw AppError.notFound('Instructor profile not found');
 		}
-		for (const r of rows) {
-			if (r.instructorId === profile.id) {
-				allowed.push(r.id);
+		for (const event of events) {
+			if (event.instructorId === profile.id) {
+				allowedEventIds.push(event.id);
 			}
 		}
 	} else if (actor.role === Role.MANAGER) {
@@ -44,22 +44,24 @@ export async function bulkUpdateEventStatus(
 			where: { school: { ownerId: actor.id, deletedAt: null } },
 			select: { instructorId: true },
 		});
-		const allowedInstructorIds = new Set(links.map((l) => l.instructorId));
-		for (const r of rows) {
-			if (allowedInstructorIds.has(r.instructorId)) {
-				allowed.push(r.id);
+		const allowedInstructorIds = new Set(
+			links.map((link) => link.instructorId),
+		);
+		for (const event of events) {
+			if (allowedInstructorIds.has(event.instructorId)) {
+				allowedEventIds.push(event.id);
 			}
 		}
 	} else {
 		throw AppError.forbidden('Forbidden');
 	}
 
-	if (allowed.length === 0) {
+	if (allowedEventIds.length === 0) {
 		return { updated: 0, skipped: uniqueIds.length };
 	}
 
 	const result = await prisma.instructorEvent.updateMany({
-		where: { id: { in: allowed } },
+		where: { id: { in: allowedEventIds } },
 		data: { status: body.status },
 	});
 

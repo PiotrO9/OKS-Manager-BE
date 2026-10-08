@@ -120,7 +120,7 @@ export async function getInstructorByIdForUser(
 		throw AppError.notFound('Instructor not found');
 	}
 
-	const u = profile.user;
+	const instructorUser = profile.user;
 
 	if (
 		actor.role === Role.MANAGER &&
@@ -129,16 +129,16 @@ export async function getInstructorByIdForUser(
 		throw AppError.forbidden('Forbidden');
 	}
 
-	const active = profile.instructorSchools.filter(
+	const activeInstructorSchools = profile.instructorSchools.filter(
 		(row) => row.school.deletedAt === null,
 	);
-	if (active.length > 1) {
+	if (activeInstructorSchools.length > 1) {
 		throw AppError.conflict(
 			'Instructor is assigned to multiple active driving schools',
 		);
 	}
 
-	const schoolId = active[0]?.schoolId;
+	const schoolId = activeInstructorSchools[0]?.schoolId;
 
 	if (!schoolId) {
 		throw AppError.notFound('Instructor not found');
@@ -147,10 +147,10 @@ export async function getInstructorByIdForUser(
 	return {
 		id: profile.id,
 		userId: profile.userId,
-		firstName: u.firstName,
-		lastName: u.lastName,
-		email: u.email,
-		phone: u.phone,
+		firstName: instructorUser.firstName,
+		lastName: instructorUser.lastName,
+		email: instructorUser.email,
+		phone: instructorUser.phone,
 		licenseNumber: profile.licenseNumber,
 		experienceYears: profile.experienceYears,
 		qualifications: profile.qualifications,

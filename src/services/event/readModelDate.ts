@@ -9,12 +9,12 @@ export function utcDayFreeWindowsToIso(
 			dayAnchor.getUTCDate(),
 		),
 	);
-	return windows.map((w) => ({
+	return windows.map((window) => ({
 		startTime: new Date(
-			dayUtcMidnight.getTime() + w.start * 60_000,
+			dayUtcMidnight.getTime() + window.start * 60_000,
 		).toISOString(),
 		endTime: new Date(
-			dayUtcMidnight.getTime() + w.end * 60_000,
+			dayUtcMidnight.getTime() + window.end * 60_000,
 		).toISOString(),
 	}));
 }

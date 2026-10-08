@@ -85,12 +85,16 @@ export async function listTheoryEventEligibleStudents(
 		}),
 	]);
 
-	const assignedSet = new Set(participants.map((p) => p.studentId));
+	const assignedStudentIds = new Set(
+		participants.map((participant) => participant.studentId),
+	);
 	const used = participants.length;
 	const limit = row.capacity;
 	const remaining = limit === null ? null : Math.max(0, limit - used);
 
-	const profileIds = courseParticipants.map((cp) => cp.student.id);
+	const profileIds = courseParticipants.map(
+		(courseParticipant) => courseParticipant.student.id,
+	);
 
 	const conflictingIds =
 		profileIds.length === 0
@@ -106,26 +110,26 @@ export async function listTheoryEventEligibleStudents(
 				);
 
 	const students: TheoryEventEligibleStudentRowDto[] = courseParticipants.map(
-		(cp) => {
-			const s = cp.student;
-			const isAssignedToEvent = assignedSet.has(s.id);
-			const hasScheduleConflict = conflictingIds.has(s.id);
+		(courseParticipant) => {
+			const student = courseParticipant.student;
+			const isAssignedToEvent = assignedStudentIds.has(student.id);
+			const hasScheduleConflict = conflictingIds.has(student.id);
 			const canAssign =
 				!isAssignedToEvent &&
 				!hasScheduleConflict &&
 				(remaining === null || remaining > 0);
 
 			return {
-				id: s.id,
-				userId: s.userId,
-				firstName: s.user.firstName,
-				lastName: s.user.lastName,
-				email: s.user.email,
-				phone: s.user.phone,
-				avatarUrl: s.user.profile?.avatarUrl ?? null,
-				pkkNumber: s.pkkNumber,
-				isActive: s.user.isActive,
-				createdAt: s.createdAt.toISOString(),
+				id: student.id,
+				userId: student.userId,
+				firstName: student.user.firstName,
+				lastName: student.user.lastName,
+				email: student.user.email,
+				phone: student.user.phone,
+				avatarUrl: student.user.profile?.avatarUrl ?? null,
+				pkkNumber: student.pkkNumber,
+				isActive: student.user.isActive,
+				createdAt: student.createdAt.toISOString(),
 				isAssignedToEvent,
 				hasScheduleConflict,
 				canAssign,

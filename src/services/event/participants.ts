@@ -57,15 +57,17 @@ export async function assignStudentsToEvent(
 			where: { eventId },
 			select: { studentId: true },
 		});
-		const existingSet = new Set(existing.map((e) => e.studentId));
+		const existingStudentProfileIds = new Set(
+			existing.map((participant) => participant.studentId),
+		);
 
 		let skipped = 0;
 		const newProfileIds: string[] = [];
-		for (const pid of profileIdsOrdered) {
-			if (existingSet.has(pid)) {
+		for (const studentProfileId of profileIdsOrdered) {
+			if (existingStudentProfileIds.has(studentProfileId)) {
 				skipped += 1;
 			} else {
-				newProfileIds.push(pid);
+				newProfileIds.push(studentProfileId);
 			}
 		}
 
@@ -121,12 +123,16 @@ export async function replaceEventStudents(
 			where: { eventId },
 			select: { studentId: true },
 		});
-		const existingSet = new Set(existing.map((e) => e.studentId));
-		const targetSet = new Set(prepared.studentProfileIds);
+		const existingStudentProfileIds = new Set(
+			existing.map((participant) => participant.studentId),
+		);
+		const targetStudentProfileIds = new Set(prepared.studentProfileIds);
 
-		const toRemove = [...existingSet].filter((id) => !targetSet.has(id));
+		const toRemove = [...existingStudentProfileIds].filter(
+			(id) => !targetStudentProfileIds.has(id),
+		);
 		const toAdd = prepared.studentProfileIds.filter(
-			(id) => !existingSet.has(id),
+			(id) => !existingStudentProfileIds.has(id),
 		);
 
 		if (toRemove.length > 0) {

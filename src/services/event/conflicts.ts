@@ -3,7 +3,7 @@ import { AppError } from '../../lib/http/AppError';
 import type { getPrisma } from '../../lib/prisma';
 
 export async function findStudentProfileIdsWithScheduleConflictsForEventWindow(
-	tx: Prisma.TransactionClient | ReturnType<typeof getPrisma>,
+	transaction: Prisma.TransactionClient | ReturnType<typeof getPrisma>,
 	params: {
 		eventId: string;
 		start: Date;
@@ -17,7 +17,7 @@ export async function findStudentProfileIdsWithScheduleConflictsForEventWindow(
 	}
 
 	const [lessonRows, eventRows] = await Promise.all([
-		tx.lesson.findMany({
+		transaction.lesson.findMany({
 			where: {
 				studentId: { in: candidateProfileIds },
 				status: { not: LessonStatus.CANCELLED },
@@ -26,7 +26,7 @@ export async function findStudentProfileIdsWithScheduleConflictsForEventWindow(
 			},
 			select: { studentId: true },
 		}),
-		tx.eventParticipant.findMany({
+		transaction.eventParticipant.findMany({
 			where: {
 				studentId: { in: candidateProfileIds },
 				eventId: { not: eventId },
@@ -41,35 +41,38 @@ export async function findStudentProfileIdsWithScheduleConflictsForEventWindow(
 		}),
 	]);
 
-	const result = new Set<string>();
-	for (const r of lessonRows) {
-		result.add(r.studentId);
+	const conflictingProfileIds = new Set<string>();
+	for (const lessonRow of lessonRows) {
+		conflictingProfileIds.add(lessonRow.studentId);
 	}
-	for (const r of eventRows) {
-		result.add(r.studentId);
+	for (const eventRow of eventRows) {
+		conflictingProfileIds.add(eventRow.studentId);
 	}
-	return result;
+	return conflictingProfileIds;
 }
 
 export async function assertNewParticipantNoScheduleConflicts(
-	tx: Prisma.TransactionClient,
+	transaction: Prisma.TransactionClient,
 	eventId: string,
 	studentProfileId: string,
 	start: Date,
 	end: Date,
 ): Promise<void> {
-	const conflicting =
-		await findStudentProfileIdsWithScheduleConflictsForEventWindow(tx, {
-			eventId,
-			start,
-			end,
-			candidateProfileIds: [studentProfileId],
-		});
-	if (!conflicting.has(studentProfileId)) {
+	const conflictingProfileIds =
+		await findStudentProfileIdsWithScheduleConflictsForEventWindow(
+			transaction,
+			{
+				eventId,
+				start,
+				end,
+				candidateProfileIds: [studentProfileId],
+			},
+		);
+	if (!conflictingProfileIds.has(studentProfileId)) {
 		return;
 	}
 
-	const lessonConflict = await tx.lesson.findFirst({
+	const lessonConflict = await transaction.lesson.findFirst({
 		where: {
 			studentId: studentProfileId,
 			status: { not: LessonStatus.CANCELLED },

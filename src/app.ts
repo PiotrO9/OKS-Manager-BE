@@ -22,11 +22,11 @@ import { createVehiclesRouter } from './routes/vehicles.routes';
 import { setupSwagger } from './swagger/setupSwagger';
 
 function parseAllowedOrigins(): string[] {
-	const raw = process.env.FRONTEND_URL?.trim();
-	if (raw) {
-		return raw
+	const frontendUrlSetting = process.env.FRONTEND_URL?.trim();
+	if (frontendUrlSetting) {
+		return frontendUrlSetting
 			.split(',')
-			.map((s) => s.trim())
+			.map((origin) => origin.trim())
 			.filter(Boolean);
 	}
 	return ['http://localhost:5173', 'http://localhost:3000'];

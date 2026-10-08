@@ -19,17 +19,17 @@ export type MeDrivingSchoolContext = {
 	defaultOskId: string | null;
 };
 
-function toMeDrivingSchoolDto(s: {
+function toMeDrivingSchoolDto(school: {
 	id: string;
 	name: string;
 	city: string | null;
 	address: string | null;
 }): MeDrivingSchoolDto {
 	return {
-		id: s.id,
-		name: s.name,
-		city: s.city,
-		address: s.address,
+		id: school.id,
+		name: school.name,
+		city: school.city,
+		address: school.address,
 	};
 }
 
@@ -52,7 +52,9 @@ export async function loadDrivingSchoolContextForMe(
 			]);
 
 			return {
-				drivingSchools: schools.map((s) => toMeDrivingSchoolDto(s)),
+				drivingSchools: schools.map((school) =>
+					toMeDrivingSchoolDto(school),
+				),
 				defaultOskId,
 			};
 		}
@@ -80,8 +82,8 @@ export async function loadDrivingSchoolContextForMe(
 			const drivingSchools =
 				profile?.studentSchools
 					.map((row) => row.school)
-					.filter((s) => s.deletedAt === null)
-					.map((s) => toMeDrivingSchoolDto(s)) ?? [];
+					.filter((school) => school.deletedAt === null)
+					.map((school) => toMeDrivingSchoolDto(school)) ?? [];
 
 			return { drivingSchools, defaultOskId: null };
 		}
@@ -109,8 +111,8 @@ export async function loadDrivingSchoolContextForMe(
 			const drivingSchools =
 				profile?.instructorSchools
 					.map((row) => row.school)
-					.filter((s) => s.deletedAt === null)
-					.map((s) => toMeDrivingSchoolDto(s)) ?? [];
+					.filter((school) => school.deletedAt === null)
+					.map((school) => toMeDrivingSchoolDto(school)) ?? [];
 
 			return { drivingSchools, defaultOskId: null };
 		}

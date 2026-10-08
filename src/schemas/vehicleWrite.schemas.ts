@@ -10,53 +10,53 @@ export type OptionalVehicleFields = {
 export type OptionalVehiclePatch = Partial<OptionalVehicleFields>;
 
 function parseOptionalDate(
-	raw: unknown,
+	rawValue: unknown,
 	fieldLabel: string,
 ): { ok: true; value: Date | null } | { ok: false; message: string } {
-	if (raw === undefined || raw === null) {
+	if (rawValue === undefined || rawValue === null) {
 		return { ok: true, value: null };
 	}
-	if (typeof raw === 'string' && raw.trim() === '') {
+	if (typeof rawValue === 'string' && rawValue.trim() === '') {
 		return { ok: true, value: null };
 	}
-	if (typeof raw !== 'string') {
+	if (typeof rawValue !== 'string') {
 		return {
 			ok: false,
 			message: `${fieldLabel} must be a string, null, or omitted`,
 		};
 	}
-	const t = Date.parse(raw.trim());
-	if (Number.isNaN(t)) {
+	const parsedTimestamp = Date.parse(rawValue.trim());
+	if (Number.isNaN(parsedTimestamp)) {
 		return { ok: false, message: `${fieldLabel} must be a valid ISO date` };
 	}
-	return { ok: true, value: new Date(t) };
+	return { ok: true, value: new Date(parsedTimestamp) };
 }
 
 function parseOptionalNullableInt(
-	raw: unknown,
+	rawValue: unknown,
 	fieldLabel: string,
 ): { ok: true; value: number | null } | { ok: false; message: string } {
-	if (raw === undefined || raw === null) {
+	if (rawValue === undefined || rawValue === null) {
 		return { ok: true, value: null };
 	}
-	if (typeof raw === 'number' && Number.isInteger(raw)) {
-		if (raw < 0) {
+	if (typeof rawValue === 'number' && Number.isInteger(rawValue)) {
+		if (rawValue < 0) {
 			return { ok: false, message: `${fieldLabel} must be >= 0` };
 		}
-		return { ok: true, value: raw };
+		return { ok: true, value: rawValue };
 	}
-	if (typeof raw === 'string' && raw.trim() === '') {
+	if (typeof rawValue === 'string' && rawValue.trim() === '') {
 		return { ok: true, value: null };
 	}
-	if (typeof raw === 'string') {
-		const n = Number.parseInt(raw.trim(), 10);
-		if (!Number.isFinite(n)) {
+	if (typeof rawValue === 'string') {
+		const parsedInteger = Number.parseInt(rawValue.trim(), 10);
+		if (!Number.isFinite(parsedInteger)) {
 			return { ok: false, message: `${fieldLabel} must be an integer` };
 		}
-		if (n < 0) {
+		if (parsedInteger < 0) {
 			return { ok: false, message: `${fieldLabel} must be >= 0` };
 		}
-		return { ok: true, value: n };
+		return { ok: true, value: parsedInteger };
 	}
 	return {
 		ok: false,
@@ -65,28 +65,28 @@ function parseOptionalNullableInt(
 }
 
 function parseHttpUrlOrNull(
-	raw: unknown,
+	rawValue: unknown,
 	fieldLabel: string,
 ): { ok: true; value: string | null } | { ok: false; error: string } {
-	if (raw === undefined || raw === null) {
+	if (rawValue === undefined || rawValue === null) {
 		return { ok: true, value: null };
 	}
-	if (typeof raw === 'string' && raw.trim() === '') {
+	if (typeof rawValue === 'string' && rawValue.trim() === '') {
 		return { ok: true, value: null };
 	}
-	if (typeof raw !== 'string') {
+	if (typeof rawValue !== 'string') {
 		return { ok: false, error: `${fieldLabel} must be a string or null` };
 	}
-	const t = raw.trim();
+	const trimmedUrl = rawValue.trim();
 	try {
-		const u = new URL(t);
-		if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+		const parsedUrl = new URL(trimmedUrl);
+		if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
 			return {
 				ok: false,
 				error: `${fieldLabel} must be an http(s) URL`,
 			};
 		}
-		return { ok: true, value: t };
+		return { ok: true, value: trimmedUrl };
 	} catch {
 		return { ok: false, error: `${fieldLabel} must be a valid URL` };
 	}
@@ -109,16 +109,16 @@ function parseOptionalVehicleFields(
 			data[key] = null;
 			continue;
 		}
-		const raw = body[key];
-		if (raw === null) {
+		const rawValue = body[key];
+		if (rawValue === null) {
 			data[key] = null;
 			continue;
 		}
-		if (typeof raw !== 'string') {
+		if (typeof rawValue !== 'string') {
 			return { ok: false, error: `${key} must be a string or null` };
 		}
-		const t = raw.trim();
-		data[key] = t === '' ? null : t;
+		const trimmedValue = rawValue.trim();
+		data[key] = trimmedValue === '' ? null : trimmedValue;
 	}
 
 	if (mode === 'patch' && !('photoUrl' in body)) {
@@ -137,8 +137,8 @@ function parseOptionalVehicleFields(
 		if (mode === 'patch' && !(key in body)) {
 			continue;
 		}
-		const raw = mode === 'create' && !(key in body) ? null : body[key];
-		const parsed = parseOptionalNullableInt(raw, key);
+		const rawValue = mode === 'create' && !(key in body) ? null : body[key];
+		const parsed = parseOptionalNullableInt(rawValue, key);
 		if (!parsed.ok) {
 			return { ok: false, error: parsed.message };
 		}
@@ -167,32 +167,41 @@ export function parseVehicleWriteBody(
 	}
 	const name = nameRaw.trim();
 
-	const regRaw = body.registrationNumber;
-	if (typeof regRaw !== 'string' || regRaw.trim() === '') {
+	const registrationNumberRaw = body.registrationNumber;
+	if (
+		typeof registrationNumberRaw !== 'string' ||
+		registrationNumberRaw.trim() === ''
+	) {
 		return { ok: false, error: 'registrationNumber is required' };
 	}
-	const registrationNumber = regRaw.trim();
+	const registrationNumber = registrationNumberRaw.trim();
 
-	const insp = parseOptionalDate(body.inspectionDate, 'inspectionDate');
-	if (!insp.ok) {
-		return { ok: false, error: insp.message };
+	const inspectionDate = parseOptionalDate(
+		body.inspectionDate,
+		'inspectionDate',
+	);
+	if (!inspectionDate.ok) {
+		return { ok: false, error: inspectionDate.message };
 	}
-	const ins = parseOptionalDate(body.insuranceDate, 'insuranceDate');
-	if (!ins.ok) {
-		return { ok: false, error: ins.message };
+	const insuranceDate = parseOptionalDate(
+		body.insuranceDate,
+		'insuranceDate',
+	);
+	if (!insuranceDate.ok) {
+		return { ok: false, error: insuranceDate.message };
 	}
 
-	const opt = parseOptionalVehicleFields(body, mode);
-	if (!opt.ok) {
-		return { ok: false, error: opt.error };
+	const optionalFields = parseOptionalVehicleFields(body, mode);
+	if (!optionalFields.ok) {
+		return { ok: false, error: optionalFields.error };
 	}
 
 	return {
 		ok: true,
 		name,
 		registrationNumber,
-		inspectionDate: insp.value,
-		insuranceDate: ins.value,
-		optional: opt.data,
+		inspectionDate: inspectionDate.value,
+		insuranceDate: insuranceDate.value,
+		optional: optionalFields.data,
 	};
 }

@@ -46,11 +46,13 @@ export const vehicleListQuerySchema = schoolIdQuerySchema
 	.merge(
 		z.object({
 			startTime: z.preprocess(
-				(v) => (v === '' || v === undefined ? undefined : v),
+				(value) =>
+					value === '' || value === undefined ? undefined : value,
 				z.string().datetime().optional(),
 			),
 			endTime: z.preprocess(
-				(v) => (v === '' || v === undefined ? undefined : v),
+				(value) =>
+					value === '' || value === undefined ? undefined : value,
 				z.string().datetime().optional(),
 			),
 		}),

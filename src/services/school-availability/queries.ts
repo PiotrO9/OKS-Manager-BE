@@ -124,15 +124,15 @@ export async function listSchoolAvailabilitySlots(
 			continue;
 		}
 
-		for (const s of rawSlots) {
-			const day = yyyymmddToDate(s.date);
+		for (const slot of rawSlots) {
+			const day = yyyymmddToDate(slot.date);
 			const dow = day.getUTCDay();
 			if (weekdaySet && !weekdaySet.has(dow)) {
 				continue;
 			}
 
-			const slotStartMin = timeToMinutes(s.startTime);
-			const slotEndMin = timeToMinutes(s.endTime);
+			const slotStartMin = timeToMinutes(slot.startTime);
+			const slotEndMin = timeToMinutes(slot.endTime);
 
 			if (timeFromMin !== null && slotStartMin < timeFromMin) {
 				continue;
@@ -142,15 +142,15 @@ export async function listSchoolAvailabilitySlots(
 			}
 
 			let blockedByStudent = false;
-			for (const b of busyIntervals) {
+			for (const busyInterval of busyIntervals) {
 				if (
 					slotOverlapsLesson(
-						s.date,
+						slot.date,
 						slotStartMin,
 						slotEndMin,
-						b.date,
-						b.startMin,
-						b.endMin,
+						busyInterval.date,
+						busyInterval.startMin,
+						busyInterval.endMin,
 					)
 				) {
 					blockedByStudent = true;
@@ -165,43 +165,45 @@ export async function listSchoolAvailabilitySlots(
 				instructorId,
 				instructorFirstName: meta.firstName,
 				instructorLastName: meta.lastName,
-				date: s.date,
-				startTime: s.startTime,
-				endTime: s.endTime,
+				date: slot.date,
+				startTime: slot.startTime,
+				endTime: slot.endTime,
 			});
 		}
 	}
 
 	const sort = query.sort ?? 'startTime';
 	if (sort === 'instructorName') {
-		all.sort((a, b) => {
-			const ln = a.instructorLastName.localeCompare(b.instructorLastName);
+		all.sort((a, busyInterval) => {
+			const ln = a.instructorLastName.localeCompare(
+				busyInterval.instructorLastName,
+			);
 			if (ln !== 0) {
 				return ln;
 			}
 			const fn = a.instructorFirstName.localeCompare(
-				b.instructorFirstName,
+				busyInterval.instructorFirstName,
 			);
 			if (fn !== 0) {
 				return fn;
 			}
-			const dc = compareYyyymmdd(a.date, b.date);
+			const dc = compareYyyymmdd(a.date, busyInterval.date);
 			if (dc !== 0) {
 				return dc;
 			}
-			return a.startTime.localeCompare(b.startTime);
+			return a.startTime.localeCompare(busyInterval.startTime);
 		});
 	} else {
-		all.sort((a, b) => {
-			const dc = compareYyyymmdd(a.date, b.date);
+		all.sort((a, busyInterval) => {
+			const dc = compareYyyymmdd(a.date, busyInterval.date);
 			if (dc !== 0) {
 				return dc;
 			}
-			const tc = a.startTime.localeCompare(b.startTime);
+			const tc = a.startTime.localeCompare(busyInterval.startTime);
 			if (tc !== 0) {
 				return tc;
 			}
-			return a.instructorId.localeCompare(b.instructorId);
+			return a.instructorId.localeCompare(busyInterval.instructorId);
 		});
 	}
 

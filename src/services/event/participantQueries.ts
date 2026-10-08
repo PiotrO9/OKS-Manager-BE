@@ -34,6 +34,6 @@ export async function getEventStudentUserIds(
 	});
 
 	return {
-		studentUserIds: rows.map((r) => r.student.userId),
+		studentUserIds: rows.map((participant) => participant.student.userId),
 	};
 }
