@@ -54,6 +54,7 @@ function vehicleRow(
 		availabilityStatus: status,
 		unavailableUntil,
 		createdAt: new Date('2026-01-01T00:00:00.000Z'),
+		updatedAt: null,
 	};
 }
 
@@ -68,7 +69,9 @@ describe('vehicle availability read repair', () => {
 			deletedAt: null,
 			defaultVehicleId: null,
 		});
-		prismaMock.vehicle.update.mockResolvedValue({});
+		prismaMock.vehicle.update.mockResolvedValue({
+			updatedAt: new Date('2026-07-11T12:00:00.000Z'),
+		});
 	});
 
 	afterEach(() => {
@@ -113,6 +116,7 @@ describe('vehicle availability read repair', () => {
 				id: expiredVehicle.id,
 				status: VehicleAvailabilityStatus.ACTIVE,
 				unavailableUntil: null,
+				updatedAt: new Date('2026-07-11T12:00:00.000Z'),
 			}),
 			expect.objectContaining({
 				id: currentTemporaryVehicle.id,
@@ -164,6 +168,7 @@ describe('vehicle availability read repair', () => {
 			id: expiredVehicle.id,
 			status: VehicleAvailabilityStatus.ACTIVE,
 			unavailableUntil: null,
+			updatedAt: new Date('2026-07-11T12:00:00.000Z'),
 		});
 		expect(prismaMock.vehicle.update).toHaveBeenCalledWith({
 			where: { id: expiredVehicle.id },

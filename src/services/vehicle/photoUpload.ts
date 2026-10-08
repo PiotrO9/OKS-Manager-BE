@@ -28,7 +28,7 @@ export async function uploadVehiclePhotoForUser(
 	userId: string,
 	vehicleId: string,
 	file: UploadedPhotoFile,
-): Promise<{ photoUrl: string | null }> {
+): Promise<{ photoUrl: string | null; updatedAt: Date | null }> {
 	if (!file?.buffer) {
 		throw AppError.badRequest('file is required (multipart field: file)');
 	}
@@ -89,7 +89,7 @@ export async function uploadVehiclePhotoForUser(
 	const updated = await prisma.vehicle.update({
 		where: { id: vehicleId },
 		data: { photoUrl: publicUrl },
-		select: { photoUrl: true },
+		select: { photoUrl: true, updatedAt: true },
 	});
 
 	if (previousUrl) {
@@ -102,5 +102,5 @@ export async function uploadVehiclePhotoForUser(
 		}
 	}
 
-	return { photoUrl: updated.photoUrl };
+	return { photoUrl: updated.photoUrl, updatedAt: updated.updatedAt };
 }

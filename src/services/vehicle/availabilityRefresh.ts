@@ -10,6 +10,7 @@ export type VehicleUnavailabilityRefreshRow = {
 	id: string;
 	availabilityStatus: VehicleAvailabilityStatus;
 	unavailableUntil: Date | null;
+	updatedAt?: Date | null;
 };
 
 export function getUtcDayStart(value = new Date()): Date {
@@ -41,7 +42,7 @@ export async function refreshExpiredVehicleUnavailability<
 		return vehicle;
 	}
 
-	await db.vehicle.update({
+	const updated = await db.vehicle.update({
 		where: { id: vehicle.id },
 		data: {
 			availabilityStatus: VehicleAvailabilityStatus.ACTIVE,
@@ -53,6 +54,9 @@ export async function refreshExpiredVehicleUnavailability<
 		...vehicle,
 		availabilityStatus: VehicleAvailabilityStatus.ACTIVE,
 		unavailableUntil: null,
+		...(vehicle.updatedAt === undefined
+			? {}
+			: { updatedAt: updated.updatedAt }),
 	};
 }
 

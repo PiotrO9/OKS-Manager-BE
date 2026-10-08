@@ -17,6 +17,7 @@ export type VehicleForAccessRow = {
 	availabilityStatus: VehicleAvailabilityStatus;
 	unavailableUntil: Date | null;
 	createdAt: Date;
+	updatedAt: Date | null;
 	school: {
 		ownerId: string;
 		deletedAt: Date | null;

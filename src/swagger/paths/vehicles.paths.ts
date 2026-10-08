@@ -72,7 +72,13 @@ export function registerVehiclePaths(registry: OpenAPIRegistry): void {
 		security: [{ bearerAuth: [] }],
 		request: { params: vehicleIdParamsSchema },
 		responses: stdBearerResponses({
-			200: okDataSchema('OK', vehicleDataSchema),
+			200: okDataSchema(
+				'OK',
+				z.object({
+					photoUrl: z.string().nullable(),
+					updatedAt: z.string().datetime().nullable(),
+				}),
+			),
 		}),
 	});
 

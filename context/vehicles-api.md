@@ -53,6 +53,10 @@ W bazie status jest przechowywany jako `availability_status`; API zwraca go jako
 
 Sukces: `data: { photoUrl }` (publiczny URL w Supabase Storage). Bucket: zmienna środowiskowa `SUPABASE_VEHICLE_IMAGES_BUCKET` (domyślnie `vehicle-images`). Brak konfiguracji storage → **500** `Storage is not configured`; błąd uploadu → **502** `Upload failed`.
 
+## Data aktualizacji danych pojazdu
+
+Pełne odpowiedzi pojazdu zawierają `updatedAt` (`ISO 8601` albo `null`). Pole określa czas ostatniej operacji INSERT/UPDATE całego rekordu pojazdu w bazie, także automatycznej zmiany statusu. Dawne rekordy mają `null` do pierwszej aktualizacji. Klient nie ustawia tej wartości. Odpowiedź uploadu zdjęcia zawiera `{ photoUrl, updatedAt }`.
+
 ## Format odpowiedzi
 
 Zgodnie z [api-guidelines.md](./api-guidelines.md): `{ success, data?, error? }`.

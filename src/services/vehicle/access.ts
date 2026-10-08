@@ -39,6 +39,7 @@ export async function loadVehicleWithSchoolForAccess(
 			availabilityStatus: true,
 			unavailableUntil: true,
 			createdAt: true,
+			updatedAt: true,
 			school: {
 				select: {
 					ownerId: true,
