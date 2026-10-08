@@ -1,5 +1,6 @@
 import type {
 	StudentPaymentItemDto,
+	StudentPaymentPlanDto,
 	StudentPaymentsDto,
 	StudentPaymentsSummaryDto,
 } from './types';
@@ -26,6 +27,7 @@ function formatAmount(value: number): string {
 
 export function buildPaymentsDto(
 	payments: StudentPaymentItemDto[],
+	paymentPlans: StudentPaymentPlanDto[],
 ): StudentPaymentsDto {
 	const today = todayUtcStart();
 	let paidAmount = 0;
@@ -71,6 +73,7 @@ export function buildPaymentsDto(
 
 	return {
 		payments,
+		paymentPlans,
 		summary: {
 			paidAmount: formatAmount(paidAmount),
 			unpaidAmount: formatAmount(unpaidAmount),

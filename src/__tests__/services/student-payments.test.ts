@@ -163,6 +163,14 @@ describe('student payments service', () => {
 				method: null,
 			},
 		]);
+		expect(result.paymentPlans).toEqual([
+			{
+				id: paymentPlanId,
+				courseId: '55555555-5555-4555-8555-555555555555',
+				courseName: 'Kurs B',
+				currency: 'PLN',
+			},
+		]);
 		expect(result.summary).toMatchObject({
 			paidAmount: '1200.00',
 			unpaidAmount: '800.00',
@@ -175,6 +183,7 @@ describe('student payments service', () => {
 			listStudentPayments(actorId, Role.STUDENT, actorId, {}),
 		).resolves.toEqual({
 			payments: [],
+			paymentPlans: [],
 			summary: {
 				paidAmount: '0.00',
 				unpaidAmount: '0.00',
@@ -191,6 +200,7 @@ describe('student payments service', () => {
 			listPaymentsForCurrentUser(actorId, Role.MANAGER),
 		).resolves.toEqual({
 			payments: [],
+			paymentPlans: [],
 			summary: {
 				paidAmount: '0.00',
 				unpaidAmount: '0.00',
@@ -202,6 +212,37 @@ describe('student payments service', () => {
 		});
 
 		expect(prismaMock.courseParticipant.findMany).not.toHaveBeenCalled();
+	});
+
+	it('returns a scoped plan even before the first payment exists', async () => {
+		const row = courseParticipantRow();
+		row.course.paymentPlans[0]!.payments = [];
+		prismaMock.courseParticipant.findMany.mockResolvedValue([row]);
+
+		const result = await listStudentPayments(
+			actorId,
+			Role.MANAGER,
+			studentUserId,
+			{ schoolId },
+		);
+
+		expect(result.payments).toEqual([]);
+		expect(result.paymentPlans).toEqual([
+			{
+				id: paymentPlanId,
+				courseId: row.course.id,
+				courseName: 'Kurs B',
+				currency: 'PLN',
+			},
+		]);
+		expect(prismaMock.courseParticipant.findMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: {
+					studentId: studentProfileId,
+					course: { deletedAt: null, schoolId },
+				},
+			}),
+		);
 	});
 
 	it('requires schoolId for staff student payment view', async () => {

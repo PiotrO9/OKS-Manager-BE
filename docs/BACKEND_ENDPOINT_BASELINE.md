@@ -226,11 +226,14 @@ Mounted at `/dev`, routes in `src/routes/dev.routes.ts`.
 
 | Method | Path | Handler | Auth | Success status |
 | --- | --- | --- | --- | --- |
-| POST | `/dev/reset-and-seed` | inline route handler | bearer, exact role `ADMIN`, `ALLOW_DB_RESET=true` | 200 |
+| POST | `/dev/reset-and-seed` | inline route handler | bearer, exact role `ADMIN`, full reset flags, approved target and confirmation header | 200 |
+| POST | `/dev/audit/preview` | inline route handler | bearer, exact role `ADMIN`, audit preview guard | 200 |
+| POST | `/dev/audit/execute` | inline route handler | bearer, exact role `ADMIN`, audit execution guard and confirmation | 200 |
 
 Known route-level errors:
 
 - when `ALLOW_DB_RESET !== 'true'`, returns `403`.
+- audit endpoints are unavailable in `NODE_ENV=production`; execution also requires an approved database target fingerprint. Full replacement requires a separate flag and confirmation phrase.
 
 ## OpenAPI Alignment Notes
 
