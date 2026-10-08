@@ -83,7 +83,15 @@ export type StudentPaymentsSummaryDto = {
 
 export type StudentPaymentsDto = {
 	payments: StudentPaymentItemDto[];
+	paymentPlans: StudentPaymentPlanDto[];
 	summary: StudentPaymentsSummaryDto;
+};
+
+export type StudentPaymentPlanDto = {
+	id: string;
+	courseId: string;
+	courseName: string;
+	currency: string;
 };
 
 export type CreateStudentPaymentInput = {

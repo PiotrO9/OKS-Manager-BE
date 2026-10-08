@@ -4,7 +4,7 @@ import { getPrisma } from '../../lib/prisma';
 import type { StudentPaymentsQuery } from '../../lib/validation/uuid';
 import { assertActorCanListStudentsForSchool } from './access';
 import { buildPaymentsDto, emptyPaymentsSummary } from './paymentsMappers';
-import type { StudentPaymentsDto } from './types';
+import type { StudentPaymentPlanDto, StudentPaymentsDto } from './types';
 import { mapPaymentStatus, paymentSortTime, toIsoOrNull } from './utils';
 
 const prisma = getPrisma();
@@ -14,7 +14,11 @@ export async function listPaymentsForCurrentUser(
 	actorRole: Role,
 ): Promise<StudentPaymentsDto> {
 	if (actorRole !== Role.STUDENT) {
-		return { payments: [], summary: emptyPaymentsSummary };
+		return {
+			payments: [],
+			paymentPlans: [],
+			summary: emptyPaymentsSummary,
+		};
 	}
 
 	return listStudentPayments(actorId, actorRole, actorId, {});
@@ -134,10 +138,24 @@ export async function listStudentPayments(
 			}),
 		),
 	);
+	const paymentPlans: StudentPaymentPlanDto[] = rows.flatMap((row) =>
+		row.course.paymentPlans.map((plan) => ({
+			id: plan.id,
+			courseId: row.course.id,
+			courseName: row.course.name,
+			currency: plan.currency,
+		})),
+	);
+	paymentPlans.sort(
+		(a, b) =>
+			a.courseName.localeCompare(b.courseName, 'pl') ||
+			a.id.localeCompare(b.id),
+	);
 
 	payments.sort((a, b) => b._sortTime - a._sortTime);
 
 	return buildPaymentsDto(
 		payments.map(({ _sortTime, ...payment }) => payment),
+		paymentPlans,
 	);
 }

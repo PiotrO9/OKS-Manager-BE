@@ -6,6 +6,7 @@ import {
 	listStudentsQuerySchema,
 	markStudentPaymentPaidBodySchema,
 	markStudentPaymentUnpaidBodySchema,
+	okDataSchema,
 	okDataUnknown,
 	patchCourseParticipantStatusBodySchema,
 	patchStudentBodySchema,
@@ -20,7 +21,21 @@ import {
 	studentProcessStatusQuerySchema,
 	studentUserIdParamsSchema,
 	updateStudentPaymentBodySchema,
+	z,
 } from './shared';
+
+const studentPaymentsDataSchema = z.object({
+	payments: z.array(z.unknown()),
+	paymentPlans: z.array(
+		z.object({
+			id: z.string().uuid(),
+			courseId: z.string().uuid(),
+			courseName: z.string(),
+			currency: z.string(),
+		}),
+	),
+	summary: z.unknown(),
+});
 
 export function registerStudentPaths(registry: OpenAPIRegistry): void {
 	// ── Students ─────────────────────────────────────────────────────────────
@@ -93,14 +108,17 @@ export function registerStudentPaths(registry: OpenAPIRegistry): void {
 		tags: ['Students'],
 		summary: 'Historia opĹ‚at kursanta',
 		description:
-			'Zwraca opĹ‚aty kursanta wyprowadzone z CourseParticipant -> Course -> PaymentPlan -> Payment. Dla INSTRUCTOR/MANAGER/ADMIN query schoolId jest wymagane i zawÄ™ĹĽa wynik do tej OSK; dla STUDENT dozwolony jest tylko wĹ‚asny userId.',
+			'Zwraca data.payments, data.paymentPlans i data.summary. paymentPlans zawiera {id, courseId, courseName, currency} dla planów kursów przypisanych kursantowi, również gdy nie ma jeszcze żadnej opłaty; lista płatności może wtedy być pusta. Dla INSTRUCTOR/MANAGER/ADMIN query schoolId jest wymagane i ogranicza plany oraz opłaty do tej OSK; dla STUDENT dozwolony jest tylko własny userId.',
 		security: [{ bearerAuth: [] }],
 		request: {
 			params: studentDetailParamsSchema,
 			query: studentPaymentsQuerySchema,
 		},
 		responses: stdBearerResponses({
-			200: okDataUnknown('Lista opĹ‚at kursanta'),
+			200: okDataSchema(
+				'Opłaty i dostępne plany kursanta',
+				studentPaymentsDataSchema,
+			),
 		}),
 	});
 
@@ -121,7 +139,7 @@ export function registerStudentPaths(registry: OpenAPIRegistry): void {
 			},
 		},
 		responses: stdBearerResponses({
-			201: okDataUnknown('Utworzona płatność'),
+			201: okDataSchema('Utworzona płatność', studentPaymentsDataSchema),
 		}),
 	});
 
@@ -142,7 +160,10 @@ export function registerStudentPaths(registry: OpenAPIRegistry): void {
 			},
 		},
 		responses: stdBearerResponses({
-			200: okDataUnknown('Zaktualizowana płatność'),
+			200: okDataSchema(
+				'Zaktualizowana płatność',
+				studentPaymentsDataSchema,
+			),
 		}),
 	});
 
@@ -163,7 +184,10 @@ export function registerStudentPaths(registry: OpenAPIRegistry): void {
 			},
 		},
 		responses: stdBearerResponses({
-			200: okDataUnknown('Płatność oznaczona jako opłacona'),
+			200: okDataSchema(
+				'Płatność oznaczona jako opłacona',
+				studentPaymentsDataSchema,
+			),
 		}),
 	});
 
@@ -184,7 +208,10 @@ export function registerStudentPaths(registry: OpenAPIRegistry): void {
 			},
 		},
 		responses: stdBearerResponses({
-			200: okDataUnknown('Płatność oznaczona jako nieopłacona'),
+			200: okDataSchema(
+				'Płatność oznaczona jako nieopłacona',
+				studentPaymentsDataSchema,
+			),
 		}),
 	});
 
