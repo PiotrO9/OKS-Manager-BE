@@ -23,6 +23,7 @@ export const AUDIT_FIXTURE_IDS = [
 	'school-operational',
 	'booking-ready',
 	'payment-ready',
+	'account-ready',
 ] as const;
 
 export type AuditFixtureId = (typeof AUDIT_FIXTURE_IDS)[number];
@@ -43,6 +44,38 @@ const SECOND_STUDENT_ACCOUNT = {
 	role: Role.STUDENT,
 } as const;
 
+const FOREIGN_MANAGER_ACCOUNT = {
+	email: 'manager02@audit.osk.local',
+	password: DEMO_PASSWORD,
+	firstName: 'Marta',
+	lastName: 'Obca',
+	role: Role.MANAGER,
+} as const;
+
+const FOREIGN_INSTRUCTOR_ACCOUNT = {
+	email: 'instructor03@audit.osk.local',
+	password: DEMO_PASSWORD,
+	firstName: 'Igor',
+	lastName: 'Obcy',
+	role: Role.INSTRUCTOR,
+} as const;
+
+const FOREIGN_STUDENT_ACCOUNT = {
+	email: 'student03@audit.osk.local',
+	password: DEMO_PASSWORD,
+	firstName: 'Sara',
+	lastName: 'Obca',
+	role: Role.STUDENT,
+} as const;
+
+const FREE_INSTRUCTOR_ACCOUNT = {
+	email: 'instructor04@audit.osk.local',
+	password: DEMO_PASSWORD,
+	firstName: 'Filip',
+	lastName: 'Wolny',
+	role: Role.INSTRUCTOR,
+} as const;
+
 /** Supabase Auth is prepared before opening the Prisma transaction. */
 export const AUDIT_FIXTURE_ACCOUNTS = [
 	ADMIN_ACCOUNT,
@@ -51,6 +84,10 @@ export const AUDIT_FIXTURE_ACCOUNTS = [
 	SECOND_INSTRUCTOR_ACCOUNT,
 	DEMO_ACCOUNTS[2],
 	SECOND_STUDENT_ACCOUNT,
+	FOREIGN_MANAGER_ACCOUNT,
+	FOREIGN_INSTRUCTOR_ACCOUNT,
+	FOREIGN_STUDENT_ACCOUNT,
+	FREE_INSTRUCTOR_ACCOUNT,
 ] as const;
 
 type AuditAccount = (typeof AUDIT_FIXTURE_ACCOUNTS)[number];
@@ -102,7 +139,9 @@ export function getAuditFixtureAccounts(
 	if (fixtureId === 'school-staffed') {
 		return AUDIT_FIXTURE_ACCOUNTS.slice(0, 4);
 	}
-	return AUDIT_FIXTURE_ACCOUNTS;
+	return fixtureId === 'account-ready'
+		? AUDIT_FIXTURE_ACCOUNTS
+		: AUDIT_FIXTURE_ACCOUNTS.slice(0, 6);
 }
 
 export type AuditFixtureResult = {
@@ -137,6 +176,7 @@ const OPERATIONAL_FIXTURES: readonly AuditFixtureId[] = [
 	'school-operational',
 	'booking-ready',
 	'payment-ready',
+	'account-ready',
 ];
 
 function nextBookableWindow(now = new Date()) {
@@ -199,14 +239,18 @@ export async function seedAuditFixture(
 
 	for (const [index, account] of accounts.entries()) {
 		const userId = authUserIdsByEmail.get(account.email.toLowerCase())!;
-		const logicalName =
-			index === 0
-				? 'admin'
-				: index === 1
-					? 'manager'
-					: index <= 3
-						? `instructor-${index - 1}`
-						: `student-${index - 3}`;
+		const logicalName = [
+			'admin',
+			'manager',
+			'instructor-1',
+			'instructor-2',
+			'student-1',
+			'student-2',
+			'manager-foreign',
+			'instructor-foreign',
+			'student-foreign',
+			'instructor-free',
+		][index]!;
 		await createAuditAccount(tx, account, authUserIdsByEmail);
 		logicalIds[logicalName] = userId;
 		created.users += 1;
@@ -377,7 +421,11 @@ export async function seedAuditFixture(
 		}
 	}
 
-	if (fixtureId === 'booking-ready' || fixtureId === 'payment-ready') {
+	if (
+		fixtureId === 'booking-ready' ||
+		fixtureId === 'payment-ready' ||
+		fixtureId === 'account-ready'
+	) {
 		const participant = await tx.courseParticipant.create({
 			data: {
 				courseId: logicalIds['course-practical']!,
@@ -401,6 +449,60 @@ export async function seedAuditFixture(
 		});
 		logicalIds['payment-plan-practical'] = plan.id;
 		created.paymentPlans += 1;
+	}
+
+	if (fixtureId === 'account-ready') {
+		const foreignSchool = await tx.drivingSchool.create({
+			data: {
+				name: 'OSK Audyt Kraków',
+				city: 'Kraków',
+				address: 'ul. Testowa 2',
+				ownerId: logicalIds['manager-foreign']!,
+				settings: { create: {} },
+			},
+		});
+		logicalIds['school-foreign'] = foreignSchool.id;
+		created.drivingSchools += 1;
+		created.schoolSettings += 1;
+		await tx.user.update({
+			where: { id: logicalIds['manager-foreign']! },
+			data: { defaultOskId: foreignSchool.id },
+		});
+
+		for (const [key, schoolId] of [
+			['instructor-foreign', foreignSchool.id],
+			['instructor-free', logicalIds.school!],
+		] as const) {
+			const profile = await tx.instructorProfile.create({
+				data: {
+					userId: logicalIds[key]!,
+					licenseNumber: `AUDIT-${key.toUpperCase()}`,
+					qualifiedCourseTypes: { connect: [{ code: 'B' }] },
+					instructorSchools: { create: { schoolId } },
+				},
+			});
+			logicalIds[`${key}-profile`] = profile.id;
+			created.instructorProfiles += 1;
+			created.instructorSchools += 1;
+			await tx.user.update({
+				where: { id: logicalIds[key]! },
+				data: { defaultOskId: schoolId },
+			});
+		}
+
+		const foreignStudent = await tx.studentProfile.create({
+			data: {
+				userId: logicalIds['student-foreign']!,
+				studentSchools: { create: { schoolId: foreignSchool.id } },
+			},
+		});
+		logicalIds['student-foreign-profile'] = foreignStudent.id;
+		created.studentProfiles += 1;
+		created.studentSchools += 1;
+		await tx.user.update({
+			where: { id: logicalIds['student-foreign']! },
+			data: { defaultOskId: foreignSchool.id },
+		});
 	}
 
 	return {

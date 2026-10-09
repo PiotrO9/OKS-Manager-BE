@@ -19,7 +19,12 @@ function makeTransaction() {
 			})),
 		},
 		drivingSchool: {
-			create: vi.fn().mockResolvedValue({ id: 'school-id' }),
+			create: vi.fn().mockImplementation(async () => ({
+				id:
+					tx.drivingSchool.create.mock.calls.length === 1
+						? 'school-id'
+						: 'foreign-school-id',
+			})),
 			update: vi.fn().mockResolvedValue({}),
 		},
 		instructorProfile: {
@@ -264,6 +269,33 @@ describe('audit fixtures', () => {
 		);
 	});
 
+	it('prepares two isolated schools and accounts with and without active commitments', async () => {
+		const tx = makeTransaction();
+		const result = await seedAuditFixture(
+			tx as unknown as Prisma.TransactionClient,
+			'account-ready',
+			authIds,
+		);
+
+		expect(result.created).toMatchObject({
+			users: 10,
+			drivingSchools: 2,
+			instructorProfiles: 4,
+			studentProfiles: 3,
+			courseParticipants: 1,
+		});
+		expect(result.logicalIds['school-foreign']).toBe('foreign-school-id');
+		expect(result.logicalIds['manager-foreign']).toBe('auth-6');
+		expect(result.logicalIds['instructor-free-profile']).toBe('profile-4');
+		expect(tx.drivingSchool.create.mock.calls[1]![0].data.ownerId).toBe(
+			'auth-6',
+		);
+		expect(
+			tx.instructorProfile.create.mock.calls[2]![0].data.instructorSchools
+				.create.schoolId,
+		).toBe('foreign-school-id');
+	});
+
 	it('restores only a technical admin after full application reset', async () => {
 		const tx = makeTransaction();
 		const result = await restoreAuditAdmin(
@@ -282,5 +314,6 @@ describe('audit fixtures', () => {
 		expect(getAuditFixtureAccounts('school-operational')).toHaveLength(6);
 		expect(getAuditFixtureAccounts('booking-ready')).toHaveLength(6);
 		expect(getAuditFixtureAccounts('payment-ready')).toHaveLength(6);
+		expect(getAuditFixtureAccounts('account-ready')).toHaveLength(10);
 	});
 });

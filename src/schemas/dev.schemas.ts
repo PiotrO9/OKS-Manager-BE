@@ -37,6 +37,7 @@ export const auditOperationSchema = z.discriminatedUnion('kind', [
 				'school-operational',
 				'booking-ready',
 				'payment-ready',
+				'account-ready',
 			]),
 		})
 		.strict(),

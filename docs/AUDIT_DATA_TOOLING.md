@@ -21,6 +21,7 @@ Przed resetem zapisz wyniki przebiegu audytu i wykonaj kopię danych, jeśli są
 | `fixture: school-operational` | OSK, dwóch instruktorów, dwóch kursantów, dwa pojazdy oraz kurs praktyczny i teorii; bez zapisów, lekcji i płatności |
 | `fixture: booking-ready` | Jak `school-operational`, z aktywnym zapisem kursanta na kurs praktyczny i wskazanym przyszłym terminem w dniu roboczym |
 | `fixture: payment-ready` | Jak `school-operational`, z aktywnym zapisem kursanta i planem płatności bez opłaty do utworzenia |
+| `fixture: account-ready` | Dwie odrębne OSK z kontami obu ról; w pierwszej konta z aktywnym zapisem/kursem i bez zobowiązań do testu zarządzania kontami |
 
 Zestawy `fixture` **zastępują całą zawartość tabel aplikacji**. `booking-ready`
 zwraca `bookableWindow` wyliczone dla strefy `Europe/Warsaw`; dostępność trzeba
