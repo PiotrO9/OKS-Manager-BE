@@ -5,6 +5,7 @@ import { lessonIdParamsSchema } from '../lib/validation/uuid';
 import {
 	lessonRatingParamsSchema,
 	lessonInstructorOptionsQuerySchema,
+	lessonBookingOptionsQuerySchema,
 	parseBookLessonBody,
 	parseBookOwnLessonBody,
 	parseCreateLessonRatingBody,
@@ -25,6 +26,18 @@ import {
 } from '../services/lesson.service';
 import { parseBodyWithParser, parseRequestPart } from './requestParsing';
 import { getLessonInstructorOptions } from '../services/lesson/instructorOptions';
+import { getLessonBookingOptions } from '../services/lesson/bookingOptions';
+
+async function getLessonBookingOptionsHandler(req: Request, res: Response) {
+	const user = requireUser(req);
+	const query = parseRequestPart(
+		lessonBookingOptionsQuerySchema,
+		req.query,
+		'query',
+	);
+	const data = await getLessonBookingOptions(user, query);
+	return sendJsonSuccess(res, data, 200);
+}
 
 async function getLessonHandler(req: Request, res: Response) {
 	const user = requireUser(req);
@@ -118,6 +131,7 @@ async function patchLessonHandler(req: Request, res: Response) {
 }
 
 export {
+	getLessonBookingOptionsHandler,
 	getLessonInstructorOptionsHandler,
 	cancelOwnLessonHandler,
 	getLessonHandler,

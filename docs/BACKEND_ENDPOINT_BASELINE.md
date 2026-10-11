@@ -178,6 +178,7 @@ Mounted at `/lessons`, routes in `src/routes/lessons.routes.ts`.
 | Method | Path | Handler | Auth | Success status |
 | --- | --- | --- | --- | --- |
 | POST | `/lessons` | `postLessonHandler` | bearer, min role `MANAGER` | 201 |
+| GET | `/lessons/booking-options` | `getLessonBookingOptionsHandler` | bearer, min role `MANAGER` | 200 |
 | POST | `/lessons/me` | `postOwnLessonHandler` | bearer, exact role `STUDENT` | 201 |
 | PATCH | `/lessons/:lessonId/cancel` | `cancelOwnLessonHandler` | bearer, exact role `STUDENT` | 200 |
 | POST | `/lessons/:lessonId/rating` | `postLessonRatingHandler` | bearer, exact role `STUDENT` | 201 |

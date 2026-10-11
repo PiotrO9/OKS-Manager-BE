@@ -44,7 +44,7 @@ export async function loadCourseForBooking(
 	courseId: string,
 ): Promise<CourseForBooking> {
 	const course = await prisma.course.findFirst({
-		where: { id: courseId, deletedAt: null },
+		where: { id: courseId, deletedAt: null, status: 'active' },
 		select: {
 			id: true,
 			schoolId: true,

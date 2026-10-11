@@ -96,29 +96,26 @@ export async function setDefaultVehicleForDrivingSchoolOwner(
 ) {
 	await loadOwnedActiveDrivingSchoolOrThrow(userId, schoolId);
 
-	const vehicle = await prisma.vehicle.findUnique({
-		where: { id: vehicleId },
-		select: { id: true, schoolId: true, isActive: true },
+	return prisma.$transaction(async (tx) => {
+		await tx.$queryRaw`SELECT id FROM vehicles WHERE id = ${vehicleId}::uuid FOR UPDATE`;
+		const vehicle = await tx.vehicle.findUnique({
+			where: { id: vehicleId },
+			select: { id: true, schoolId: true, isActive: true },
+		});
+
+		if (!vehicle || !vehicle.isActive) {
+			throw AppError.notFound('Vehicle not found');
+		}
+		if (vehicle.schoolId !== schoolId) {
+			throw AppError.forbidden('Forbidden');
+		}
+		await tx.drivingSchool.update({
+			where: { id: schoolId },
+			data: { defaultVehicleId: vehicleId },
+		});
+
+		return { defaultVehicleId: vehicleId };
 	});
-
-	if (!vehicle) {
-		throw AppError.notFound('Vehicle not found');
-	}
-
-	if (!vehicle.isActive) {
-		throw AppError.notFound('Vehicle not found');
-	}
-
-	if (vehicle.schoolId !== schoolId) {
-		throw AppError.forbidden('Forbidden');
-	}
-
-	await prisma.drivingSchool.update({
-		where: { id: schoolId },
-		data: { defaultVehicleId: vehicleId },
-	});
-
-	return { defaultVehicleId: vehicleId };
 }
 
 export async function updateDrivingSchoolForOwner(

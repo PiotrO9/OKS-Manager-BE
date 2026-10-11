@@ -3,7 +3,7 @@ import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 import { parseUuidParam } from '../../lib/validation/uuid';
 import type { VehicleAvailabilityStatusPayload } from '../../schemas/vehicle.schemas';
-import { getSchoolOwnedByUser, loadVehicleForOwner } from './access';
+import { getSchoolOwnedByUser } from './access';
 import {
 	assertVehicleRegistrationUnique,
 	buildVehicleCreateData,
@@ -12,6 +12,7 @@ import {
 	parseVehicleWriteBodyOrThrow,
 } from './commandHelpers';
 import { vehicleToResponse } from './mappers';
+import { getVehiclesWithUpcomingLessons } from './deletionGuard';
 import type { VehicleResponse } from './types';
 
 const prisma = getPrisma();
@@ -48,17 +49,16 @@ export async function upsertVehicleForUser(
 			payload.registrationNumber,
 		);
 
-		const existingVehicleCount = await prisma.vehicle.count({
-			where: { schoolId },
-		});
-		const isFirstVehicleForSchool = existingVehicleCount === 0;
-
 		const created = await prisma.$transaction(async (tx) => {
+			await tx.$queryRaw`SELECT id FROM driving_schools WHERE id = ${schoolId}::uuid FOR UPDATE`;
+			const activeVehicleCount = await tx.vehicle.count({
+				where: { schoolId, isActive: true },
+			});
 			const vehicle = await tx.vehicle.create({
 				data: buildVehicleCreateData(schoolId, payload),
 			});
 
-			if (isFirstVehicleForSchool) {
+			if (activeVehicleCount === 0) {
 				await tx.drivingSchool.update({
 					where: { id: schoolId },
 					data: { defaultVehicleId: vehicle.id },
@@ -166,22 +166,58 @@ export async function deleteVehicleForUser(
 	userId: string,
 	vehicleId: string,
 ): Promise<{ id: string }> {
-	const loaded = await loadVehicleForOwner(userId, vehicleId);
-	if (!loaded.ok) {
-		if (loaded.notFound) {
-			throw AppError.notFound('Vehicle not found');
+	return prisma.$transaction(async (tx) => {
+		// Coordinate with setting this vehicle as the school's default.
+		await tx.$queryRaw`SELECT id FROM vehicles WHERE id = ${vehicleId}::uuid FOR UPDATE`;
+		const loaded = await tx.vehicle.findUnique({
+			where: { id: vehicleId },
+			select: { id: true, schoolId: true, isActive: true },
+		});
+		if (!loaded) throw AppError.notFound('Vehicle not found');
+		await tx.$queryRaw`SELECT id FROM driving_schools WHERE id = ${loaded.schoolId}::uuid FOR UPDATE`;
+		const school = await tx.drivingSchool.findUnique({
+			where: { id: loaded.schoolId },
+			select: { ownerId: true, deletedAt: true, defaultVehicleId: true },
+		});
+		if (!school || school.deletedAt !== null || school.ownerId !== userId) {
+			throw AppError.forbidden('Forbidden');
 		}
-		throw AppError.forbidden('Forbidden');
-	}
-
-	if (!loaded.vehicle.isActive) {
+		if (!loaded.isActive) return { id: vehicleId };
+		const isDefaultVehicle = school.defaultVehicleId === vehicleId;
+		if (isDefaultVehicle) {
+			const otherActiveVehicles = await tx.vehicle.count({
+				where: {
+					schoolId: loaded.schoolId,
+					isActive: true,
+					id: { not: vehicleId },
+				},
+			});
+			if (otherActiveVehicles > 0) {
+				throw AppError.conflict(
+					'Nie można usunąć domyślnego pojazdu. Najpierw wybierz inny pojazd domyślny.',
+				);
+			}
+		}
+		const booked = await getVehiclesWithUpcomingLessons(
+			tx,
+			[vehicleId],
+			new Date(),
+		);
+		if (booked.has(vehicleId)) {
+			throw AppError.conflict(
+				'Nie można usunąć pojazdu z trwającymi lub zaplanowanymi lekcjami.',
+			);
+		}
+		if (isDefaultVehicle) {
+			await tx.drivingSchool.update({
+				where: { id: loaded.schoolId },
+				data: { defaultVehicleId: null },
+			});
+		}
+		await tx.vehicle.update({
+			where: { id: vehicleId },
+			data: { isActive: false },
+		});
 		return { id: vehicleId };
-	}
-
-	await prisma.vehicle.update({
-		where: { id: vehicleId },
-		data: { isActive: false },
 	});
-
-	return { id: vehicleId };
 }

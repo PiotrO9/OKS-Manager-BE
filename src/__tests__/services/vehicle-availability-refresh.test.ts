@@ -63,6 +63,8 @@ describe('vehicle availability read repair', () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date('2026-07-11T12:00:00.000Z'));
 		vi.clearAllMocks();
+		prismaMock.lesson.findMany.mockResolvedValue([]);
+		prismaMock.instructorEvent.findMany.mockResolvedValue([]);
 		prismaMock.drivingSchool.findUnique.mockResolvedValue({
 			id: schoolId,
 			ownerId: userId,
@@ -179,6 +181,76 @@ describe('vehicle availability read repair', () => {
 		});
 	});
 
+	it('marks default and booked vehicles as unavailable for deletion', async () => {
+		const defaultVehicle = vehicleRow(
+			'99999999-9999-9999-9999-999999999999',
+			VehicleAvailabilityStatus.ACTIVE,
+			null,
+		);
+		const bookedVehicle = vehicleRow(
+			'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+			VehicleAvailabilityStatus.ACTIVE,
+			null,
+		);
+		prismaMock.drivingSchool.findUnique.mockResolvedValue({
+			id: schoolId,
+			ownerId: userId,
+			deletedAt: null,
+			defaultVehicleId: defaultVehicle.id,
+		});
+		prismaMock.vehicle.findMany.mockResolvedValue([
+			defaultVehicle,
+			bookedVehicle,
+		]);
+		prismaMock.lesson.findMany.mockResolvedValue([
+			{ vehicleId: bookedVehicle.id },
+		]);
+
+		const result = await vehicleService.listVehiclesBySchoolForUser(
+			userId,
+			schoolId,
+		);
+
+		expect(result.vehicles).toEqual([
+			expect.objectContaining({
+				id: defaultVehicle.id,
+				deletionBlockReason: 'DEFAULT',
+			}),
+			expect.objectContaining({
+				id: bookedVehicle.id,
+				deletionBlockReason: 'SCHEDULED_LESSONS',
+			}),
+		]);
+	});
+
+	it('allows deleting the only default vehicle when it has no upcoming lessons', async () => {
+		const onlyVehicle = vehicleRow(
+			'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+			VehicleAvailabilityStatus.ACTIVE,
+			null,
+		);
+		prismaMock.drivingSchool.findUnique.mockResolvedValue({
+			id: schoolId,
+			ownerId: userId,
+			deletedAt: null,
+			defaultVehicleId: onlyVehicle.id,
+		});
+		prismaMock.vehicle.findMany.mockResolvedValue([onlyVehicle]);
+
+		const result = await vehicleService.listVehiclesBySchoolForUser(
+			userId,
+			schoolId,
+		);
+
+		expect(result.vehicles).toEqual([
+			expect.objectContaining({
+				id: onlyVehicle.id,
+				isDefault: true,
+				deletionBlockReason: null,
+			}),
+		]);
+	});
+
 	it.each([
 		{
 			name: 'planned overlapping DRIVE',
@@ -224,6 +296,7 @@ describe('vehicle availability read repair', () => {
 			prismaMock.lesson.findMany.mockResolvedValue([]);
 			prismaMock.instructorEvent.findMany.mockImplementation(
 				({ where }) => {
+					if (!where.startTime) return [];
 					const matches =
 						where.vehicleId.in.includes(vehicle.id) &&
 						where.type === EventType.DRIVE &&

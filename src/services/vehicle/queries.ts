@@ -11,6 +11,7 @@ import {
 	refreshExpiredVehicleUnavailability,
 } from './availabilityRefresh';
 import { vehicleToResponse } from './mappers';
+import { getVehiclesWithUpcomingLessons } from './deletionGuard';
 import type { VehicleResponse } from './types';
 
 const prisma = getPrisma();
@@ -38,6 +39,11 @@ export async function listVehiclesBySchoolForUser(
 	);
 
 	const defaultVehicleId = school.defaultVehicleId ?? null;
+	const vehiclesWithUpcomingLessons = await getVehiclesWithUpcomingLessons(
+		prisma,
+		refreshedVehicles.map((vehicle) => vehicle.id),
+		new Date(),
+	);
 	let vehiclesWithDefault = refreshedVehicles.map((vehicle) => ({
 		...vehicle,
 		isDefault: defaultVehicleId !== null && vehicle.id === defaultVehicleId,
@@ -87,9 +93,15 @@ export async function listVehiclesBySchoolForUser(
 	}
 
 	return {
-		vehicles: vehiclesWithDefault.map(({ isDefault, ...vehicle }) =>
-			vehicleToResponse(vehicle, isDefault),
-		),
+		vehicles: vehiclesWithDefault.map(({ isDefault, ...vehicle }) => ({
+			...vehicleToResponse(vehicle, isDefault),
+			deletionBlockReason:
+				isDefault && refreshedVehicles.length > 1
+					? 'DEFAULT'
+					: vehiclesWithUpcomingLessons.has(vehicle.id)
+						? 'SCHEDULED_LESSONS'
+						: null,
+		})),
 		defaultVehicleId,
 	};
 }

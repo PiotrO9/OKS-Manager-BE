@@ -1,6 +1,22 @@
 import { z } from 'zod';
 import { UUID_PARAM_RE } from '../lib/validation/uuid';
 
+export const lessonBookingOptionsQuerySchema = z.object({
+	schoolId: z.string().regex(UUID_PARAM_RE, 'Invalid schoolId'),
+	instructorIds: z
+		.string()
+		.transform((value) => value.split(','))
+		.pipe(
+			z
+				.array(z.string().regex(UUID_PARAM_RE, 'Invalid instructorId'))
+				.min(1)
+				.max(50),
+		),
+	q: z.string().trim().max(100).default(''),
+	page: z.coerce.number().int().min(1).default(1),
+	limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
 export const bookLessonBodySchema = z
 	.object({
 		courseId: z.string().regex(UUID_PARAM_RE, 'Invalid courseId'),

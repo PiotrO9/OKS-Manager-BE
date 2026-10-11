@@ -1,4 +1,5 @@
 import type { Vehicle, VehicleAvailabilityStatus } from '@prisma/client';
+import type { VehicleDeletionBlockReason } from './deletionGuard';
 
 export type VehicleForAccessRow = {
 	id: string;
@@ -32,4 +33,5 @@ export type VehicleResponse = Omit<
 	status: VehicleAvailabilityStatus;
 	unavailableUntil: string | null;
 	isDefault?: boolean;
+	deletionBlockReason?: VehicleDeletionBlockReason | null;
 };
