@@ -47,7 +47,7 @@ async function patchCourse(req: Request, res: Response) {
 	const params = parseRequestPart(courseIdParamsSchema, req.params, 'params');
 	const body = parseBodyWithParser(parsePatchCourseBody, req.body);
 
-	const course = await courseService.patchCourseInstructorForOwner(
+	const course = await courseService.patchCourseForOwner(
 		user.id,
 		params.id,
 		body,

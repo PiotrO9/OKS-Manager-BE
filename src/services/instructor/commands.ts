@@ -1,4 +1,4 @@
-import { Role } from '@prisma/client';
+import { EventStatus, LessonStatus, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 import { setManagerAccountActive } from '../managerAccounts.service';
@@ -90,6 +90,7 @@ export async function updateInstructorForManagerOrAdmin(
 		const current = await tx.instructorProfile.findFirst({
 			where: activeInstructorProfileWhere(instructorId),
 			select: {
+				qualifiedCourseTypes: { select: { id: true, code: true } },
 				instructorSchools: {
 					select: {
 						school: { select: { ownerId: true, deletedAt: true } },
@@ -103,6 +104,56 @@ export async function updateInstructorForManagerOrAdmin(
 			current.instructorSchools,
 			hasInstructorSchoolOwnedByActor,
 		);
+		if (hasQualifiedCourseTypesUpdate) {
+			const selectedIds = new Set(patch.qualifiedCourseTypeIds ?? []);
+			const removed = current.qualifiedCourseTypes.filter(
+				(type) => !selectedIds.has(type.id),
+			);
+			if (removed.length > 0) {
+				const removedIds = removed.map((type) => type.id);
+				const now = new Date();
+				const [scheduledLessons, plannedEvents, activeCourses] =
+					await Promise.all([
+						tx.lesson.count({
+							where: {
+								instructorId,
+								deletedAt: null,
+								status: LessonStatus.SCHEDULED,
+								endTime: { gt: now },
+								course: {
+									courseTypeId: { in: removedIds },
+									deletedAt: null,
+								},
+							},
+						}),
+						tx.instructorEvent.count({
+							where: {
+								instructorId,
+								isActive: true,
+								status: EventStatus.PLANNED,
+								endTime: { gt: now },
+								course: {
+									courseTypeId: { in: removedIds },
+									deletedAt: null,
+								},
+							},
+						}),
+						tx.course.count({
+							where: {
+								instructorId,
+								courseTypeId: { in: removedIds },
+								deletedAt: null,
+								status: 'active',
+							},
+						}),
+					]);
+				if (scheduledLessons || plannedEvents || activeCourses) {
+					throw AppError.conflict(
+						`Nie można usunąć uprawnienia do kategorii ${removed.map((type) => type.code).join(', ')}: instruktor ma w niej zaplanowane zajęcia lub jest przypisany do aktywnego kursu. Najpierw przenieś lub zakończ te zobowiązania.`,
+					);
+				}
+			}
+		}
 		if (hasProfileUpdate) {
 			const { count } = await tx.instructorProfile.updateMany({
 				where: activeInstructorProfileWhere(instructorId),

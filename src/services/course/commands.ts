@@ -107,20 +107,12 @@ export async function createCourseForUser(
 	return toDto(created);
 }
 
-export async function patchCourseInstructorForOwner(
+export async function patchCourseForOwner(
 	userId: string,
 	courseId: string,
 	body: PatchCourseBody,
 ): Promise<CourseDetailDto> {
-	const hasInstructorKey = Object.prototype.hasOwnProperty.call(
-		body,
-		'instructorId',
-	);
-	const hasCapacityKey = Object.prototype.hasOwnProperty.call(
-		body,
-		'capacity',
-	);
-	if (!hasInstructorKey && !hasCapacityKey) {
+	if (Object.keys(body).length === 0) {
 		return getCourseDetailForOwner(userId, courseId);
 	}
 
@@ -138,22 +130,118 @@ export async function patchCourseInstructorForOwner(
 		throw AppError.forbidden('Forbidden');
 	}
 
-	if (
-		hasCapacityKey &&
-		body.capacity != null &&
-		row.kind !== 'THEORY_GROUP'
-	) {
+	const nextKind = body.kind ?? row.kind;
+	const nextCategory = body.category ?? row.category;
+	const nextStart =
+		body.theoryStartDate === undefined
+			? row.theoryStartDate
+			: body.theoryStartDate;
+	const nextEnd =
+		body.theoryEndDate === undefined
+			? row.theoryEndDate
+			: body.theoryEndDate;
+	const nextCapacity =
+		body.capacity === undefined ? row.capacity : body.capacity;
+	if (nextKind === CourseKind.THEORY_GROUP) {
+		if (
+			(body.kind !== undefined ||
+				body.theoryStartDate !== undefined ||
+				body.theoryEndDate !== undefined) &&
+			(!nextStart || !nextEnd || nextEnd < nextStart)
+		) {
+			throw AppError.badRequest(
+				'Valid theory dates are required for THEORY_GROUP',
+			);
+		}
+	} else if (nextCapacity != null && body.capacity !== undefined) {
 		throw AppError.badRequest(
 			'capacity is only allowed for THEORY_GROUP courses',
 		);
 	}
 
+	const structuralChange =
+		nextKind !== row.kind ||
+		nextCategory !== row.category ||
+		(body.totalHours !== undefined && body.totalHours !== row.totalHours) ||
+		(body.theoryStartDate !== undefined &&
+			nextStart?.getTime() !== row.theoryStartDate?.getTime()) ||
+		(body.theoryEndDate !== undefined &&
+			nextEnd?.getTime() !== row.theoryEndDate?.getTime());
+	if (structuralChange) {
+		const [participants, lessons, events] = await Promise.all([
+			prisma.courseParticipant.count({ where: { courseId } }),
+			prisma.lesson.count({ where: { courseId, deletedAt: null } }),
+			prisma.instructorEvent.count({ where: { courseId } }),
+		]);
+		if (participants || lessons || events) {
+			throw AppError.conflict(
+				'Nie można zmienić kategorii, rodzaju, godzin ani terminów kursu, który ma zapisy lub zajęcia.',
+			);
+		}
+	}
+
+	if (
+		nextKind === CourseKind.THEORY_GROUP &&
+		nextCapacity != null &&
+		body.capacity !== undefined
+	) {
+		const activeParticipants = await prisma.courseParticipant.count({
+			where: { courseId, status: 'ACTIVE' },
+		});
+		if (nextCapacity < activeParticipants) {
+			throw AppError.conflict(
+				'Limit miejsc nie może być mniejszy od liczby aktywnych zapisów.',
+			);
+		}
+	}
+
+	let courseTypeId = row.courseTypeId;
+	if (body.category !== undefined && body.category !== row.category) {
+		const courseType = await resolveCourseTypeByCategory(body.category);
+		courseTypeId = courseType.id;
+	}
+	if (body.kind !== undefined && body.kind !== row.kind) {
+		const settings = await prisma.schoolSettings.findUnique({
+			where: { schoolId: row.schoolId },
+		});
+		if (!settings?.enabledCourseKinds.includes(body.kind)) {
+			throw AppError.badRequest(
+				'Course kind is not enabled for this school',
+			);
+		}
+	}
+
 	const data: {
+		name?: string;
+		category?: string;
+		courseTypeId?: string;
+		kind?: CourseKind;
+		totalHours?: number;
+		theoryStartDate?: Date | null;
+		theoryEndDate?: Date | null;
 		instructorId?: string | null;
 		capacity?: number | null;
 	} = {};
+	if (body.name !== undefined) data.name = body.name;
+	if (body.category !== undefined) {
+		data.category = body.category;
+		data.courseTypeId = courseTypeId;
+	}
+	if (body.kind !== undefined) data.kind = body.kind;
+	if (body.totalHours !== undefined) data.totalHours = body.totalHours;
+	if (body.kind !== undefined && nextKind !== CourseKind.THEORY_GROUP) {
+		data.theoryStartDate = null;
+		data.theoryEndDate = null;
+		data.capacity = null;
+	} else {
+		if (body.theoryStartDate !== undefined)
+			data.theoryStartDate = body.theoryStartDate;
+		if (body.theoryEndDate !== undefined)
+			data.theoryEndDate = body.theoryEndDate;
+		if (body.capacity !== undefined) data.capacity = body.capacity;
+	}
 
-	if (hasInstructorKey) {
+	if ('instructorId' in body) {
 		const nextInstructorId = body.instructorId;
 		if (nextInstructorId != null) {
 			const link = await prisma.instructorSchool.findFirst({
@@ -169,17 +257,15 @@ export async function patchCourseInstructorForOwner(
 			}
 			await assertInstructorQualifiedForCourseType(
 				nextInstructorId,
-				row.courseTypeId,
+				courseTypeId,
 			);
 		}
 		data.instructorId = nextInstructorId ?? null;
-	}
-
-	if (
-		hasCapacityKey &&
-		(row.kind === CourseKind.THEORY_GROUP || body.capacity === null)
-	) {
-		data.capacity = body.capacity ?? null;
+	} else if (courseTypeId !== row.courseTypeId && row.instructorId) {
+		await assertInstructorQualifiedForCourseType(
+			row.instructorId,
+			courseTypeId,
+		);
 	}
 
 	if (Object.keys(data).length === 0) {

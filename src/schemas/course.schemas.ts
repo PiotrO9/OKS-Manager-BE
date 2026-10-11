@@ -92,8 +92,14 @@ export function parseCreateCourseBody(
 	return { ok: true, data: parsed.data };
 }
 
-/** Partial update: brak klucza = brak zmiany danego pola (`instructorId`, `capacity`). */
+/** Partial update: brak klucza = brak zmiany danego pola. */
 export const patchCourseBodySchema = z.object({
+	name: z.string().trim().min(1, 'name is required').optional(),
+	category: z.string().trim().min(1, 'category is required').optional(),
+	kind: courseKindSchema.optional(),
+	totalHours: z.number().int().positive('totalHours must be > 0').optional(),
+	theoryStartDate: z.coerce.date().nullable().optional(),
+	theoryEndDate: z.coerce.date().nullable().optional(),
 	instructorId: z
 		.string()
 		.trim()

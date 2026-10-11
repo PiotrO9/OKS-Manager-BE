@@ -1,4 +1,4 @@
-import { createCourseForUser, patchCourseInstructorForOwner } from './commands';
+import { createCourseForUser, patchCourseForOwner } from './commands';
 import {
 	getCourseDetailForOwner,
 	listCoursesForCurrentUser,
@@ -10,5 +10,5 @@ export const courseService = {
 	listCoursesForSchool,
 	listCoursesForCurrentUser,
 	getCourseDetailForOwner,
-	patchCourseInstructorForOwner,
+	patchCourseForOwner,
 };

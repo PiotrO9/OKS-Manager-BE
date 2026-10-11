@@ -84,5 +84,8 @@ export type CourseDetailDto = {
 	type: CourseKind;
 	totalHours: number;
 	capacity: number | null;
+	hasActivity: boolean;
+	theoryStartDate: Date | null;
+	theoryEndDate: Date | null;
 	instructor: CourseListInstructorDto | null;
 };

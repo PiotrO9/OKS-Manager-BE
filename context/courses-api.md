@@ -1,5 +1,5 @@
 ---
-description: "API — kursy (/courses): lista, szczegóły, utworzenie, PATCH (instruktor, capacity), role, identyfikatory instruktora"
+description: "API — kursy (/courses): lista, szczegóły, utworzenie, edycja, role, identyfikatory instruktora"
 alwaysApply: true
 ---
 
@@ -45,7 +45,7 @@ Szczegóły sesji: [auth.md](./auth.md).
 | GET | `/courses?schoolId=<uuid>` | Lista kursów danej szkoły (tylko `deletedAt` null). Dostęp: **właściciel** szkoły o podanym `schoolId`; inaczej **403**. Sort: `createdAt` malejąco. |
 | GET | `/courses/:id` | Szczegóły kursu (jak poniżej). Dostęp: **właściciel** szkoły kursu; brak kursu / soft-delete → **404**; obcy właściciel → **403**. |
 | POST | `/courses` | Utworzenie kursu w szkole (body poniżej). Właściciel `schoolId` z body. |
-| PATCH | `/courses/:id` | Częściowa aktualizacja: **`instructorId`** i/lub **`capacity`** (opcjonalnie, niezależnie). Patrz sekcja PATCH. |
+  | PATCH | `/courses/:id` | Częściowa aktualizacja danych kursu, instruktora i limitu. Patrz sekcja PATCH. |
 | GET | `/me/courses` | Lista kursów aktualnie zalogowanego kursanta. Bez query/body. Rola inna niż **STUDENT** → `data.courses: []`. |
 
 ## GET lista — query
@@ -83,11 +83,15 @@ Zapis: dla `PRACTICAL` / `EXTRA` pole `capacity` w DB jest **null**; daty teorii
 
 ## GET szczegółów — odpowiedź (200)
 
-`data.course`: `id`, **`schoolId`** (UUID szkoły kursu), `name`, `category`, `type`, `totalHours`, `capacity`, `instructor`: `{ id: User.id, name }` lub `null`.
+`data.course`: `id`, **`schoolId`** (UUID szkoły kursu), `name`, `category`, `type`, `totalHours`, `capacity`, `theoryStartDate`, `theoryEndDate`, `instructor`: `{ id: User.id, name }` lub `null`.
 
 ## PATCH — body (JSON)
 
-**Częściowe pola:** brak klucza `instructorId` = brak zmiany instruktora; brak klucza `capacity` = brak zmiany pojemności. Można wysłać jedno lub oba. **Brak zapisu** do DB tylko gdy w body **nie ma ani `instructorId`, ani `capacity`** (np. `{}`) — odpowiedź jak GET szczegółów (**200**). Inne klucze poza schematem nie są w `patchCourseBodySchema` (brak `.strict()` — nadmiarowe pola zwykle ignorowane).
+Edycja kursu przyjmuje także `name`, `category`, `kind`, `totalHours`, `theoryStartDate` i `theoryEndDate`. Pominięte pola pozostają bez zmian. Przy zmianie kategorii musi istnieć `CourseType` z podanym kodem; przy zmianie rodzaju nowy rodzaj musi być włączony w ustawieniach OSK. Kurs teoretyczny wymaga poprawnego przedziału dat. Zmiana rodzaju na praktyczny lub dodatkowy czyści daty teorii i limit miejsc.
+
+Zmiana kategorii, rodzaju, liczby godzin lub dat teorii zwraca **409**, jeśli kurs ma zapisanych uczestników, zajęcia lub wydarzenia. Limit miejsc kursu teoretycznego nie może spaść poniżej liczby aktywnych zapisów (**409**). Nazwę, instruktora i dozwolony limit można nadal edytować. Zmiana kategorii sprawdza uprawnienia przypisanego instruktora dla nowej kategorii.
+
+**Częściowe pola:** brak klucza = brak zmiany tego pola. Puste body `{}` nie zapisuje zmian i zwraca aktualne szczegóły (**200**). Nadmiarowe pola spoza schematu są ignorowane.
 
 | Pole | Typ | Uwagi |
 |------|-----|--------|

@@ -13,6 +13,9 @@ const { prismaMock } = vi.hoisted(() => ({
 		courseType: {
 			count: vi.fn(),
 		},
+		course: { count: vi.fn() },
+		lesson: { count: vi.fn() },
+		instructorEvent: { count: vi.fn() },
 		instructorProfile: {
 			findFirst: vi.fn(),
 			update: vi.fn(),
@@ -100,6 +103,9 @@ describe('updateInstructorForManagerOrAdmin qualifiedCourseTypeIds', () => {
 		);
 		prismaMock.$queryRaw.mockResolvedValue([{ id: instructorUserId }]);
 		prismaMock.instructorProfile.update.mockResolvedValue({});
+		prismaMock.course.count.mockResolvedValue(0);
+		prismaMock.lesson.count.mockResolvedValue(0);
+		prismaMock.instructorEvent.count.mockResolvedValue(0);
 	});
 
 	it('replaces qualified course types after validating existing CourseType ids', async () => {
@@ -150,7 +156,11 @@ describe('updateInstructorForManagerOrAdmin qualifiedCourseTypeIds', () => {
 					{ id: courseTypeIdA, code: 'A', name: 'Kategoria A' },
 				]),
 			)
-			.mockResolvedValueOnce(instructorProfile())
+			.mockResolvedValueOnce(
+				instructorProfile([
+					{ id: courseTypeIdA, code: 'A', name: 'Kategoria A' },
+				]),
+			)
 			.mockResolvedValueOnce(instructorProfile([]));
 
 		await expect(
@@ -173,6 +183,49 @@ describe('updateInstructorForManagerOrAdmin qualifiedCourseTypeIds', () => {
 				},
 			},
 		});
+	});
+
+	it.each([
+		['zaplanowaną lekcję', 'lesson'],
+		['zaplanowane wydarzenie', 'instructorEvent'],
+		['aktywny kurs', 'course'],
+	] as const)('blocks removing a category with %s', async (_label, model) => {
+		prismaMock.instructorProfile.findFirst
+			.mockResolvedValueOnce(
+				instructorProfile([
+					{ id: courseTypeIdA, code: 'A', name: 'Kategoria A' },
+				]),
+			)
+			.mockResolvedValueOnce(
+				instructorProfile([
+					{ id: courseTypeIdA, code: 'A', name: 'Kategoria A' },
+				]),
+			);
+		prismaMock[model].count.mockResolvedValueOnce(1);
+
+		await expect(
+			updateInstructorForManagerOrAdmin(
+				{ id: managerId, role: Role.MANAGER },
+				instructorId,
+				{ qualifiedCourseTypeIds: [] },
+			),
+		).rejects.toMatchObject({
+			statusCode: 409,
+			message: expect.stringContaining('kategorii A'),
+		});
+		expect(prismaMock[model].count).toHaveBeenCalledWith({
+			where: expect.objectContaining({
+				instructorId,
+				...(model === 'course'
+					? { courseTypeId: { in: [courseTypeIdA] } }
+					: {
+							course: expect.objectContaining({
+								courseTypeId: { in: [courseTypeIdA] },
+							}),
+						}),
+			}),
+		});
+		expect(prismaMock.instructorProfile.update).not.toHaveBeenCalled();
 	});
 
 	it('rejects unknown CourseType ids before writing the relation', async () => {

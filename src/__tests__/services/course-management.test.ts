@@ -2,8 +2,9 @@ import { CourseKind } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	createCourseForUser,
-	patchCourseInstructorForOwner,
+	patchCourseForOwner,
 } from '../../services/course/commands';
+import { getCourseDetailForOwner } from '../../services/course/queries';
 
 const { prismaMock, qualificationMock } = vi.hoisted(() => ({
 	prismaMock: {
@@ -12,6 +13,9 @@ const { prismaMock, qualificationMock } = vi.hoisted(() => ({
 			findUnique: vi.fn(),
 			update: vi.fn(),
 		},
+		courseParticipant: { count: vi.fn() },
+		lesson: { count: vi.fn() },
+		instructorEvent: { count: vi.fn() },
 		courseType: {
 			findUnique: vi.fn(),
 		},
@@ -116,6 +120,9 @@ describe('course management service', () => {
 		});
 		prismaMock.course.findUnique.mockResolvedValue(courseDetailRow());
 		prismaMock.course.update.mockResolvedValue({});
+		prismaMock.courseParticipant.count.mockResolvedValue(0);
+		prismaMock.lesson.count.mockResolvedValue(0);
+		prismaMock.instructorEvent.count.mockResolvedValue(0);
 	});
 
 	it('creates a theory group course only for an owned school and qualified instructor', async () => {
@@ -194,7 +201,7 @@ describe('course management service', () => {
 
 	it('patches course instructor and capacity after ownership and qualification checks', async () => {
 		await expect(
-			patchCourseInstructorForOwner(managerId, courseId, {
+			patchCourseForOwner(managerId, courseId, {
 				instructorId,
 				capacity: 18,
 			}),
@@ -238,7 +245,7 @@ describe('course management service', () => {
 		});
 
 		await expect(
-			patchCourseInstructorForOwner(managerId, courseId, {
+			patchCourseForOwner(managerId, courseId, {
 				capacity: 18,
 			}),
 		).rejects.toMatchObject({
@@ -247,5 +254,57 @@ describe('course management service', () => {
 		});
 
 		expect(prismaMock.course.update).not.toHaveBeenCalled();
+	});
+
+	it('updates editable course fields when there are no linked enrollments or lessons', async () => {
+		await patchCourseForOwner(managerId, courseId, {
+			name: 'Nowa nazwa',
+			category: 'B',
+			totalHours: 32,
+		});
+		expect(prismaMock.course.update).toHaveBeenCalledWith({
+			where: { id: courseId },
+			data: {
+				name: 'Nowa nazwa',
+				category: 'B',
+				courseTypeId,
+				totalHours: 32,
+			},
+		});
+	});
+
+	it('blocks structural edits when the course has enrolled students', async () => {
+		prismaMock.courseParticipant.count.mockResolvedValue(1);
+		await expect(
+			patchCourseForOwner(managerId, courseId, {
+				totalHours: 28,
+			}),
+		).rejects.toMatchObject({ statusCode: 409 });
+		expect(prismaMock.course.update).not.toHaveBeenCalled();
+	});
+
+	it('blocks reducing capacity below active enrollments', async () => {
+		prismaMock.courseParticipant.count.mockResolvedValue(4);
+		await expect(
+			patchCourseForOwner(managerId, courseId, {
+				capacity: 3,
+			}),
+		).rejects.toMatchObject({ statusCode: 409 });
+		expect(prismaMock.course.update).not.toHaveBeenCalled();
+	});
+
+	it('exposes activity and theory dates for the edit form', async () => {
+		prismaMock.course.findUnique.mockResolvedValue({
+			...courseDetailRow(),
+			theoryStartDate: new Date('2026-11-01T00:00:00.000Z'),
+			theoryEndDate: new Date('2026-11-30T00:00:00.000Z'),
+			_count: { participants: 1, lessons: 0, instructorEvents: 0 },
+		});
+		await expect(
+			getCourseDetailForOwner(managerId, courseId),
+		).resolves.toMatchObject({
+			hasActivity: true,
+			theoryStartDate: new Date('2026-11-01T00:00:00.000Z'),
+		});
 	});
 });

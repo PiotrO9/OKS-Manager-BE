@@ -155,6 +155,13 @@ export async function getCourseDetailForOwner(
 	const row = await prisma.course.findUnique({
 		where: { id: courseId },
 		include: {
+			_count: {
+				select: {
+					participants: true,
+					lessons: { where: { deletedAt: null } },
+					instructorEvents: true,
+				},
+			},
 			courseType: {
 				select: { id: true, code: true, name: true },
 			},
@@ -190,6 +197,13 @@ export async function getCourseDetailForOwner(
 		type: row.kind,
 		totalHours: row.totalHours,
 		capacity: row.capacity,
+		hasActivity: Boolean(
+			row._count?.participants ||
+			row._count?.lessons ||
+			row._count?.instructorEvents,
+		),
+		theoryStartDate: row.theoryStartDate,
+		theoryEndDate: row.theoryEndDate,
 		instructor: row.instructor
 			? {
 					id: row.instructor.user.id,
