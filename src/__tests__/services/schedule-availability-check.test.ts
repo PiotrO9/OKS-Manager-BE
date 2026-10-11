@@ -370,6 +370,36 @@ describe('schedule availability check', () => {
 		},
 	);
 
+	it('allows substitutes in manager create checks but retains the student self-booking rule', async () => {
+		const base = {
+			courseId,
+			instructorId,
+			date: '2026-09-26',
+			startTime: '12:00',
+			endTime: '13:00',
+		};
+		await checkScheduleAvailability(actor, {
+			intent: 'lesson_create',
+			...base,
+			studentId,
+			vehicleId,
+		});
+		expect(mocks.assertInstructorCanBookCourse).toHaveBeenLastCalledWith(
+			instructorId,
+			expect.any(Object),
+			{ allowSubstitute: true },
+		);
+		await checkScheduleAvailability(
+			{ id: studentId, role: Role.STUDENT },
+			{ intent: 'lesson_self_book', ...base },
+		);
+		expect(mocks.assertInstructorCanBookCourse).toHaveBeenLastCalledWith(
+			instructorId,
+			expect.any(Object),
+			undefined,
+		);
+	});
+
 	it('keeps vehicle and participant conflicts separate from infrastructure errors', async () => {
 		mocks.assertInstructorEventWindowAvailable.mockRejectedValue(
 			ScheduleDomainError.conflictFor(

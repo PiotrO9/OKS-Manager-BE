@@ -7,7 +7,7 @@ import {
 	VehicleAvailabilityStatus,
 } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { bookOwnLesson } from '../../services/lesson.service';
+import { bookLesson, bookOwnLesson } from '../../services/lesson.service';
 
 const { prismaMock, helperMocks } = vi.hoisted(() => ({
 	helperMocks: {
@@ -25,6 +25,7 @@ const { prismaMock, helperMocks } = vi.hoisted(() => ({
 			findFirst: vi.fn(),
 		},
 		drivingSchool: {
+			findFirst: vi.fn(),
 			findUnique: vi.fn(),
 		},
 		instructorEvent: {
@@ -106,6 +107,7 @@ function mockStudent() {
 }
 
 function mockHappyPath() {
+	prismaMock.drivingSchool.findFirst.mockResolvedValue({ id: schoolId });
 	mockCourse();
 	mockStudent();
 	prismaMock.schoolSettings.findUnique.mockResolvedValue({
@@ -217,6 +219,63 @@ describe('bookOwnLesson', () => {
 		).rejects.toMatchObject({ statusCode: 403 });
 
 		expect(prismaMock.course.findFirst).not.toHaveBeenCalled();
+	});
+
+	it.each([Role.MANAGER, Role.ADMIN])(
+		'allows a %s booking with a qualified substitute without changing the course',
+		async (role) => {
+			mockHappyPath();
+			const course = {
+				id: courseId,
+				schoolId,
+				instructorId: 'assigned-instructor',
+				courseTypeId: 'course-type-1',
+				kind: CourseKind.PRACTICAL,
+				totalHours: 30,
+			};
+			prismaMock.course.findFirst.mockResolvedValue(course);
+			await expect(
+				bookLesson(
+					{ id: 'manager', role },
+					{
+						courseId,
+						studentId: actor.id,
+						instructorId,
+						vehicleId: defaultVehicleId,
+						startTime,
+						endTime,
+						lessonType: 'PRACTICE',
+					},
+				),
+			).resolves.toMatchObject({ lesson: { instructorId } });
+			expect(
+				helperMocks.assertInstructorQualifiedForCourseType,
+			).toHaveBeenCalledWith(instructorId, course.courseTypeId);
+			expect(course.instructorId).toBe('assigned-instructor');
+		},
+	);
+
+	it('still requires the assigned course instructor for student self-booking', async () => {
+		mockHappyPath();
+		prismaMock.course.findFirst.mockResolvedValue({
+			id: courseId,
+			schoolId,
+			instructorId: 'assigned-instructor',
+			courseTypeId: 'course-type-1',
+			kind: CourseKind.PRACTICAL,
+			totalHours: 30,
+		});
+		await expect(
+			bookOwnLesson(actor, {
+				courseId,
+				instructorId,
+				startTime,
+				endTime,
+			}),
+		).rejects.toThrow(
+			'instructor does not match course assigned instructor',
+		);
+		expect(prismaMock.lesson.create).not.toHaveBeenCalled();
 	});
 
 	it('rejects theory courses', async () => {

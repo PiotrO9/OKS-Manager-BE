@@ -94,6 +94,7 @@ export async function loadStudentProfileIdForUser(
 export async function assertInstructorCanBookCourse(
 	instructorId: string,
 	course: CourseForBooking,
+	options?: { allowSubstitute?: boolean },
 ): Promise<void> {
 	const instructorLink = await prisma.instructorSchool.findFirst({
 		where: {
@@ -109,7 +110,11 @@ export async function assertInstructorCanBookCourse(
 		);
 	}
 
-	if (course.instructorId != null && course.instructorId !== instructorId) {
+	if (
+		!options?.allowSubstitute &&
+		course.instructorId != null &&
+		course.instructorId !== instructorId
+	) {
 		throw AppError.badRequest(
 			'instructor does not match course assigned instructor',
 		);

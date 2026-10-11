@@ -7,6 +7,9 @@ import { listSchoolAvailabilitySlots } from '../../services/school-availability/
 
 const { prismaMock, accessMock, selectionMock, slotsMock } = vi.hoisted(() => ({
 	prismaMock: {
+		course: { findFirst: vi.fn() },
+		courseParticipant: { findFirst: vi.fn() },
+		instructorProfile: { findMany: vi.fn() },
 		studentProfile: { findUnique: vi.fn() },
 		lesson: { findMany: vi.fn() },
 	},
@@ -80,6 +83,41 @@ beforeEach(() => {
 afterEach(() => {
 	vi.useRealTimers();
 });
+
+it.each([Role.MANAGER, Role.ADMIN, Role.STUDENT])(
+	'applies default instructor restrictions only outside manager booking (%s)',
+	async (role) => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-10-11T10:00:00Z'));
+		prismaMock.course.findFirst.mockResolvedValue({
+			instructorId: 'instructor-1',
+			courseTypeId: 'type-c',
+		});
+		prismaMock.courseParticipant.findFirst.mockResolvedValue({
+			id: 'participant',
+		});
+		prismaMock.instructorProfile.findMany.mockImplementation(
+			async ({ where }) => where.id.in.map((id: string) => ({ id })),
+		);
+		slotsMock.mockResolvedValue([
+			{ date: '2026-10-16', startTime: '09:00', endTime: '10:00' },
+		]);
+		const result = await listSchoolAvailabilitySlots(
+			{ id: 'user-1', role },
+			'school-1',
+			{
+				dateFrom: '2026-10-16',
+				dateTo: '2026-10-16',
+				courseId: 'course-1',
+				sort: 'startTime',
+				excludeMyLessons: false,
+			},
+		);
+		expect(result.slots.map((slot) => slot.instructorId)).toEqual(
+			role === Role.STUDENT ? ['instructor-1'] : instructorIds,
+		);
+	},
+);
 
 describe('student busy lessons in Polish school slots', () => {
 	it.each([

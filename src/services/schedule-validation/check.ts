@@ -185,6 +185,7 @@ async function checkLessonCreateAvailability(
 		issues,
 		body.instructorId,
 		course,
+		{ allowSubstitute: true },
 	);
 
 	await prisma.$transaction(async (tx) => {
@@ -721,9 +722,10 @@ async function pushLessonInstructorIssue(
 	issues: ScheduleAvailabilityIssue[],
 	instructorId: string,
 	course: CourseForBooking,
+	options?: { allowSubstitute?: boolean },
 ): Promise<boolean> {
 	try {
-		await assertInstructorCanBookCourse(instructorId, course);
+		await assertInstructorCanBookCourse(instructorId, course, options);
 		return true;
 	} catch (error) {
 		expectedClientError(error);

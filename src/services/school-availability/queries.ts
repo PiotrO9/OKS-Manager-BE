@@ -83,7 +83,11 @@ export async function listSchoolAvailabilitySlots(
 			}
 		}
 
-		if (course.instructorId) {
+		if (
+			course.instructorId &&
+			actor.role !== Role.MANAGER &&
+			actor.role !== Role.ADMIN
+		) {
 			instructorIds = instructorIds.filter(
 				(id) => id === course.instructorId,
 			);

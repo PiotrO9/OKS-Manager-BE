@@ -168,7 +168,9 @@ export async function bookLesson(
 	const studentProfileId = await loadStudentProfileIdForUser(body.studentId);
 
 	await assertStudentParticipatesInCourse(course.id, studentProfileId);
-	await assertInstructorCanBookCourse(body.instructorId, course);
+	await assertInstructorCanBookCourse(body.instructorId, course, {
+		allowSubstitute: true,
+	});
 
 	return createPracticeLessonForStudent({
 		course,
