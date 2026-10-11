@@ -55,4 +55,11 @@ async function patchCourse(req: Request, res: Response) {
 	return sendJsonSuccess(res, { course });
 }
 
-export { createCourse, getCourseById, listCourses, patchCourse };
+async function deleteCourse(req: Request, res: Response) {
+	const user = requireUser(req);
+	const params = parseRequestPart(courseIdParamsSchema, req.params, 'params');
+	await courseService.deleteEmptyCourseForOwner(user.id, params.id);
+	return sendJsonSuccess(res, { deleted: true });
+}
+
+export { createCourse, deleteCourse, getCourseById, listCourses, patchCourse };

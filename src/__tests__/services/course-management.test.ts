@@ -2,12 +2,15 @@ import { CourseKind } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	createCourseForUser,
+	deleteEmptyCourseForOwner,
 	patchCourseForOwner,
 } from '../../services/course/commands';
 import { getCourseDetailForOwner } from '../../services/course/queries';
 
 const { prismaMock, qualificationMock } = vi.hoisted(() => ({
 	prismaMock: {
+		$transaction: vi.fn(),
+		$queryRaw: vi.fn(),
 		course: {
 			create: vi.fn(),
 			findUnique: vi.fn(),
@@ -16,6 +19,7 @@ const { prismaMock, qualificationMock } = vi.hoisted(() => ({
 		courseParticipant: { count: vi.fn() },
 		lesson: { count: vi.fn() },
 		instructorEvent: { count: vi.fn() },
+		paymentPlan: { count: vi.fn() },
 		courseType: {
 			findUnique: vi.fn(),
 		},
@@ -123,6 +127,14 @@ describe('course management service', () => {
 		prismaMock.courseParticipant.count.mockResolvedValue(0);
 		prismaMock.lesson.count.mockResolvedValue(0);
 		prismaMock.instructorEvent.count.mockResolvedValue(0);
+		prismaMock.paymentPlan.count.mockResolvedValue(0);
+		prismaMock.$queryRaw.mockResolvedValue([
+			{ id: courseId, school_id: schoolId, deleted_at: null },
+		]);
+		prismaMock.$transaction.mockImplementation(
+			async (callback: (tx: typeof prismaMock) => Promise<void>) =>
+				callback(prismaMock),
+		);
 	});
 
 	it('creates a theory group course only for an owned school and qualified instructor', async () => {
@@ -306,5 +318,53 @@ describe('course management service', () => {
 			hasActivity: true,
 			theoryStartDate: new Date('2026-11-01T00:00:00.000Z'),
 		});
+	});
+
+	it('soft-deletes an empty course owned by the manager', async () => {
+		await deleteEmptyCourseForOwner(managerId, courseId);
+		expect(prismaMock.course.update).toHaveBeenCalledWith({
+			where: { id: courseId },
+			data: { deletedAt: expect.any(Date) },
+		});
+	});
+
+	it.each([
+		['courseParticipant', 'zapisanych kursantów'],
+		['lesson', 'zajęcia'],
+		['instructorEvent', 'wydarzenia'],
+		['paymentPlan', 'plany płatności'],
+	] as const)(
+		'blocks deletion when %s references the course',
+		async (relation, message) => {
+			prismaMock[relation].count.mockResolvedValue(1);
+			await expect(
+				deleteEmptyCourseForOwner(managerId, courseId),
+			).rejects.toMatchObject({
+				statusCode: 409,
+				message: expect.stringContaining(message),
+			});
+			expect(prismaMock.course.update).not.toHaveBeenCalled();
+		},
+	);
+
+	it('does not expose deletion of a course in another school', async () => {
+		prismaMock.drivingSchool.findUnique.mockResolvedValue({
+			id: schoolId,
+			ownerId: instructorId,
+			deletedAt: null,
+		});
+		await expect(
+			deleteEmptyCourseForOwner(managerId, courseId),
+		).rejects.toMatchObject({ statusCode: 403 });
+		expect(prismaMock.course.update).not.toHaveBeenCalled();
+	});
+
+	it('reports a previously deleted course as unavailable', async () => {
+		prismaMock.$queryRaw.mockResolvedValue([
+			{ id: courseId, school_id: schoolId, deleted_at: new Date() },
+		]);
+		await expect(
+			deleteEmptyCourseForOwner(managerId, courseId),
+		).rejects.toMatchObject({ statusCode: 404 });
 	});
 });

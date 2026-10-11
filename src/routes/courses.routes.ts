@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
 	createCourse,
+	deleteCourse,
 	getCourseById,
 	listCourses,
 	patchCourse,
@@ -30,6 +31,13 @@ function createCoursesRouter() {
 		authMiddleware,
 		requireMinRole('MANAGER'),
 		asyncHandler(patchCourse),
+	);
+
+	router.delete(
+		'/:id',
+		authMiddleware,
+		requireMinRole('MANAGER'),
+		asyncHandler(deleteCourse),
 	);
 
 	router.post(

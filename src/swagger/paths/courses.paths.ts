@@ -72,4 +72,15 @@ export function registerCoursePaths(registry: OpenAPIRegistry): void {
 			200: okDataUnknown('OK'),
 		}),
 	});
+	registry.registerPath({
+		method: 'delete',
+		path: '/courses/{id}',
+		tags: ['Courses'],
+		summary: 'Usunięcie pustego kursu (MANAGER)',
+		description:
+			'Kurs z zapisami, zajęciami, wydarzeniami lub planami płatności nie może zostać usunięty.',
+		security: [{ bearerAuth: [] }],
+		request: { params: courseIdParamsSchema },
+		responses: stdBearerResponses({ 200: okDataUnknown('Kurs usunięty') }),
+	});
 }

@@ -279,3 +279,59 @@ export async function patchCourseForOwner(
 
 	return getCourseDetailForOwner(userId, courseId);
 }
+
+export async function deleteEmptyCourseForOwner(
+	userId: string,
+	courseId: string,
+): Promise<void> {
+	await prisma.$transaction(async (tx) => {
+		// Serialize deletion with inserts into tables referencing this course.
+		const rows = await tx.$queryRaw<
+			Array<{
+				id: string;
+				school_id: string;
+				deleted_at: Date | null;
+			}>
+		>`SELECT id, school_id, deleted_at FROM courses WHERE id = ${courseId}::uuid FOR UPDATE`;
+		const course = rows[0];
+		if (!course || course.deleted_at) {
+			throw AppError.notFound('Course not found');
+		}
+		const school = await tx.drivingSchool.findUnique({
+			where: { id: course.school_id },
+			select: { ownerId: true, deletedAt: true },
+		});
+		if (!school || school.deletedAt || school.ownerId !== userId) {
+			throw AppError.forbidden('Forbidden');
+		}
+
+		const [participants, lessons, events, paymentPlans] = await Promise.all(
+			[
+				tx.courseParticipant.count({ where: { courseId } }),
+				tx.lesson.count({ where: { courseId } }),
+				tx.instructorEvent.count({ where: { courseId } }),
+				tx.paymentPlan.count({ where: { courseId } }),
+			],
+		);
+		if (participants)
+			throw AppError.conflict(
+				'Nie można usunąć kursu, ponieważ ma zapisanych kursantów.',
+			);
+		if (lessons)
+			throw AppError.conflict(
+				'Nie można usunąć kursu, ponieważ ma zajęcia.',
+			);
+		if (events)
+			throw AppError.conflict(
+				'Nie można usunąć kursu, ponieważ ma wydarzenia.',
+			);
+		if (paymentPlans)
+			throw AppError.conflict(
+				'Nie można usunąć kursu, ponieważ ma plany płatności.',
+			);
+		await tx.course.update({
+			where: { id: courseId },
+			data: { deletedAt: new Date() },
+		});
+	});
+}

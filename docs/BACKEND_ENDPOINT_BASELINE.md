@@ -141,6 +141,7 @@ Mounted at `/courses`, routes in `src/routes/courses.routes.ts`.
 | GET | `/courses` | `listCourses` | bearer, min role `MANAGER` | 200 |
 | GET | `/courses/:id` | `getCourseById` | bearer, min role `MANAGER` | 200 |
 | PATCH | `/courses/:id` | `patchCourse` | bearer, min role `MANAGER` | 200 |
+| DELETE | `/courses/:id` | `deleteCourse` | bearer, min role `MANAGER` | 200, 403, 404, 409 |
 | POST | `/courses` | `createCourse` | bearer, min role `MANAGER` | 200 |
 
 ## Course Types
