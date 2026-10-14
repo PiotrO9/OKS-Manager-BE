@@ -28,7 +28,10 @@ import {
 	findAvailableVehicleIdForStudentBooking,
 } from './vehicleAvailability';
 import { assertLessonSchedulingWindowAvailable } from './scheduleConflicts';
-import { assertScheduleDurationAllowed } from '../schedule-validation/policy';
+import {
+	assertScheduleDurationAllowed,
+	assertStudentSelfBookingDurationAllowed,
+} from '../schedule-validation/policy';
 import { runScheduleWriteTransaction } from '../schedule-validation/transaction';
 
 const prisma = getPrisma();
@@ -96,6 +99,7 @@ async function createPracticeLessonForStudent(input: {
 	instructorId: string;
 	start: Date;
 	end: Date;
+	bookingMode?: 'REMAINING_PACKAGE';
 	resolveVehicleId: (tx: Prisma.TransactionClient) => Promise<string>;
 }): Promise<{ lesson: LessonDto }> {
 	const {
@@ -104,16 +108,29 @@ async function createPracticeLessonForStudent(input: {
 		instructorId,
 		start,
 		end,
+		bookingMode,
 		resolveVehicleId,
 	} = input;
 
 	const row = await runScheduleWriteTransaction(async (tx) => {
-		await assertScheduleDurationAllowed(tx, {
-			schoolId: course.schoolId,
-			kind: 'PRACTICE',
-			start,
-			end,
-		});
+		if (bookingMode) {
+			await assertStudentSelfBookingDurationAllowed(tx, {
+				schoolId: course.schoolId,
+				courseId: course.id,
+				studentProfileId,
+				totalHours: course.totalHours,
+				start,
+				end,
+				bookingMode,
+			});
+		} else {
+			await assertScheduleDurationAllowed(tx, {
+				schoolId: course.schoolId,
+				kind: 'PRACTICE',
+				start,
+				end,
+			});
+		}
 		await assertLessonSchedulingWindowAvailable(tx, {
 			instructorId,
 			studentProfileId,
@@ -222,6 +239,7 @@ export async function bookOwnLesson(
 		instructorId: body.instructorId,
 		start,
 		end,
+		bookingMode: body.bookingMode,
 		resolveVehicleId: (tx) =>
 			findAvailableVehicleIdForStudentBooking(
 				tx,

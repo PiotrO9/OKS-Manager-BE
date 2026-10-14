@@ -18,7 +18,7 @@ const prisma = getPrisma();
 
 async function getCompletedDrivingMinutesByCourse(
 	rows: CurrentUserCourseRow[],
-): Promise<Map<string, number>> {
+): Promise<{ completed: Map<string, number>; booked: Map<string, number> }> {
 	const practicalCourseIds = rows
 		.filter(
 			(row) =>
@@ -28,7 +28,7 @@ async function getCompletedDrivingMinutesByCourse(
 		.map((row) => row.course.id);
 
 	if (practicalCourseIds.length === 0) {
-		return new Map();
+		return { completed: new Map(), booked: new Map() };
 	}
 
 	const studentIds = Array.from(new Set(rows.map((row) => row.studentId)));
@@ -36,7 +36,7 @@ async function getCompletedDrivingMinutesByCourse(
 		where: {
 			courseId: { in: practicalCourseIds },
 			studentId: { in: studentIds },
-			status: LessonStatus.COMPLETED,
+			status: { not: LessonStatus.CANCELLED },
 			lessonType: LessonType.PRACTICE,
 			deletedAt: null,
 		},
@@ -44,10 +44,18 @@ async function getCompletedDrivingMinutesByCourse(
 			courseId: true,
 			startTime: true,
 			endTime: true,
+			status: true,
 		},
 	});
 
-	return groupCompletedMinutesByCourse(lessons);
+	return {
+		completed: groupCompletedMinutesByCourse(
+			lessons.filter(
+				(lesson) => lesson.status === LessonStatus.COMPLETED,
+			),
+		),
+		booked: groupCompletedMinutesByCourse(lessons),
+	};
 }
 
 export async function listCoursesForSchool(
@@ -130,7 +138,7 @@ export async function listCoursesForCurrentUser(
 		},
 	})) as CurrentUserCourseRow[];
 
-	const completedMinutesByCourse =
+	const packageMinutesByCourse =
 		await getCompletedDrivingMinutesByCourse(rows);
 
 	return rows.map((row) => ({
@@ -140,10 +148,23 @@ export async function listCoursesForCurrentUser(
 		status: row.status,
 		type: row.course.kind,
 		totalHours: row.course.totalHours,
+		completedMinutes:
+			packageMinutesByCourse.completed.get(row.course.id) ?? 0,
+		bookedMinutes: packageMinutesByCourse.booked.get(row.course.id) ?? 0,
+		remainingBookableMinutes:
+			row.course.kind === CourseKind.PRACTICAL ||
+			row.course.kind === CourseKind.EXTRA
+				? Math.max(
+						0,
+						row.course.totalHours * 60 -
+							(packageMinutesByCourse.booked.get(row.course.id) ??
+								0),
+					)
+				: 0,
 		progress: calculateCourseProgress(
 			row.course.kind,
 			row.course.totalHours,
-			completedMinutesByCourse.get(row.course.id) ?? 0,
+			packageMinutesByCourse.completed.get(row.course.id) ?? 0,
 		),
 	}));
 }

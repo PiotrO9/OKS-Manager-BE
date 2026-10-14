@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import { sendJsonError } from '../apiResponse';
 import { logger } from '../logger';
 import { AppError } from './AppError';
+import { ScheduleDomainError } from './ScheduleDomainError';
 
 export const errorRequestHandler: ErrorRequestHandler = (
 	err,
@@ -16,7 +17,14 @@ export const errorRequestHandler: ErrorRequestHandler = (
 	}
 
 	if (err instanceof AppError) {
-		sendJsonError(res, err.message, err.statusCode);
+		sendJsonError(
+			res,
+			err.message,
+			err.statusCode,
+			err instanceof ScheduleDomainError
+				? { code: err.reason, details: err.details }
+				: undefined,
+		);
 		return;
 	}
 

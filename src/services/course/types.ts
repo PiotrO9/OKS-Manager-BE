@@ -55,6 +55,9 @@ export type CurrentUserCourseDto = {
 	type: CourseKind;
 	totalHours: number;
 	progress: number;
+	completedMinutes: number;
+	bookedMinutes: number;
+	remainingBookableMinutes: number;
 };
 
 export type CurrentUserCourseRow = {

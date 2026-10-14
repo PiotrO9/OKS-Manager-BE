@@ -18,6 +18,7 @@ export class ScheduleDomainError extends AppError {
 		readonly reason: ScheduleDomainReason,
 		statusCode: number,
 		message: string,
+		readonly details?: { remainingMinutes: number },
 	) {
 		super(statusCode, message);
 		this.name = 'ScheduleDomainError';
@@ -26,8 +27,9 @@ export class ScheduleDomainError extends AppError {
 	static conflictFor(
 		reason: ScheduleDomainReason,
 		message: string,
+		details?: { remainingMinutes: number },
 	): ScheduleDomainError {
-		return new ScheduleDomainError(reason, 409, message);
+		return new ScheduleDomainError(reason, 409, message, details);
 	}
 
 	static badRequestFor(

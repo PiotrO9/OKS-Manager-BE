@@ -31,11 +31,12 @@ function lessonTimeRange(
 	courseId: string,
 	start: string,
 	end: string,
-): { courseId: string; startTime: Date; endTime: Date } {
+): { courseId: string; startTime: Date; endTime: Date; status: LessonStatus } {
 	return {
 		courseId,
 		startTime: new Date(start),
 		endTime: new Date(end),
+		status: LessonStatus.COMPLETED,
 	};
 }
 
@@ -82,6 +83,9 @@ describe('courseService.listCoursesForCurrentUser', () => {
 				type: CourseKind.PRACTICAL,
 				totalHours: 30,
 				progress: 0,
+				completedMinutes: 0,
+				bookedMinutes: 0,
+				remainingBookableMinutes: 1800,
 			},
 			{
 				id: '33333333-3333-3333-3333-333333333333',
@@ -91,6 +95,9 @@ describe('courseService.listCoursesForCurrentUser', () => {
 				type: CourseKind.THEORY_GROUP,
 				totalHours: 30,
 				progress: 0,
+				completedMinutes: 0,
+				bookedMinutes: 0,
+				remainingBookableMinutes: 0,
 			},
 		]);
 	});
@@ -166,6 +173,9 @@ describe('courseService.listCoursesForCurrentUser', () => {
 				type: CourseKind.PRACTICAL,
 				totalHours: 4,
 				progress: 50,
+				completedMinutes: 120,
+				bookedMinutes: 120,
+				remainingBookableMinutes: 120,
 			},
 		]);
 	});
@@ -204,6 +214,9 @@ describe('courseService.listCoursesForCurrentUser', () => {
 				type: CourseKind.EXTRA,
 				totalHours: 1,
 				progress: 100,
+				completedMinutes: 120,
+				bookedMinutes: 120,
+				remainingBookableMinutes: 0,
 			},
 		]);
 	});
@@ -234,13 +247,16 @@ describe('courseService.listCoursesForCurrentUser', () => {
 				type: CourseKind.THEORY_GROUP,
 				totalHours: 30,
 				progress: 0,
+				completedMinutes: 0,
+				bookedMinutes: 0,
+				remainingBookableMinutes: 0,
 			},
 		]);
 
 		expect(prismaMock.lesson.findMany).not.toHaveBeenCalled();
 	});
 
-	it('queries only completed active practice lessons for progress', async () => {
+	it('queries noncancelled active practice lessons for both progress and booking balance', async () => {
 		const courseId = '22222222-2222-2222-2222-222222222222';
 		prismaMock.courseParticipant.findMany.mockResolvedValue([
 			{
@@ -262,7 +278,7 @@ describe('courseService.listCoursesForCurrentUser', () => {
 			where: {
 				courseId: { in: [courseId] },
 				studentId: { in: [studentId] },
-				status: LessonStatus.COMPLETED,
+				status: { not: LessonStatus.CANCELLED },
 				lessonType: LessonType.PRACTICE,
 				deletedAt: null,
 			},
@@ -270,6 +286,7 @@ describe('courseService.listCoursesForCurrentUser', () => {
 				courseId: true,
 				startTime: true,
 				endTime: true,
+				status: true,
 			},
 		});
 	});

@@ -6,7 +6,10 @@ import {
 } from '../../lib/http/ScheduleDomainError';
 import { assertInstructorQualifiedForCourseType } from '../../lib/instructorCourseQualification';
 import { getPrisma } from '../../lib/prisma';
-import { parsePolishScheduleWindow } from '../../lib/polishScheduleTime';
+import {
+	instantToPolishDateTime,
+	parsePolishScheduleWindow,
+} from '../../lib/polishScheduleTime';
 import { validateVehicleForInstructor } from '../../lib/vehicle.helpers';
 import type { ScheduleAvailabilityCheckBody } from '../../schemas/schedule.schemas';
 import {
@@ -20,6 +23,8 @@ import {
 	assertVehicleAvailableForEventWindow,
 } from '../event/writeConflicts';
 import { resolveScheduleDurationPolicy } from './policy';
+import { assertStudentSelfBookingDurationAllowed } from './policy';
+import { getCoursePracticePackageBalance } from '../../lib/lesson-scheduling';
 import {
 	assertActorCanBookLessonForCourse,
 	assertCourseCanBeSelfBooked,
@@ -133,6 +138,12 @@ export async function checkScheduleAvailability(
 	available: boolean;
 	issues: ScheduleAvailabilityIssue[];
 	policy: { minDurationMinutes: number; maxDurationMinutes: number };
+	remainingMinutes?: number;
+	alternative?: {
+		startTime: string;
+		endTime: string;
+		durationMinutes: number;
+	};
 }> {
 	if (body.intent === 'lesson_create') {
 		return checkLessonCreateAvailability(actor, body);
@@ -245,6 +256,10 @@ async function checkLessonSelfBookAvailability(
 		'PRACTICE',
 	);
 	const issues: ScheduleAvailabilityIssue[] = [];
+	let remainingMinutes: number | undefined;
+	let alternative:
+		| { startTime: string; endTime: string; durationMinutes: number }
+		| undefined;
 
 	try {
 		assertCourseCanBeSelfBooked(course);
@@ -254,7 +269,9 @@ async function checkLessonSelfBookAvailability(
 		return { available: false, issues, policy };
 	}
 
-	pushDurationIssue(issues, durationMinutes, policy);
+	if (!body.bookingMode) {
+		pushDurationIssue(issues, durationMinutes, policy);
+	}
 	await pushLessonDateIssue(issues, start, course.schoolId);
 
 	const studentProfileId = await loadStudentProfileIdForUser(actor.id);
@@ -277,6 +294,41 @@ async function checkLessonSelfBookAvailability(
 
 	await prisma.$transaction(async (tx) => {
 		if (studentEligible && instructorEligible) {
+			remainingMinutes = (
+				await getCoursePracticePackageBalance(
+					tx,
+					course.id,
+					studentProfileId,
+					course.totalHours,
+				)
+			).remainingMinutes;
+			if (body.bookingMode) {
+				try {
+					await assertStudentSelfBookingDurationAllowed(tx, {
+						schoolId: course.schoolId,
+						courseId: course.id,
+						studentProfileId,
+						totalHours: course.totalHours,
+						start,
+						end,
+						bookingMode: body.bookingMode,
+					});
+				} catch (error) {
+					expectedClientError(error);
+					issues.push({
+						code:
+							error instanceof ScheduleDomainError &&
+							error.reason === 'COURSE_LIMIT_EXCEEDED'
+								? 'COURSE_LIMIT_EXCEEDED'
+								: 'DURATION_TOO_SHORT',
+						field:
+							error instanceof ScheduleDomainError &&
+							error.reason === 'COURSE_LIMIT_EXCEEDED'
+								? 'courseId'
+								: 'endTime',
+					});
+				}
+			}
 			await pushLessonScheduleIssue(issues, () =>
 				assertLessonSchedulingWindowAvailable(tx, {
 					instructorId: body.instructorId,
@@ -288,6 +340,52 @@ async function checkLessonSelfBookAvailability(
 					end,
 				}),
 			);
+			if (
+				!body.bookingMode &&
+				!issues.some((issue) => issue.code === 'DATE_NOT_BOOKABLE') &&
+				remainingMinutes > 0 &&
+				remainingMinutes < durationMinutes &&
+				remainingMinutes < policy.minDurationMinutes
+			) {
+				const shortEnd = new Date(
+					start.getTime() + remainingMinutes * 60_000,
+				);
+				try {
+					await assertStudentSelfBookingDurationAllowed(tx, {
+						schoolId: course.schoolId,
+						courseId: course.id,
+						studentProfileId,
+						totalHours: course.totalHours,
+						start,
+						end: shortEnd,
+						bookingMode: 'REMAINING_PACKAGE',
+					});
+					await assertLessonSchedulingWindowAvailable(tx, {
+						instructorId: body.instructorId,
+						studentProfileId,
+						courseId: course.id,
+						courseKind: course.kind,
+						totalHours: course.totalHours,
+						start,
+						end: shortEnd,
+					});
+					await findAvailableVehicleIdForStudentBooking(
+						tx,
+						body.instructorId,
+						course.schoolId,
+						start,
+						shortEnd,
+					);
+					const shortEndTime = instantToPolishDateTime(shortEnd).time;
+					alternative = {
+						startTime: body.startTime,
+						endTime: shortEndTime,
+						durationMinutes: remainingMinutes,
+					};
+				} catch (error) {
+					expectedClientError(error);
+				}
+			}
 		}
 
 		try {
@@ -307,7 +405,13 @@ async function checkLessonSelfBookAvailability(
 		}
 	});
 
-	return { available: issues.length === 0, issues, policy };
+	return {
+		available: issues.length === 0,
+		issues,
+		policy,
+		remainingMinutes,
+		alternative,
+	};
 }
 
 async function checkLessonEditAvailability(

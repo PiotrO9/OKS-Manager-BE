@@ -59,6 +59,7 @@ export const bookOwnLessonBodySchema = z
 		instructorId: z.string().regex(UUID_PARAM_RE, 'Invalid instructorId'),
 		startTime: z.string().datetime(),
 		endTime: z.string().datetime(),
+		bookingMode: z.literal('REMAINING_PACKAGE').optional(),
 	})
 	.strict()
 	.superRefine((data, ctx) => {

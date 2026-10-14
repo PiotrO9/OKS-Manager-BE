@@ -8,6 +8,8 @@ export type ApiSuccessBody<T = unknown> = {
 export type ApiErrorBody = {
 	success: false;
 	error: string;
+	code?: string;
+	details?: { remainingMinutes: number };
 };
 
 /**
@@ -28,6 +30,7 @@ export function sendJsonError(
 	res: Response,
 	error: string,
 	statusCode = 400,
+	extra?: Pick<ApiErrorBody, 'code' | 'details'>,
 ): Response {
-	return res.status(statusCode).json({ success: false, error });
+	return res.status(statusCode).json({ success: false, error, ...extra });
 }

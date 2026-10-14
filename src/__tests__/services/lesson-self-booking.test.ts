@@ -14,6 +14,7 @@ const { prismaMock, helperMocks } = vi.hoisted(() => ({
 		assertInstructorQualifiedForCourseType: vi.fn(),
 		assertCourseDrivingPackageHoursAllowNewLesson: vi.fn(),
 		assertStudentNoScheduleOverlap: vi.fn(),
+		getCoursePracticePackageBalance: vi.fn(),
 		assertInstructorTimeWindowAvailable: vi.fn(),
 	},
 	prismaMock: {
@@ -62,6 +63,8 @@ vi.mock('../../lib/instructorCourseQualification', () => ({
 }));
 
 vi.mock('../../lib/lesson-scheduling', () => ({
+	getCoursePracticePackageBalance:
+		helperMocks.getCoursePracticePackageBalance,
 	assertCourseDrivingPackageHoursAllowNewLesson:
 		helperMocks.assertCourseDrivingPackageHoursAllowNewLesson,
 	assertStudentNoScheduleOverlap: helperMocks.assertStudentNoScheduleOverlap,
@@ -130,6 +133,10 @@ function mockHappyPath() {
 	helperMocks.assertCourseDrivingPackageHoursAllowNewLesson.mockResolvedValue(
 		undefined,
 	);
+	helperMocks.getCoursePracticePackageBalance.mockResolvedValue({
+		bookedMinutes: 1770,
+		remainingMinutes: 30,
+	});
 	prismaMock.drivingSchool.findUnique.mockResolvedValue({
 		defaultVehicleId,
 	});
@@ -208,6 +215,33 @@ describe('bookOwnLesson', () => {
 				unavailableUntil: null,
 			},
 		});
+	});
+
+	it('writes a 30-minute final lesson only after explicit remaining-package confirmation', async () => {
+		mockHappyPath();
+		prismaMock.schoolSettings.findUnique.mockResolvedValue({
+			bookingMaxDaysAhead: 36500,
+			practiceMinDurationMinutes: 60,
+			practiceMaxDurationMinutes: 120,
+			allowShortFinalPracticeLesson: true,
+			minFinalPracticeDurationMinutes: 30,
+		});
+		await expect(
+			bookOwnLesson(actor, {
+				courseId,
+				instructorId,
+				startTime,
+				endTime: '2099-06-22T08:30:00.000Z',
+				bookingMode: 'REMAINING_PACKAGE',
+			}),
+		).resolves.toMatchObject({ lesson: { courseId } });
+		expect(prismaMock.lesson.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					endTime: new Date('2099-06-22T08:30:00.000Z'),
+				}),
+			}),
+		);
 	});
 
 	it('rejects non-student actors', async () => {

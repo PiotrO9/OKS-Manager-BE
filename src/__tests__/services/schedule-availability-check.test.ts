@@ -30,7 +30,7 @@ const { mocks, prismaMock } = vi.hoisted(() => ({
 		$transaction: vi.fn(async (callback) => callback(prismaMock)),
 		schoolSettings: { findUnique: vi.fn() },
 		instructorEvent: { findUnique: vi.fn() },
-		lesson: { findFirst: vi.fn() },
+		lesson: { findFirst: vi.fn(), findMany: vi.fn() },
 		instructorSchool: { findFirst: vi.fn() },
 		vehicle: { findFirst: vi.fn() },
 	},
@@ -98,6 +98,7 @@ const studentProfileId = '88888888-8888-4888-8888-888888888888';
 describe('schedule availability check', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		prismaMock.lesson.findMany.mockResolvedValue([]);
 		mocks.assertActorCanManageAvailability.mockResolvedValue(undefined);
 		mocks.resolveActiveInstructorProfile.mockResolvedValue(undefined);
 		mocks.assertCourseEligibleForInstructorEvent.mockResolvedValue(
@@ -660,6 +661,8 @@ describe('schedule availability check', () => {
 			available: true,
 			issues: [],
 			policy: { minDurationMinutes: 60, maxDurationMinutes: 120 },
+			remainingMinutes: 1800,
+			alternative: undefined,
 		});
 
 		expect(mocks.assertStudentParticipatesInCourse).toHaveBeenCalledWith(

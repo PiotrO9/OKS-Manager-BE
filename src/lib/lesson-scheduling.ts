@@ -1,8 +1,47 @@
-import { CourseKind, EventStatus, LessonStatus, Prisma } from '@prisma/client';
+import {
+	CourseKind,
+	EventStatus,
+	LessonStatus,
+	LessonType,
+	Prisma,
+	PrismaClient,
+} from '@prisma/client';
 import { AppError } from './http/AppError';
 import { ScheduleDomainError } from './http/ScheduleDomainError';
 
 type Tx = Prisma.TransactionClient;
+
+export async function getCoursePracticePackageBalance(
+	db: Tx | PrismaClient,
+	courseId: string,
+	studentProfileId: string,
+	totalHours: number,
+	excludeLessonId?: string,
+): Promise<{ bookedMinutes: number; remainingMinutes: number }> {
+	const rows = await db.lesson.findMany({
+		where: {
+			courseId,
+			studentId: studentProfileId,
+			lessonType: LessonType.PRACTICE,
+			deletedAt: null,
+			status: { not: LessonStatus.CANCELLED },
+			...(excludeLessonId ? { id: { not: excludeLessonId } } : {}),
+		},
+		select: { startTime: true, endTime: true },
+	});
+	const bookedMinutes = rows.reduce(
+		(total, row) =>
+			total +
+			Math.round(
+				(row.endTime.getTime() - row.startTime.getTime()) / 60_000,
+			),
+		0,
+	);
+	return {
+		bookedMinutes,
+		remainingMinutes: Math.max(0, totalHours * 60 - bookedMinutes),
+	};
+}
 
 /**
  * Suma minut jazd zakończonych (rozliczenie „wykorzystanych” godzin kursu).
@@ -102,27 +141,18 @@ export async function assertCourseDrivingPackageHoursAllowNewLesson(
 		throw AppError.badRequest('Lesson duration must be positive');
 	}
 
-	const rows = await tx.lesson.findMany({
-		where: {
-			courseId,
-			studentId: studentProfileId,
-			status: { not: LessonStatus.CANCELLED },
-			...(excludeLessonId ? { id: { not: excludeLessonId } } : {}),
-		},
-		select: { startTime: true, endTime: true },
-	});
-	let usedMinutes = 0;
-	for (const row of rows) {
-		usedMinutes += Math.round(
-			(row.endTime.getTime() - row.startTime.getTime()) / 60_000,
-		);
-	}
-
-	const allowedMinutes = totalHours * 60;
-	if (usedMinutes + newMinutes > allowedMinutes) {
+	const { remainingMinutes } = await getCoursePracticePackageBalance(
+		tx,
+		courseId,
+		studentProfileId,
+		totalHours,
+		excludeLessonId,
+	);
+	if (newMinutes > remainingMinutes) {
 		throw ScheduleDomainError.conflictFor(
 			'COURSE_LIMIT_EXCEEDED',
-			`Course driving hours would exceed the package limit (${totalHours}h)`,
+			`Pozostało ${remainingMinutes} minut jazd w pakiecie kursu.`,
+			{ remainingMinutes },
 		);
 	}
 }

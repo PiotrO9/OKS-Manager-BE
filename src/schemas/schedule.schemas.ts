@@ -182,6 +182,7 @@ const lessonCreateAvailabilityCheckBodySchema = z
 const lessonSelfBookAvailabilityCheckBodySchema = z
 	.object({
 		intent: z.literal('lesson_self_book'),
+		bookingMode: z.literal('REMAINING_PACKAGE').optional(),
 		courseId: z.string().regex(UUID_PARAM_RE, 'Invalid courseId'),
 		instructorId: z.string().regex(UUID_PARAM_RE, 'Invalid instructorId'),
 		date: scheduleDateSchema,

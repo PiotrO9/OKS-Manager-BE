@@ -193,6 +193,8 @@ model SchoolSettings {
   slotMustStartFullHour      Boolean      @default(true) @map("slot_must_start_full_hour")
   practiceMinDurationMinutes Int          @default(60) @map("practice_min_duration_minutes")
   practiceMaxDurationMinutes Int          @default(120) @map("practice_max_duration_minutes")
+  allowShortFinalPracticeLesson Boolean    @default(true) @map("allow_short_final_practice_lesson")
+  minFinalPracticeDurationMinutes Int      @default(30) @map("min_final_practice_duration_minutes")
   theoryMinDurationMinutes   Int          @default(45) @map("theory_min_duration_minutes")
   theoryMaxDurationMinutes   Int          @default(90) @map("theory_max_duration_minutes")
   bookingMaxDaysAhead        Int          @default(30) @map("booking_max_days_ahead")
