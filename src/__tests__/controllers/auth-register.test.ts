@@ -2,14 +2,14 @@ import type { Request, Response } from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { register } from '../../controllers/auth/register.handler';
 
-const { signUp, persist, schools, profileLookup } = vi.hoisted(() => ({
-	signUp: vi.fn(),
+const { createUser, persist, schools, profileLookup } = vi.hoisted(() => ({
+	createUser: vi.fn(),
 	persist: vi.fn(),
 	schools: vi.fn(),
 	profileLookup: vi.fn(),
 }));
-vi.mock('../../lib/supabase', () => ({
-	getSupabaseClient: () => ({ auth: { signUp } }),
+vi.mock('../../lib/supabaseAdmin', () => ({
+	getSupabaseAdminClient: () => ({ auth: { admin: { createUser } } }),
 }));
 vi.mock('../../lib/prisma', () => ({
 	getPrisma: () => ({ instructorProfile: { findUnique: profileLookup } }),
@@ -47,8 +47,8 @@ describe('register birth date validation before Auth', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.stubEnv('INSTRUCTOR_BIRTH_DATE_REQUIRED', 'true');
-		signUp.mockResolvedValue({
-			data: { user: { id: 'auth-1' }, session: null },
+		createUser.mockResolvedValue({
+			data: { user: { id: 'auth-1' } },
 			error: null,
 		});
 		persist.mockResolvedValue(undefined);
@@ -62,13 +62,18 @@ describe('register birth date validation before Auth', () => {
 			const res = response();
 			await register(request({ birthDate }), res);
 			expect(res.status).toHaveBeenCalledWith(400);
-			expect(signUp).not.toHaveBeenCalled();
+			expect(createUser).not.toHaveBeenCalled();
 			expect(persist).not.toHaveBeenCalled();
 		},
 	);
 	it('passes the validated date into persistence and returns 201', async () => {
 		const res = response();
 		await register(request(), res);
+		expect(createUser).toHaveBeenCalledWith({
+			email: 'instructor@example.com',
+			password: 'secret123',
+			email_confirm: true,
+		});
 		expect(persist).toHaveBeenCalledWith(
 			expect.objectContaining({
 				instructorBirthDate: new Date('2000-02-29T00:00:00.000Z'),
@@ -86,7 +91,7 @@ describe('register birth date validation before Auth', () => {
 			}),
 			res,
 		);
-		expect(signUp).toHaveBeenCalledOnce();
+		expect(createUser).toHaveBeenCalledOnce();
 		expect(persist).toHaveBeenCalledWith(
 			expect.objectContaining({
 				targetRole: 'STUDENT',

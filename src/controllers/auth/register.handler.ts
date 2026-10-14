@@ -4,7 +4,7 @@ import { sendJsonError } from '../../lib/apiResponse';
 import { AppError } from '../../lib/http/AppError';
 import { logger } from '../../lib/logger';
 import { canInvokerRegisterUserWithRole } from '../../lib/registerRolePolicy';
-import { getSupabaseClient } from '../../lib/supabase';
+import { getSupabaseAdminClient } from '../../lib/supabaseAdmin';
 import { parseInstructorBirthDate } from '../../lib/validation/instructorBirthDate';
 import {
 	logAuthSignUpError,
@@ -89,9 +89,10 @@ export async function register(req: Request, res: Response) {
 		throw err;
 	}
 
-	const { data, error } = await getSupabaseClient().auth.signUp({
+	const { data, error } = await getSupabaseAdminClient().auth.admin.createUser({
 		email: emailTrimmed,
 		password,
+		email_confirm: true,
 	});
 
 	if (error) {
@@ -102,7 +103,7 @@ export async function register(req: Request, res: Response) {
 
 	const authUserId = data.user?.id;
 	if (!authUserId) {
-		logger.error('register: signUp succeeded but no user id returned', {
+		logger.error('register: createUser succeeded but no user id returned', {
 			requestId: req.requestId,
 		});
 		return sendJsonError(res, 'Registration incomplete', 500);
@@ -129,7 +130,7 @@ export async function register(req: Request, res: Response) {
 	}
 
 	if (!data.user) {
-		logger.error('register: missing user in signUp response', {
+		logger.error('register: missing user in createUser response', {
 			requestId: req.requestId,
 		});
 		return sendJsonError(res, 'Registration incomplete', 500);
@@ -142,6 +143,6 @@ export async function register(req: Request, res: Response) {
 		emailTrimmed,
 		firstName,
 		lastName,
-		{ user: data.user, session: data.session },
+		{ user: data.user, session: null },
 	);
 }

@@ -68,7 +68,7 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 
 **Middleware:** `authMiddleware`. **Kto może kogo zarejestrować:** `registerRolePolicy.ts`.
 
-**Przepływ (skrót):** walidacja body i uprawnień → dla `role === INSTRUCTOR` oraz (gdy dotyczy) dla `role === STUDENT` rozstrzygane jest **`schoolId`** / domyślna OSK managera (**przed** `signUp**) → Supabase `auth.signUp` → w jednej transakcji Prisma: zapis `User` / aktualizacja, profile roli; dla instruktora: **`instructor_schools`** + **`instructor_working_hours_default`**; dla kursanta z wybraną OSK: **`student_schools`** (zastępuje wcześniejsze przypisania tego kursanta). `id` użytkownika w `public.users` jest **taki sam** jak w Supabase Auth (`auth.users`).
+**Przepływ (skrót):** walidacja body i uprawnień → dla `role === INSTRUCTOR` oraz (gdy dotyczy) dla `role === STUDENT` rozstrzygane jest **`schoolId`** / domyślna OSK managera (**przed** utworzeniem konta) → Supabase `auth.admin.createUser` → w jednej transakcji Prisma: zapis `User` / aktualizacja, profile roli; dla instruktora: **`instructor_schools`** + **`instructor_working_hours_default`**; dla kursanta z wybraną OSK: **`student_schools`** (zastępuje wcześniejsze przypisania tego kursanta). `id` użytkownika w `public.users` jest **taki sam** jak w Supabase Auth (`auth.users`).
 
 ### Body (JSON)
 
@@ -77,7 +77,7 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 | `email`, `password`, `role`, `firstName`, `lastName` | tak | `role`: `STUDENT` lub `INSTRUCTOR` |
 | `phone` | nie | |
 | `licenseNumber` | tak, gdy `role` = `INSTRUCTOR` | W modelu `InstructorProfile` pole `license_number` jest wymagane — brak → **400** (`licenseNumber is required when role is INSTRUCTOR`) |
-| `birthDate` | tak, gdy `role` = `INSTRUCTOR` (po rollout) | Data kalendarzowa `YYYY-MM-DD`, bez czasu; nie może być w przyszłości według `Europe/Warsaw`. Walidacja przed `signUp`. Nie dotyczy rejestracji kursanta. |
+| `birthDate` | tak, gdy `role` = `INSTRUCTOR` (po rollout) | Data kalendarzowa `YYYY-MM-DD`, bez czasu; nie może być w przyszłości według `Europe/Warsaw`. Walidacja przed utworzeniem konta. Nie dotyczy rejestracji kursanta. |
 | `schoolId` | zależnie od `role` i wywołującego | Patrz poniżej (INSTRUCTOR vs STUDENT). |
 
 **`schoolId` gdy `role` = `INSTRUCTOR`:** w praktyce rejestruje **`ADMIN`** lub **`MANAGER`**. UUID OSK — jak wcześniej: dla **`MANAGER`** bez `schoolId` używana jest **`defaultOskId`** (brak → **400** `Manager has no default school assigned`); dla **`ADMIN`** brak `schoolId` → **400** `schoolId is required when role is INSTRUCTOR`. Nieprawidłowy UUID / nieaktywna OSK → **400** `Invalid schoolId`; brak prawa do szkoły → **403**.
@@ -92,7 +92,7 @@ Serwer montuje router pod **`/auth`** (`src/server.ts`). Implementacja: `src/rou
 
 **Przypisanie kursanta do OSK przy rejestracji:** te same zasady co przy **`validateStudentRegistrationSchoolBeforeSignUp`** (`src/lib/studentSchoolRegistration.ts`) — **właściciel** OSK lub **`ADMIN`**, dla instruktora wyłącznie szkoły z jego **`instructor_schools`**.
 
-Jeśli rekord `users` z tym samym **`email`** ma już profil instruktora z co najmniej jednym wpisem w **`instructor_schools`** → **409** (`Instructor is already assigned to a driving school`) — nadal **przed** `signUp` (jeśli uda się to stwierdzić z bazy).
+Jeśli rekord `users` z tym samym **`email`** ma już profil instruktora z co najmniej jednym wpisem w **`instructor_schools`** → **409** (`Instructor is already assigned to a driving school`) — nadal **przed** utworzeniem konta (jeśli uda się to stwierdzić z bazy).
 
 **Domyślne godziny pracy** (`instructor_working_hours_default`): z `school_settings` danej OSK (`working_days_mask`, godziny rozpoczęcia/końca); bit `d` maski odpowiada `Date.getDay()` (0 = niedziela … 6 = sobota). Gdy brak ustawień, pusta maska lub `end <= start`, używany jest fallback **pn–pt 8:00–18:00**.
 
@@ -109,18 +109,23 @@ Jeśli rekord `users` z tym samym **`email`** ma już profil instruktora z co na
 
 | `role` | HTTP | `data` (skrót) |
 |--------|------|----------------|
-| `STUDENT` | **200** | `{ user, session }` — jak odpowiedź Supabase `signUp` |
-| `INSTRUCTOR` | **201** | `{ instructor, user, session }` — `instructor`: `{ id, userId, name, email }` (`id` = `instructor_profiles.id`, `userId` = `users.id` / Auth), `name` z `firstName` + `lastName`, `user` i `session` nadal z Supabase (np. do natychmiastowego logowania) |
+| `STUDENT` | **200** | `{ user, session: null }` — konto tworzy serwer przez Supabase Admin API |
+| `INSTRUCTOR` | **201** | `{ instructor, user, session: null }` — `instructor`: `{ id, userId, name, email }` (`id` = `instructor_profiles.id`, `userId` = `users.id` / Auth), `name` z `firstName` + `lastName` |
 
 ### Błędy — Supabase i DB (uzupełnienie)
 
-Komunikaty z Supabase **nie** są przekazywane do klienta w surowej postaci (poza ustalonymi poniżej); pełny błąd jest logowany po stronie serwera (`console.error`).
+Konta zakłada serwer przez `auth.admin.createUser` z `email_confirm: true`, po sprawdzeniu roli i uprawnień do szkoły. Nie jest wysyłany e-mail potwierdzający, więc rejestracja zarządzana przez menedżera nie zużywa limitu wysyłki Supabase. Klucz administracyjny pozostaje wyłącznie na backendzie. Odpowiedź nie zawiera sesji nowego użytkownika.
+
+Komunikaty z Supabase **nie** są przekazywane do klienta w surowej postaci (poza ustalonymi poniżej); pełny błąd jest logowany po stronie serwera.
 
 | Kod | Przykładowy `error` (string w kopercie API) | Kiedy |
 |-----|---------------------------------------------|--------|
-| **400** | `Email already exists` | Duplikat / „już zarejestrowany” przy `signUp` (heurystyka na komunikacie/kodzie Supabase) |
-| **500** | `Failed to create user` | Inne błędy `signUp` (sieć, konfiguracja itd.) |
-| **500** | `Failed to create instructor` | Błąd transakcji Prisma po udanym `signUp`, gdy `role === INSTRUCTOR` (bez jawnego `AppError`) |
+| **400** | `Email already exists` | Duplikat / „już zarejestrowany” przy `createUser` (heurystyka na komunikacie/kodzie Supabase) |
+| **400** | `Invalid email address` | Supabase odrzuca adres e-mail; formularz pokazuje błąd przy polu e-mail |
+| **400** | `Invalid registration data` | Inny błąd walidacji Supabase bez ujawniania jego surowej treści |
+| **429** | `Too many registration requests. Try again later.` | Limit żądań Supabase; frontend wyświetla polski komunikat |
+| **500** | `Failed to create user` | Inne błędy `createUser` (sieć, konfiguracja itd.) |
+| **500** | `Failed to create instructor` | Błąd transakcji Prisma po udanym `createUser`, gdy `role === INSTRUCTOR` (bez jawnego `AppError`) |
 | **500** | `Failed to complete user registration` | Jak wyżej, gdy `role === STUDENT` |
 
 Pozostaje **403** (brak uprawnień), **409** (konflikty email / identifier / instruktor już w szkole) oraz dotychczasowe **400** walidacji body.
@@ -135,7 +140,7 @@ Po udanym zapisie użytkownika backend **z poziomu aplikacji** tworzy powiązane
 
 Gdy użytkownik już istnieje w bazie po tym samym `id` (np. powtórne wywołanie rejestracji), wykonywane jest `user.update`; jeśli brakuje **profilu roli** albo **`user_profiles`**, jest on **dopisywany** w tej samej transakcji co aktualizacja użytkownika (`ensureRoleProfilesAfterUserUpsert`).
 
-Implementacja: `src/controllers/auth.controller.ts` (`buildUserCreateWithRoleProfiles`, `ensureRoleProfilesAfterUserUpsert`, `completeRegisterSuccessResponse`); mapowanie błędów `signUp`: `src/lib/supabaseSignUpErrors.ts`.
+Implementacja: `src/controllers/auth/register.handler.ts`, `src/controllers/auth/register.persistence.ts`; mapowanie błędów Supabase Auth: `src/lib/supabaseSignUpErrors.ts`.
 
 ## Studenci — lista (`GET /students`)
 

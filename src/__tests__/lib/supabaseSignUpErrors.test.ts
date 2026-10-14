@@ -49,6 +49,47 @@ describe('mapAuthSignUpErrorForClient — duplicate email (400)', () => {
 });
 
 describe('mapAuthSignUpErrorForClient — other errors (500)', () => {
+	it('returns a field-level error for an invalid email', () => {
+		expect(
+			mapAuthSignUpErrorForClient({
+				code: 'email_address_invalid',
+				status: 400,
+				message: 'Email address "person@example.com" is invalid',
+			}),
+		).toEqual({ statusCode: 400, clientMessage: 'Invalid email address' });
+	});
+	it('recognizes the validation_failed code used by admin.createUser', () => {
+		expect(
+			mapAuthSignUpErrorForClient({
+				code: 'validation_failed',
+				status: 400,
+				message: 'Unable to validate email address: invalid format',
+			}),
+		).toEqual({ statusCode: 400, clientMessage: 'Invalid email address' });
+	});
+
+	it('preserves the rate limit status without leaking Supabase internals', () => {
+		expect(
+			mapAuthSignUpErrorForClient({
+				code: 'over_email_send_rate_limit',
+				status: 429,
+				message: 'email rate limit exceeded',
+			}),
+		).toEqual({
+			statusCode: 429,
+			clientMessage: 'Too many registration requests. Try again later.',
+		});
+	});
+
+	it('preserves other validation failures as 400', () => {
+		expect(
+			mapAuthSignUpErrorForClient({
+				status: 400,
+				message: 'Supabase validation detail',
+			}),
+		).toEqual({ statusCode: 400, clientMessage: 'Invalid registration data' });
+	});
+
 	it('maps unrelated messages to 500', () => {
 		expect(
 			mapAuthSignUpErrorForClient({

@@ -1,5 +1,5 @@
 /**
- * Mapuje błąd z `auth.signUp` na kod HTTP i komunikat dla klienta (bez surowego message).
+ * Mapuje błąd tworzenia użytkownika w Supabase Auth na bezpieczny kod i komunikat.
  * Pełny obiekt błędu logowany jest przez wywołującego.
  */
 
@@ -20,7 +20,7 @@ type SignUpErrorLike = {
 };
 
 function mapAuthSignUpErrorForClient(error: SignUpErrorLike): {
-	statusCode: 400 | 500;
+	statusCode: 400 | 429 | 500;
 	clientMessage: string;
 } {
 	const normalized = error.message.toLowerCase();
@@ -33,12 +33,27 @@ function mapAuthSignUpErrorForClient(error: SignUpErrorLike): {
 	if (looksLikeDuplicate) {
 		return { statusCode: 400, clientMessage: 'Email already exists' };
 	}
+	if (
+		error.code === 'email_address_invalid' ||
+		(error.status === 400 && normalized.includes('email') && normalized.includes('invalid'))
+	) {
+		return { statusCode: 400, clientMessage: 'Invalid email address' };
+	}
+	if (error.status === 429) {
+		return {
+			statusCode: 429,
+			clientMessage: 'Too many registration requests. Try again later.',
+		};
+	}
+	if (error.status === 400) {
+		return { statusCode: 400, clientMessage: 'Invalid registration data' };
+	}
 
 	return { statusCode: 500, clientMessage: 'Failed to create user' };
 }
 
 function logAuthSignUpError(error: SignUpErrorLike): void {
-	logger.error('register: supabase signUp error', {
+	logger.error('register: supabase createUser error', {
 		message: error.message,
 		code: error.code,
 		status: error.status,
