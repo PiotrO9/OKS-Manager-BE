@@ -58,37 +58,56 @@ export async function listStudentsForSchool(
 		}
 	}
 
-	const where = buildStudentListWhere(query);
+	const now = new Date();
+	const where = buildStudentListWhere(query, now);
+	const baseQuery = { ...query, view: 'all' as const };
+	const countForView = (view: NonNullable<ListStudentsQuery['view']>) =>
+		prisma.studentProfile.count({
+			where: buildStudentListWhere({ ...baseQuery, view }, now),
+		});
 
-	const [rows, total] = await prisma.$transaction([
-		prisma.studentProfile.findMany({
-			where,
-			select: {
-				id: true,
-				pkkNumber: true,
-				createdAt: true,
-				user: {
-					select: {
-						id: true,
-						firstName: true,
-						lastName: true,
-						email: true,
-						phone: true,
-						isActive: true,
-						profile: { select: { avatarUrl: true } },
+	const [rows, all, withoutPkk, withoutCourse, overdue, withoutLesson] =
+		await prisma.$transaction([
+			prisma.studentProfile.findMany({
+				where,
+				select: {
+					id: true,
+					pkkNumber: true,
+					createdAt: true,
+					user: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							email: true,
+							phone: true,
+							isActive: true,
+							profile: { select: { avatarUrl: true } },
+						},
 					},
 				},
-			},
-			orderBy: [
-				{ user: { lastName: 'asc' } },
-				{ user: { firstName: 'asc' } },
-				{ id: 'asc' },
-			],
-			skip: (page - 1) * limit,
-			take: limit,
-		}),
-		prisma.studentProfile.count({ where }),
-	]);
+				orderBy: [
+					{ user: { lastName: 'asc' } },
+					{ user: { firstName: 'asc' } },
+					{ id: 'asc' },
+				],
+				skip: (page - 1) * limit,
+				take: limit,
+			}),
+			countForView('all'),
+			countForView('without-pkk'),
+			countForView('without-course'),
+			countForView('overdue'),
+			countForView('without-lesson'),
+		]);
+	const viewCounts = {
+		all,
+		'without-pkk': withoutPkk,
+		'without-course': withoutCourse,
+		overdue,
+		'without-lesson': withoutLesson,
+	};
+	const total = viewCounts[query.view ?? 'all'];
 
 	const data: StudentListItemDto[] = rows.map((row) => ({
 		id: row.id,
@@ -103,5 +122,5 @@ export async function listStudentsForSchool(
 		createdAt: row.createdAt,
 	}));
 
-	return { data, total, page, limit };
+	return { data, total, page, limit, viewCounts };
 }

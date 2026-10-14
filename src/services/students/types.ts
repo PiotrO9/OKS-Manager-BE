@@ -135,4 +135,11 @@ export type ListStudentsResult = {
 	total: number;
 	page: number;
 	limit: number;
+	viewCounts: {
+		all: number;
+		'without-pkk': number;
+		'without-course': number;
+		overdue: number;
+		'without-lesson': number;
+	};
 };

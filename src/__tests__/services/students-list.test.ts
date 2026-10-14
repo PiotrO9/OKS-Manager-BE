@@ -1,5 +1,5 @@
 import { Role } from '@prisma/client';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { listStudentsForSchool } from '../../services/students/list';
 import { listStudentsQuerySchema } from '../../lib/validation/studentSchemas';
 import { buildStudentListWhere } from '../../services/students/listFilters';
@@ -23,9 +23,13 @@ describe('students list search and views', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		db.drivingSchool.findFirst.mockResolvedValue({ id: schoolId });
+		db.course.findFirst.mockResolvedValue({ id: courseId });
 		db.course.findMany.mockResolvedValue([]);
 		db.studentProfile.findMany.mockResolvedValue([]);
 		db.studentProfile.count.mockResolvedValue(21);
+	});
+	afterEach(() => {
+		vi.useRealTimers();
 	});
 	it('applies the same school-scoped search before pagination and counting', async () => {
 		const result = await listStudentsForSchool('manager', Role.MANAGER, {
@@ -73,6 +77,52 @@ describe('students list search and views', () => {
 			where: args.where,
 		});
 		expect(result.total).toBe(21);
+	});
+	it('returns counts for every quick filter within the selected school and other filters', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-10-14T12:00:00Z'));
+
+		db.studentProfile.count
+			.mockResolvedValueOnce(12)
+			.mockResolvedValueOnce(3)
+			.mockResolvedValueOnce(2)
+			.mockResolvedValueOnce(4)
+			.mockResolvedValueOnce(7);
+
+		const result = await listStudentsForSchool('manager', Role.MANAGER, {
+			...query,
+			search: 'Anna',
+			courseId,
+			view: 'without-pkk',
+		});
+
+		expect(result.total).toBe(3);
+		expect(result.viewCounts).toEqual({
+			all: 12,
+			'without-pkk': 3,
+			'without-course': 2,
+			overdue: 4,
+			'without-lesson': 7,
+		});
+		expect(db.studentProfile.count).toHaveBeenCalledTimes(5);
+		for (const [index, view] of (
+			[
+				'all',
+				'without-pkk',
+				'without-course',
+				'overdue',
+				'without-lesson',
+			] as const
+		).entries()) {
+			expect(db.studentProfile.count.mock.calls[index]![0].where).toEqual(
+				buildStudentListWhere({
+					...query,
+					search: 'Anna',
+					courseId,
+					view,
+				}),
+			);
+		}
 	});
 	it('does not search data when manager has no access to the school', async () => {
 		db.drivingSchool.findFirst.mockResolvedValue(null);
