@@ -21,6 +21,7 @@ export async function getInstructorEventById(
 		select: {
 			id: true,
 			instructorId: true,
+			vehicleId: true,
 			schoolId: true,
 			isActive: true,
 			courseId: true,
@@ -103,6 +104,8 @@ export async function getInstructorEventById(
 	return {
 		event: {
 			id: row.id,
+			instructorId: row.instructorId,
+			vehicleId: row.vehicleId,
 			schoolId: row.schoolId,
 			type: row.type,
 			status: row.status,

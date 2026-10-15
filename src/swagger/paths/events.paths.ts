@@ -85,7 +85,7 @@ export function registerEventPaths(registry: OpenAPIRegistry): void {
 		tags: ['Events'],
 		summary: 'Szczegóły wydarzenia instruktora (MANAGER)',
 		description:
-			'Odczyt pojedynczego `InstructorEvent`: `data.event` z `instructor` (jak osoba przy GET `/lessons/{id}`), opcjonalnie `courseId`, `capacity`, oraz `students` — tablica uczestników z `event_participants` w tym samym kształcie pól; kolejność jak przy GET `/events/{id}/students`. Query `includeSlots=true` dodaje `freeWindows` (wolne okna instruktora na dzień eventu). Szczegóły: context/events-schedule-api.md',
+			'Odczyt pojedynczego `InstructorEvent`: `data.event` zawiera `instructorId` i `vehicleId` do edycji, `instructor` (jak osoba przy GET `/lessons/{id}`), opcjonalnie `courseId`, `capacity`, oraz `students` — tablica uczestników z `event_participants` w tym samym kształcie pól; kolejność jak przy GET `/events/{id}/students`. Query `includeSlots=true` dodaje `freeWindows` (wolne okna instruktora na dzień eventu). Szczegóły: context/events-schedule-api.md',
 		security: [{ bearerAuth: [] }],
 		request: {
 			params: eventIdParamsSchema,

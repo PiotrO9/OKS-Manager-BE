@@ -30,11 +30,8 @@ export type StudentInstructorEventListItemDto = Omit<
 	course: { id: string; name: string } | null;
 };
 
-/** GET `/events/:id` — bez płaskich `instructorId` / `vehicleId`; pełny **`instructor`** jak przy GET `/lessons/:id`; **`students`** — uczestnicy z `event_participants`, ten sam kształt co osoba przy GET `/lessons/:id`, kolejność wg `created_at` (THEORY: wiele, DRIVE: zwykle 0–1). Opcjonalnie **`freeWindows`** gdy `?includeSlots=true`. */
-export type InstructorEventWithDetailsDto = Omit<
-	InstructorEventDto,
-	'instructorId' | 'vehicleId'
-> & {
+/** GET `/events/:id` — identyfikatory zasobów do edycji, pełny `instructor` oraz `students` z `event_participants`. Opcjonalnie `freeWindows` gdy `?includeSlots=true`. */
+export type InstructorEventWithDetailsDto = InstructorEventDto & {
 	instructor: LessonPersonDetailDto;
 	students: LessonPersonDetailDto[];
 	freeWindows?: { startTime: string; endTime: string }[];

@@ -108,7 +108,7 @@ Tworzenie eventu instruktora.
 
 ## GET `/events/:id`
 
-Odczyt pojedynczego eventu (`InstructorEvent`). **`data.event`** ma ten sam zestaw pól co **POST/PATCH**, ale **bez** płaskich **`instructorId`** i **`vehicleId`** — zamiast tego zagnieżdżony **`instructor`** w tym samym kształcie co przy **GET `/lessons/:id`** (`id` = `InstructorProfile.id`, `userId`, `firstName`, `lastName`, `email`, `phone`). Dodatkowo zawsze **`students`**: tablica obiektów kursantów w tym samym kształcie pól co osoba przy **GET `/lessons/:id`** (`id` = `StudentProfile.id`), dane z **`event_participants`**, kolejność jak identyfikatory w **GET `/events/:id/students`** (wg `event_participants.created_at`). Dla **THEORY** może być wiele elementów; dla **DRIVE** zwykle zero lub jeden. **Pojazd nie jest zwracany**. Odpowiedź zawsze **JSON** (w tym **404** — envelope błędu, nie HTML).
+Odczyt pojedynczego eventu (`InstructorEvent`). **`data.event`** zawiera płaskie **`instructorId`** i **`vehicleId`** (`null` dla teorii), potrzebne do wypełnienia formularza edycji, oraz zagnieżdżony **`instructor`** w tym samym kształcie co przy **GET `/lessons/:id`** (`id` = `InstructorProfile.id`, `userId`, `firstName`, `lastName`, `email`, `phone`). Dodatkowo zawsze **`students`**: tablica obiektów kursantów w tym samym kształcie pól co osoba przy **GET `/lessons/:id`** (`id` = `StudentProfile.id`), dane z **`event_participants`**, kolejność jak identyfikatory w **GET `/events/:id/students`** (wg `event_participants.created_at`). Dla **THEORY** może być wiele elementów; dla **DRIVE** zwykle zero lub jeden. Odpowiedź zawsze **JSON** (w tym **404** — envelope błędu, nie HTML).
 
 ### Uwierzytelnianie i autoryzacja
 
