@@ -2,6 +2,7 @@ import { Prisma, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 import type { StudentPaymentsQuery } from '../../lib/validation/uuid';
+import { resolveActiveStudentSchoolId } from './schoolResolver';
 import { assertActorCanListStudentsForSchool } from './access';
 import { buildPaymentsDto, emptyPaymentsSummary } from './paymentsMappers';
 import type { StudentPaymentPlanDto, StudentPaymentsDto } from './types';
@@ -29,13 +30,17 @@ export async function listStudentPayments(
 	actorRole: Role,
 	studentUserId: string,
 	query: StudentPaymentsQuery,
+	db: Prisma.TransactionClient = prisma,
 ): Promise<StudentPaymentsDto> {
 	if (actorRole === Role.STUDENT && actorId !== studentUserId) {
 		throw AppError.forbidden('Forbidden');
 	}
 
 	if (actorRole !== Role.STUDENT && !query.schoolId) {
-		throw AppError.badRequest('schoolId is required');
+		query = {
+			...query,
+			schoolId: await resolveActiveStudentSchoolId(studentUserId, db),
+		};
 	}
 
 	if (actorRole !== Role.STUDENT) {
@@ -43,6 +48,7 @@ export async function listStudentPayments(
 			actorId,
 			actorRole,
 			query.schoolId!,
+			db,
 		);
 	}
 
@@ -71,7 +77,7 @@ export async function listStudentPayments(
 		];
 	}
 
-	const student = await prisma.studentProfile.findFirst({
+	const student = await db.studentProfile.findFirst({
 		where: studentWhere,
 		select: { id: true },
 	});
@@ -80,7 +86,7 @@ export async function listStudentPayments(
 		throw AppError.notFound('Student not found');
 	}
 
-	const rows = await prisma.courseParticipant.findMany({
+	const rows = await db.courseParticipant.findMany({
 		where: {
 			studentId: student.id,
 			course: {

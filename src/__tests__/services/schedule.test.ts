@@ -274,11 +274,6 @@ describe('schedule service', () => {
 			studentId: studentProfileId,
 		});
 
-		expect(missingSchool.success).toBe(false);
-		if (!missingSchool.success) {
-			expect(missingSchool.error.issues[0]?.message).toBe(
-				'schoolId is required when filtering by studentId',
-			);
-		}
+		expect(missingSchool.success).toBe(true);
 	});
 });

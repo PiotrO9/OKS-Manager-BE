@@ -148,7 +148,7 @@ Paginowana lista kursantów przypisanych do OSK (`student_schools`), opcjonalnie
 
 ## Studenci — szczegóły (`GET /students/:userId`)
 
-Szczegóły kursanta z polem **`notes`** (`student_profiles`), listą kursów w wybranej OSK oraz statusem uczestnictwa (`course_participants.status`). **Middleware:** `authMiddleware`, **`requireMinRole('STUDENT')`** (minimalny poziom — dostęp mają wszystkie role). Query **`schoolId`** (wymagane), autoryzacja wg roli (kursant tylko własne `userId`, personel wg OSK): [students-api.md](./students-api.md).
+Szczegóły kursanta z polem **`notes`** (`student_profiles`), listą kursów w wybranej OSK oraz statusem uczestnictwa (`course_participants.status`). **Middleware:** `authMiddleware`, **`requireMinRole('STUDENT')`** (minimalny poziom — dostęp mają wszystkie role). Query **`schoolId`** (opcjonalne; domyślnie aktualna OSK kursanta), autoryzacja wg roli (kursant tylko własne `userId`, personel wg OSK): [students-api.md](./students-api.md).
 
 ## Studenci — notatki (`PATCH /students/:userId`)
 

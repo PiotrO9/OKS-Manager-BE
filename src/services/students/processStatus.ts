@@ -1,6 +1,7 @@
 import { LessonStatus, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
+import { resolveActiveStudentSchoolId } from './schoolResolver';
 import { assertActorCanListStudentsForSchool } from './access';
 import type { StudentProcessStatusDto } from './types';
 import { buildStudentProcessStatusSteps, hasText } from './utils';
@@ -11,11 +12,13 @@ export async function getStudentProcessStatus(
 	actorId: string,
 	actorRole: Role,
 	studentUserId: string,
-	schoolId: string,
+	schoolId?: string,
 ): Promise<StudentProcessStatusDto> {
 	if (actorRole === Role.STUDENT && actorId !== studentUserId) {
 		throw AppError.forbidden('Forbidden');
 	}
+
+	schoolId ??= await resolveActiveStudentSchoolId(studentUserId);
 
 	if (actorRole !== Role.STUDENT) {
 		await assertActorCanListStudentsForSchool(actorId, actorRole, schoolId);

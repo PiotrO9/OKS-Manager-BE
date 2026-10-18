@@ -9,6 +9,9 @@ import {
 
 const { prismaMock } = vi.hoisted(() => ({
 	prismaMock: {
+		$transaction: vi.fn(),
+		$queryRaw: vi.fn(),
+		studentSchool: { findMany: vi.fn() },
 		courseParticipant: {
 			findMany: vi.fn(),
 		},
@@ -93,7 +96,11 @@ function courseParticipantRow() {
 
 describe('student payments service', () => {
 	beforeEach(() => {
-		vi.clearAllMocks();
+		vi.resetAllMocks();
+		prismaMock.$transaction.mockImplementation(async (callback) =>
+			callback(prismaMock),
+		);
+		prismaMock.studentSchool.findMany.mockResolvedValue([{ schoolId }]);
 		prismaMock.drivingSchool.findFirst.mockResolvedValue({ id: schoolId });
 		prismaMock.instructorSchool.findFirst.mockResolvedValue({
 			id: 'link-1',
@@ -104,8 +111,12 @@ describe('student payments service', () => {
 		prismaMock.courseParticipant.findMany.mockResolvedValue([]);
 		prismaMock.paymentPlan.findFirst.mockResolvedValue({
 			id: paymentPlanId,
+			course: { schoolId },
 		});
-		prismaMock.payment.findFirst.mockResolvedValue({ id: paymentId });
+		prismaMock.payment.findFirst.mockResolvedValue({
+			id: paymentId,
+			paymentPlan: { course: { schoolId } },
+		});
 		prismaMock.payment.create.mockResolvedValue({ id: paymentId });
 		prismaMock.payment.update.mockResolvedValue({ id: paymentId });
 	});
@@ -245,12 +256,12 @@ describe('student payments service', () => {
 		);
 	});
 
-	it('requires schoolId for staff student payment view', async () => {
-		await expect(
-			listStudentPayments(actorId, Role.MANAGER, studentUserId, {}),
-		).rejects.toMatchObject({
-			statusCode: 400,
-			message: 'schoolId is required',
+	it('infers the current school for staff payment views', async () => {
+		await listStudentPayments(actorId, Role.MANAGER, studentUserId, {});
+		expect(prismaMock.studentSchool.findMany).toHaveBeenCalled();
+		expect(prismaMock.drivingSchool.findFirst).toHaveBeenCalledWith({
+			where: { id: schoolId, ownerId: actorId, deletedAt: null },
+			select: { id: true },
 		});
 	});
 
@@ -309,14 +320,13 @@ describe('student payments service', () => {
 			where: {
 				id: paymentPlanId,
 				course: {
-					schoolId,
 					deletedAt: null,
 					participants: {
 						some: { studentId: studentProfileId },
 					},
 				},
 			},
-			select: { id: true },
+			select: { id: true, course: { select: { schoolId: true } } },
 		});
 		expect(prismaMock.payment.create).toHaveBeenCalledWith({
 			data: {
@@ -343,7 +353,6 @@ describe('student payments service', () => {
 				id: paymentId,
 				paymentPlan: {
 					course: {
-						schoolId,
 						deletedAt: null,
 						participants: {
 							some: { studentId: studentProfileId },
@@ -351,7 +360,12 @@ describe('student payments service', () => {
 					},
 				},
 			},
-			select: { id: true },
+			select: {
+				id: true,
+				paymentPlan: {
+					select: { course: { select: { schoolId: true } } },
+				},
+			},
 		});
 		expect(prismaMock.payment.update).toHaveBeenCalledWith({
 			where: { id: paymentId },
@@ -361,4 +375,82 @@ describe('student payments service', () => {
 			},
 		});
 	});
+
+	it('infers historical payment ownership without consulting current membership', async () => {
+		await markStudentPaymentPaidForManager(
+			actorId,
+			Role.MANAGER,
+			studentUserId,
+			paymentId,
+			{},
+		);
+		expect(prismaMock.$transaction).toHaveBeenCalledOnce();
+		expect(prismaMock.$queryRaw).toHaveBeenCalledOnce();
+		expect(prismaMock.studentSchool.findMany).not.toHaveBeenCalled();
+		expect(prismaMock.payment.update).toHaveBeenCalledOnce();
+	});
+	it('rejects a contradictory legacy school before any write', async () => {
+		await expect(
+			markStudentPaymentPaidForManager(
+				actorId,
+				Role.MANAGER,
+				studentUserId,
+				paymentId,
+				{ schoolId: actorId },
+			),
+		).rejects.toMatchObject({ statusCode: 404 });
+		expect(prismaMock.payment.update).not.toHaveBeenCalled();
+	});
+	it('rejects a payment from a course in which the target is not a participant', async () => {
+		prismaMock.payment.findFirst.mockResolvedValue(null);
+		await expect(
+			markStudentPaymentPaidForManager(
+				actorId,
+				Role.MANAGER,
+				studentUserId,
+				paymentId,
+				{},
+			),
+		).rejects.toMatchObject({ statusCode: 404 });
+		expect(prismaMock.payment.update).not.toHaveBeenCalled();
+	});
+	it('rejects an unowned payment school before mutation', async () => {
+		prismaMock.drivingSchool.findFirst.mockResolvedValue(null);
+		await expect(
+			createStudentPaymentForManager(
+				actorId,
+				Role.MANAGER,
+				studentUserId,
+				{ paymentPlanId, amount: '10.00' },
+			),
+		).rejects.toMatchObject({ statusCode: 403 });
+		expect(prismaMock.payment.create).not.toHaveBeenCalled();
+	});
+	it.each([Role.ADMIN, Role.INSTRUCTOR, Role.STUDENT])(
+		'preserves mutation denial for %s',
+		async (role) => {
+			await expect(
+				markStudentPaymentPaidForManager(
+					actorId,
+					role,
+					studentUserId,
+					paymentId,
+					{},
+				),
+			).rejects.toMatchObject({ statusCode: 403 });
+			expect(prismaMock.$transaction).not.toHaveBeenCalled();
+		},
+	);
+	it.each([{ links: [] }, { links: [{ schoolId }, { schoolId: actorId }] }])(
+		'rejects absent or ambiguous current membership',
+		async ({ links }) => {
+			prismaMock.studentSchool.findMany.mockResolvedValue(links);
+			await expect(
+				listStudentPayments(actorId, Role.MANAGER, studentUserId, {}),
+			).rejects.toMatchObject({ statusCode: links.length ? 409 : 404 });
+			expect(
+				prismaMock.courseParticipant.findMany,
+			).not.toHaveBeenCalled();
+		},
+	);
 });

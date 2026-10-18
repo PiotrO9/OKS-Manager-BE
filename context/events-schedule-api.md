@@ -576,7 +576,7 @@ Lista pozycji terminarza zalogowanego użytkownika w zakresie dat: **lekcje** or
 
 ### Query
 
-Przy wariancie `studentId` wymagany jest takĹĽe `schoolId`; wynik jest wtedy ograniczony do lekcji z kursĂłw tej OSK i eventĂłw kursanta powiÄ…zanych z kursami tej OSK.
+Przy wariancie `studentId` brak `schoolId` wybiera aktualną aktywną OSK kursanta. Jawny `schoolId` zachowuje zakres historyczny i kontrolę uprawnień. Wynik obejmuje tylko lekcje i wydarzenia kursów tej OSK.
 
 | Parametr | Wymagane | Opis |
 |----------|----------|------|

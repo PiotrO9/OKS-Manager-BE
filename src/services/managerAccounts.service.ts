@@ -127,12 +127,53 @@ async function assertManagerOwnsSchool(
 	}
 }
 
+async function resolveAccountSchool(
+	db: Tx | typeof prisma,
+	userId: string,
+): Promise<string> {
+	const target = await db.user.findUnique({
+		where: { id: userId },
+		select: {
+			role: true,
+			studentProfile: {
+				select: {
+					studentSchools: {
+						where: { school: { deletedAt: null } },
+						select: { schoolId: true },
+					},
+				},
+			},
+			instructorProfile: {
+				select: {
+					instructorSchools: {
+						where: { school: { deletedAt: null } },
+						select: { schoolId: true },
+					},
+				},
+			},
+		},
+	});
+	const links =
+		target?.role === Role.STUDENT
+			? target.studentProfile?.studentSchools
+			: target?.role === Role.INSTRUCTOR
+				? target.instructorProfile?.instructorSchools
+				: undefined;
+	if (!links?.length) throw AppError.notFound('Account not found');
+	if (links.length !== 1)
+		throw AppError.conflict(
+			'Account is assigned to multiple active driving schools',
+		);
+	return links[0]!.schoolId;
+}
+
 async function scopedAccount(
 	db: Tx | typeof prisma,
 	actorId: string,
-	schoolId: string,
+	schoolId: string | undefined,
 	userId: string,
 ) {
+	schoolId ??= await resolveAccountSchool(db, userId);
 	await assertManagerOwnsSchool(db, actorId, schoolId);
 	const account = await db.user.findFirst({
 		where: accountWhere(schoolId, userId),
@@ -190,7 +231,7 @@ async function scopedAccount(
 		}
 		throw AppError.notFound('Account not found');
 	}
-	return account;
+	return { ...account, schoolId };
 }
 
 async function lockAccount(tx: Tx, userId: string) {
@@ -250,22 +291,29 @@ export async function listManagerAccounts(actorId: string, schoolId: string) {
 
 export async function getManagerAccount(
 	actorId: string,
-	schoolId: string,
+	requestedSchoolId: string | undefined,
 	userId: string,
 ) {
-	return scopedAccount(prisma, actorId, schoolId, userId);
+	return scopedAccount(prisma, actorId, requestedSchoolId, userId);
 }
 
 export async function updateManagerAccountProfile(
 	actorId: string,
-	schoolId: string,
+	requestedSchoolId: string | undefined,
 	userId: string,
 	data: { firstName: string; lastName: string; phone: string | null },
 	requestId?: string,
 ) {
+	let schoolId = requestedSchoolId ?? '';
 	return prisma.$transaction(async (tx) => {
 		await lockAccount(tx, userId);
-		const account = await scopedAccount(tx, actorId, schoolId, userId);
+		const account = await scopedAccount(
+			tx,
+			actorId,
+			requestedSchoolId,
+			userId,
+		);
+		schoolId = account.schoolId;
 		await requireAvailable(tx, account);
 		const updated = await tx.user.update({
 			where: { id: userId },
@@ -293,14 +341,21 @@ export async function updateManagerAccountProfile(
 
 export async function setManagerAccountActive(
 	actorId: string,
-	schoolId: string,
+	requestedSchoolId: string | undefined,
 	userId: string,
 	isActive: boolean,
 	requestId?: string,
 ) {
+	let schoolId = requestedSchoolId ?? '';
 	const outcome = await prisma.$transaction(async (tx) => {
 		await lockAccount(tx, userId);
-		const account = await scopedAccount(tx, actorId, schoolId, userId);
+		const account = await scopedAccount(
+			tx,
+			actorId,
+			requestedSchoolId,
+			userId,
+		);
+		schoolId = account.schoolId;
 		await requireAvailable(tx, account);
 		if (account.isActive === isActive)
 			return {
@@ -389,11 +444,18 @@ async function assertNoActiveObligations(
 
 export async function listManagerAccountObligations(
 	actorId: string,
-	schoolId: string,
+	requestedSchoolId: string | undefined,
 	userId: string,
 ) {
+	let schoolId = requestedSchoolId ?? '';
 	return prisma.$transaction(async (tx) => {
-		const account = await scopedAccount(tx, actorId, schoolId, userId);
+		const account = await scopedAccount(
+			tx,
+			actorId,
+			requestedSchoolId,
+			userId,
+		);
+		schoolId = account.schoolId;
 		if (account.deletedAt) return [];
 		return findManagerAccountObligations(
 			tx,
@@ -406,13 +468,20 @@ export async function listManagerAccountObligations(
 
 export async function archiveManagerAccount(
 	actorId: string,
-	schoolId: string,
+	requestedSchoolId: string | undefined,
 	userId: string,
 	requestId?: string,
 ) {
+	let schoolId = requestedSchoolId ?? '';
 	const outcome = await prisma.$transaction(async (tx) => {
 		await lockAccount(tx, userId);
-		const account = await scopedAccount(tx, actorId, schoolId, userId);
+		const account = await scopedAccount(
+			tx,
+			actorId,
+			requestedSchoolId,
+			userId,
+		);
+		schoolId = account.schoolId;
 		if (account.deletedAt)
 			return {
 				result: { id: userId, archived: true },
@@ -506,14 +575,21 @@ async function finishEmailAction(
 
 export async function changeManagerAccountEmail(
 	actorId: string,
-	schoolId: string,
+	requestedSchoolId: string | undefined,
 	userId: string,
 	email: string,
 	requestId?: string,
 ) {
+	let schoolId = requestedSchoolId ?? '';
 	const action = await prisma.$transaction(async (tx) => {
 		await lockAccount(tx, userId);
-		const account = await scopedAccount(tx, actorId, schoolId, userId);
+		const account = await scopedAccount(
+			tx,
+			actorId,
+			requestedSchoolId,
+			userId,
+		);
+		schoolId = account.schoolId;
 		await requireAvailable(tx, account);
 		if (account.email.toLowerCase() === email.toLowerCase()) {
 			throw AppError.conflict('Email is unchanged');
@@ -613,10 +689,16 @@ export async function changeManagerAccountEmail(
 
 export async function reconcileManagerAccountEmail(
 	actorId: string,
-	schoolId: string,
+	requestedSchoolId: string | undefined,
 	userId: string,
 ) {
-	await scopedAccount(prisma, actorId, schoolId, userId);
+	const account = await scopedAccount(
+		prisma,
+		actorId,
+		requestedSchoolId,
+		userId,
+	);
+	const schoolId = account.schoolId;
 	const action = await prisma.accountAction.findFirst({
 		where: {
 			targetId: userId,
@@ -667,17 +749,24 @@ export async function reconcileManagerAccountEmail(
 
 export async function sendManagerAccountPasswordReset(
 	actorId: string,
-	schoolId: string,
+	requestedSchoolId: string | undefined,
 	userId: string,
 	requestId?: string,
 ) {
+	let schoolId = requestedSchoolId ?? '';
 	const frontendUrl = process.env.FRONTEND_URL?.split(',')[0]?.trim();
 	if (!frontendUrl)
 		throw AppError.internal('FRONTEND_URL is required for password reset');
 	const redirectTo = new URL('/reset-password', frontendUrl).toString();
 	const { account, action } = await prisma.$transaction(async (tx) => {
 		await lockAccount(tx, userId);
-		const account = await scopedAccount(tx, actorId, schoolId, userId);
+		const account = await scopedAccount(
+			tx,
+			actorId,
+			requestedSchoolId,
+			userId,
+		);
+		schoolId = account.schoolId;
 		await requireAvailable(tx, account);
 		if (!account.isActive) throw AppError.conflict('Account is disabled');
 		const action = await tx.accountAction.create({

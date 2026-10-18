@@ -69,7 +69,7 @@ export function registerManagerAccountsPaths(registry: OpenAPIRegistry): void {
 			tags: ['Manager'],
 			summary: route.summary,
 			security: [{ bearerAuth: [] }],
-			request: { params: targetParams, query: schoolQuery },
+			request: { params: targetParams, query: schoolQuery.partial() },
 			responses: stdBearerResponses({
 				200: okDataUnknown('Wynik operacji na koncie'),
 			}),
@@ -81,7 +81,7 @@ export function registerManagerAccountsPaths(registry: OpenAPIRegistry): void {
 		tags: ['Manager'],
 		summary: 'Zobowiązania blokujące archiwizację konta',
 		security: [{ bearerAuth: [] }],
-		request: { params: targetParams, query: schoolQuery },
+		request: { params: targetParams, query: schoolQuery.partial() },
 		responses: stdBearerResponses({
 			200: {
 				description: 'Aktualne zobowiązania',

@@ -5,6 +5,7 @@ import type {
 	ScheduleManagerQuery,
 	ScheduleMeQuery,
 } from '../../schemas/schedule.schemas';
+import { resolveStudentSchoolByProfileId } from '../students/schoolResolver';
 import { assertActorCanReadSchoolSchedule } from './access';
 import { assertActorCanManageAvailability } from '../instructor-availability.service';
 import { buildDateRangeWhere } from './dateRange';
@@ -184,7 +185,9 @@ export async function getScheduleForTarget(
 		return { items: mergeScheduleItems(lessonItems, eventItems) };
 	}
 
-	const schoolId = query.schoolId!;
+	const schoolId =
+		query.schoolId ??
+		(await resolveStudentSchoolByProfileId(query.studentId!));
 	await assertActorCanReadSchoolSchedule(actor, schoolId);
 
 	const [lessonRows, eventRows] = await Promise.all([

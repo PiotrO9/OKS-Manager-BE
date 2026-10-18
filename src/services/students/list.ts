@@ -13,7 +13,19 @@ export async function listStudentsForSchool(
 	actorRole: Role,
 	query: ListStudentsQuery,
 ): Promise<ListStudentsResult> {
-	const { schoolId, courseId, page, limit, filters } = query;
+	let schoolId = query.schoolId;
+	if (!schoolId && query.courseId) {
+		const course = await prisma.course.findFirst({
+			where: { id: query.courseId, deletedAt: null },
+			select: { schoolId: true },
+		});
+		if (!course) throw AppError.notFound('Course not found');
+		schoolId = course.schoolId;
+	}
+	if (!schoolId)
+		throw AppError.badRequest('schoolId or courseId is required');
+	const scopedQuery = { ...query, schoolId };
+	const { courseId, page, limit, filters } = scopedQuery;
 
 	await assertActorCanListStudentsForSchool(actorId, actorRole, schoolId);
 
@@ -59,8 +71,8 @@ export async function listStudentsForSchool(
 	}
 
 	const now = new Date();
-	const where = buildStudentListWhere(query, now);
-	const baseQuery = { ...query, view: 'all' as const };
+	const where = buildStudentListWhere(scopedQuery, now);
+	const baseQuery = { ...scopedQuery, view: 'all' as const };
 	const countForView = (view: NonNullable<ListStudentsQuery['view']>) =>
 		prisma.studentProfile.count({
 			where: buildStudentListWhere({ ...baseQuery, view }, now),

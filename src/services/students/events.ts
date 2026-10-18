@@ -8,42 +8,10 @@ import {
 	mapPersonToLessonDetailDto,
 	mapVehicleToLessonDetailDto,
 } from '../lesson.service';
+import { resolveActiveStudentSchoolId } from './schoolResolver';
 import { assertActorCanListStudentsForSchool } from './access';
 
 const prisma = getPrisma();
-
-async function resolveSchoolIdForStudentEvents(
-	studentUserId: string,
-	querySchoolId: string | undefined,
-): Promise<string> {
-	const links = await prisma.studentSchool.findMany({
-		where: {
-			student: { userId: studentUserId, user: { deletedAt: null } },
-			school: { deletedAt: null },
-		},
-		select: { schoolId: true },
-	});
-
-	if (links.length === 0) {
-		throw AppError.notFound('Student not found');
-	}
-
-	if (querySchoolId !== undefined) {
-		const ok = links.some((link) => link.schoolId === querySchoolId);
-		if (!ok) {
-			throw AppError.notFound('Student not found');
-		}
-		return querySchoolId;
-	}
-
-	if (links.length > 1) {
-		throw AppError.badRequest(
-			'schoolId is required when the student is enrolled in multiple schools',
-		);
-	}
-
-	return links[0].schoolId;
-}
 
 export async function listStudentInstructorEvents(
 	actorId: string,
@@ -55,10 +23,9 @@ export async function listStudentInstructorEvents(
 		throw AppError.forbidden('Forbidden');
 	}
 
-	const schoolId = await resolveSchoolIdForStudentEvents(
-		studentUserId,
-		query.schoolId,
-	);
+	const schoolId = await resolveActiveStudentSchoolId(studentUserId);
+	if (query.schoolId !== undefined && query.schoolId !== schoolId)
+		throw AppError.notFound('Student not found');
 
 	if (actorRole !== Role.STUDENT) {
 		await assertActorCanListStudentsForSchool(actorId, actorRole, schoolId);

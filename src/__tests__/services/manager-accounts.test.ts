@@ -209,4 +209,59 @@ describe('manager account scope and email synchronization', () => {
 		);
 		expect(mocks.recordEvent).not.toHaveBeenCalled();
 	});
+
+	it('infers the school of archived accounts without requiring an active user', async () => {
+		mocks.db.user.findUnique.mockResolvedValue({
+			role: Role.STUDENT,
+			studentProfile: { studentSchools: [{ schoolId }] },
+		});
+		mocks.db.user.findFirst.mockResolvedValue({
+			...account,
+			deletedAt: new Date('2026-01-01'),
+		});
+		const result = await getManagerAccount(actorId, undefined, userId);
+		expect(result).toMatchObject({
+			id: userId,
+			schoolId,
+			deletedAt: expect.any(Date),
+		});
+		expect(mocks.db.user.findUnique).toHaveBeenCalledWith(
+			expect.objectContaining({ where: { id: userId } }),
+		);
+	});
+	it('infers the school inside the locked status transaction and records it', async () => {
+		mocks.db.user.findUnique.mockResolvedValue({
+			role: Role.STUDENT,
+			studentProfile: { studentSchools: [{ schoolId }] },
+		});
+		await setManagerAccountActive(actorId, undefined, userId, false);
+		expect(mocks.db.$queryRaw).toHaveBeenCalled();
+		expect(mocks.db.accountAction.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({ schoolId }),
+			}),
+		);
+	});
+	it('does not expose an inferred account from another manager school', async () => {
+		mocks.db.user.findUnique.mockResolvedValue({
+			role: Role.STUDENT,
+			studentProfile: { studentSchools: [{ schoolId }] },
+		});
+		mocks.db.drivingSchool.findFirst.mockResolvedValue(null);
+		await expect(
+			getManagerAccount(actorId, undefined, userId),
+		).rejects.toMatchObject({ statusCode: 404 });
+		expect(mocks.db.user.findFirst).not.toHaveBeenCalled();
+	});
+	it('does not pick the first of multiple account memberships', async () => {
+		mocks.db.user.findUnique.mockResolvedValue({
+			role: Role.INSTRUCTOR,
+			instructorProfile: {
+				instructorSchools: [{ schoolId }, { schoolId: actorId }],
+			},
+		});
+		await expect(
+			getManagerAccount(actorId, undefined, userId),
+		).rejects.toMatchObject({ statusCode: 409 });
+	});
 });

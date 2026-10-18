@@ -1,99 +1,53 @@
-import { Role } from '@prisma/client';
+import { Role, type Prisma } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
-import { getPrisma } from '../../lib/prisma';
 import { assertActorCanListStudentsForSchool } from './access';
 
-const prisma = getPrisma();
-
-export async function assertManagerCanManageStudentPayments(
+/** Resolve ownership from the payment's course, including after a student transfer. */
+export async function resolveStudentPaymentSchool(
+	db: Prisma.TransactionClient,
 	actorId: string,
 	actorRole: Role,
 	studentUserId: string,
-	schoolId: string,
-) {
-	if (actorRole !== Role.MANAGER) {
-		throw AppError.forbidden('Forbidden');
-	}
-
-	await assertActorCanListStudentsForSchool(actorId, actorRole, schoolId);
-
-	const student = await prisma.studentProfile.findFirst({
-		where: {
-			userId: studentUserId,
-			user: { deletedAt: null },
-			OR: [
-				{
-					studentSchools: {
-						some: { schoolId, school: { deletedAt: null } },
-					},
-				},
-				{
-					courseParticipants: {
-						some: { course: { schoolId, deletedAt: null } },
-					},
-				},
-			],
-		},
+	resource: { paymentPlanId: string } | { paymentId: string },
+	requestedSchoolId?: string,
+): Promise<string> {
+	if (actorRole !== Role.MANAGER) throw AppError.forbidden('Forbidden');
+	const student = await db.studentProfile.findFirst({
+		where: { userId: studentUserId, user: { deletedAt: null } },
 		select: { id: true },
 	});
-
-	if (!student) {
-		throw AppError.notFound('Student not found');
-	}
-
-	return student;
-}
-
-export async function assertPaymentPlanBelongsToStudentCourse(
-	studentId: string,
-	schoolId: string,
-	paymentPlanId: string,
-) {
-	const plan = await prisma.paymentPlan.findFirst({
-		where: {
-			id: paymentPlanId,
-			course: {
-				schoolId,
-				deletedAt: null,
-				participants: {
-					some: { studentId },
+	if (!student) throw AppError.notFound('Student not found');
+	const courseWhere = {
+		deletedAt: null,
+		participants: { some: { studentId: student.id } },
+	};
+	let schoolId: string;
+	if ('paymentPlanId' in resource) {
+		const plan = await db.paymentPlan.findFirst({
+			where: { id: resource.paymentPlanId, course: courseWhere },
+			select: { id: true, course: { select: { schoolId: true } } },
+		});
+		if (!plan) throw AppError.notFound('Payment plan not found');
+		schoolId = plan.course.schoolId;
+	} else {
+		const payment = await db.payment.findFirst({
+			where: {
+				id: resource.paymentId,
+				paymentPlan: { course: courseWhere },
+			},
+			select: {
+				id: true,
+				paymentPlan: {
+					select: { course: { select: { schoolId: true } } },
 				},
 			},
-		},
-		select: { id: true },
-	});
-
-	if (!plan) {
-		throw AppError.notFound('Payment plan not found');
+		});
+		if (!payment) throw AppError.notFound('Payment not found');
+		schoolId = payment.paymentPlan.course.schoolId;
 	}
-
-	return plan;
-}
-
-export async function assertPaymentBelongsToStudentCourse(
-	studentId: string,
-	schoolId: string,
-	paymentId: string,
-) {
-	const payment = await prisma.payment.findFirst({
-		where: {
-			id: paymentId,
-			paymentPlan: {
-				course: {
-					schoolId,
-					deletedAt: null,
-					participants: {
-						some: { studentId },
-					},
-				},
-			},
-		},
-		select: { id: true },
-	});
-
-	if (!payment) {
-		throw AppError.notFound('Payment not found');
+	await assertActorCanListStudentsForSchool(actorId, actorRole, schoolId, db);
+	if (requestedSchoolId !== undefined && requestedSchoolId !== schoolId) {
+		throw AppError.notFound('Payment school does not match');
 	}
-
-	return payment;
+	return schoolId;
 }

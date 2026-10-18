@@ -16,7 +16,7 @@ Dynamiczna checklista procesu kursanta dla konkretnej OSK.
 | Parametr   | Wymagane | Uwagi                                                                 |
 | ---------- | -------- | --------------------------------------------------------------------- |
 | `:userId`  | tak      | `users.id` kursanta, jak w pozostałych trasach `/students/:userId/*`. |
-| `schoolId` | tak      | UUID OSK; kursant musi mieć aktywne przypisanie w `student_schools`.  |
+| `schoolId` | nie      | Domyślnie aktualne przypisanie kursanta. Jeśli podano, UUID OSK; kursant musi mieć aktywne przypisanie w `student_schools`.  |
 
 **Autoryzacja:**
 
@@ -63,8 +63,8 @@ Szczegóły sesji: [auth.md](./auth.md).
 | ------ | -------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | GET    | `/students`                                  | `authMiddleware`, `requireMinRole('INSTRUCTOR')` | Paginowana lista kursantów w OSK; opcjonalnie filtr po kursie.                                                                                                                                                                                                                                                          |
 | GET    | `/students/:userId`                          | `authMiddleware`, `requireMinRole('STUDENT')`    | Szczegóły kursanta (`users.id` w ścieżce) z **`notes`**, listą kursów w OSK i `status` z **`course_participants`**.                                                                                                                                                                                                     |
-| GET    | `/students/:userId/events`                   | `authMiddleware`, `requireMinRole('STUDENT')`    | Aktywne **`InstructorEvent`**, do których kursant jest przypisany (`event_participants`); query: **`schoolId`** opcjonalne (gdy kursant ma jedną OSK — wybierana automatycznie; przy wielu — wymagane), opcjonalnie **`dateFrom`** + **`dateTo`** (`YYYY-MM-DD`, overlap jak harmonogram); odpowiedź **`data.events`**. |
-| GET    | `/students/:userId/payments`                 | `authMiddleware`, `requireMinRole('STUDENT')`    | Historia opłat kursanta wyprowadzona z `CourseParticipant -> Course -> PaymentPlan -> Payment`; dla staffu query **`schoolId`** wymagane, odpowiedź **`data.payments`**.                                                                                                                                                |
+| GET    | `/students/:userId/events`                   | `authMiddleware`, `requireMinRole('STUDENT')`    | Aktywne **`InstructorEvent`**, do których kursant jest przypisany (`event_participants`); query: **`schoolId`** opcjonalne (gdy kursant ma jedną OSK — wybierana automatycznie; przy wielu — błąd 409), opcjonalnie **`dateFrom`** + **`dateTo`** (`YYYY-MM-DD`, overlap jak harmonogram); odpowiedź **`data.events`**. |
+| GET    | `/students/:userId/payments`                 | `authMiddleware`, `requireMinRole('STUDENT')`    | Historia opłat kursanta wyprowadzona z `CourseParticipant -> Course -> PaymentPlan -> Payment`; dla staffu brak **`schoolId`** oznacza aktualną OSK; jawny parametr filtruje historię, odpowiedź **`data.payments`**.                                                                                                                                                |
 | PATCH  | `/students/:userId`                          | `requireMinRole('INSTRUCTOR')`                   | Aktualizacja **`student_profiles.notes`** (body z polem **`notes`**) — reguły jak przy PKK — [auth.md](./auth.md).                                                                                                                                                                                                      |
 | PATCH  | `/students/:userId/driving-school`           | `requireMinRole('MANAGER')`                      | Przypisanie / zmiana OSK — [auth.md](./auth.md).                                                                                                                                                                                                                                                                        |
 | PATCH  | `/students/:userId/pkk`                      | `requireMinRole('INSTRUCTOR')`                   | PKK — [auth.md](./auth.md).                                                                                                                                                                                                                                                                                             |
@@ -85,7 +85,7 @@ Szczegóły sesji: [auth.md](./auth.md).
 
 | Parametr   | Wymagane | Domyślnie | Uwagi                                                                                                                                                                                                     |
 | ---------- | -------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schoolId` | tak      | —         | UUID aktywnej OSK (`driving_schools.deleted_at IS NULL`).                                                                                                                                                 |
+| `schoolId` | gdy brak `courseId` | — | UUID aktywnej OSK (`driving_schools.deleted_at IS NULL`).                                                                                                                                                 |
 | `page`     | nie      | `1`       | Liczba całkowita ≥ 1.                                                                                                                                                                                     |
 | `limit`    | nie      | `20`      | Liczba całkowita 1–100 (powyżej → **400**).                                                                                                                                                               |
 | `courseId` | nie      | —         | UUID kursu; jeśli podane, tylko kursanci z wpisem w **`course_participants`** dla tego kursu. Kurs musi należeć do **tej samej** `schoolId` i mieć `deletedAt` null — inaczej **404** `Course not found`. |
@@ -156,7 +156,7 @@ Zwraca listę opłat kursanta wraz ze statusem płatności. Obecny model bazy ni
 **Autoryzacja i scoping:**
 
 - `STUDENT`: może pobrać tylko własny `userId`; `schoolId` jest opcjonalne.
-- `INSTRUCTOR` / `MANAGER` / `ADMIN`: `schoolId` jest wymagane.
+- `INSTRUCTOR` / `MANAGER` / `ADMIN`: brak `schoolId` wybiera aktualną aktywną OSK kursanta; jawny parametr zachowuje szkolny zakres historii po transferze.
 - `MANAGER`: tylko OSK, której jest właścicielem.
 - `INSTRUCTOR`: tylko OSK, do której ma przypisanie w `instructor_schools`.
 - `ADMIN`: dowolna aktywna OSK.
@@ -308,3 +308,12 @@ Ta sama logika co przy **`POST /students/:userId/courses`**: kurs istnieje i nie
 | **404** | Podano `courseId`, ale kurs nie istnieje, jest soft-delete lub nie należy do tej `schoolId`. |
 
 Powiązanie z kursami (lista kursów w OSK): [courses-api.md](./courses-api.md).
+
+## Kontekst zasobu — kontrakt od 2026-10-18
+
+- `GET /students?courseId=...` ustala szkołę z kursu. Przy podaniu obu ID muszą być zgodne. Ogólna lista nadal wymaga szkoły.
+- `GET /students/:userId/process-status` bez szkoły ustala bieżące przypisanie; jawny zakres zachowuje dotychczasową kontrolę relacji i roli.
+- Tworzenie płatności ustala szkołę z `paymentPlanId → course`; pozostałe mutacje z `paymentId → paymentPlan → course`. Tylko MANAGER, wymagane uczestnictwo wskazanego kursanta i własność szkoły. Aktualna szkoła po transferze nie nadpisuje szkoły płatności.
+- Opcjonalne `schoolId` w body mutacji służy kompatybilności: sprzeczne → 404, niepoprawny UUID → 400. Operacja i zwrócona lista wykonują się w transakcji pod blokadą użytkownika.
+- Brak aktualnego przypisania → 404; wiele aktywnych przypisań → 409. Nie wybieramy pierwszego przypisania.
+- `userId` w trasach studentów jest ID użytkownika. `studentId` w `/schedule` jest ID profilu.

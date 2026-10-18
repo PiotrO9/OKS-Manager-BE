@@ -46,7 +46,7 @@ export function registerStudentPaths(registry: OpenAPIRegistry): void {
 		summary:
 			'Lista kursantów z wyszukiwaniem, szybkimi i zaawansowanymi filtrami',
 		description:
-			'search: słowa wyszukiwane w imieniu, nazwisku, e-mailu, telefonie i PKK (bez rozróżniania wielkości liter). view: all, without-pkk, without-course, overdue, without-lesson. filters: JSON z maksymalnie 8 regułami Pole/Warunek/Wartość, np. [{"field":"isActive","operator":"neq","value":false},{"field":"courseId","operator":"neq","value":"00000000-0000-4000-8000-000000000000"}]. Dozwolone pola: firstName, lastName, email, phone, pkkNumber, isActive, courseId, hasOverduePayments, hasUpcomingLesson, createdAt. Warstwy schoolId, courseId, search, view i filters łączą się przez AND przed count i paginacją.',
+			'search: słowa wyszukiwane w imieniu, nazwisku, e-mailu, telefonie i PKK (bez rozróżniania wielkości liter). view: all, without-pkk, without-course, overdue, without-lesson. filters: JSON z maksymalnie 8 regułami Pole/Warunek/Wartość, np. [{"field":"isActive","operator":"neq","value":false},{"field":"courseId","operator":"neq","value":"00000000-0000-4000-8000-000000000000"}]. Dozwolone pola: firstName, lastName, email, phone, pkkNumber, isActive, courseId, hasOverduePayments, hasUpcomingLesson, createdAt. Wymagane schoolId lub courseId; przy samym courseId szkoła wynika z kursu. Warstwy schoolId, courseId, search, view i filters łączą się przez AND przed count i paginacją.',
 		security: [{ bearerAuth: [] }],
 		request: { query: listStudentsQuerySchema },
 		responses: stdBearerResponses({
@@ -91,7 +91,7 @@ export function registerStudentPaths(registry: OpenAPIRegistry): void {
 		tags: ['Students'],
 		summary: 'Status procesu kursanta (checklista onboardingu)',
 		description:
-			'Zwraca dynamicznie wyliczona liste krokow procesu kursanta dla podanej OSK. Platnosci pomijamy w v1, bo obecny model nie przypisuje platnosci do konkretnego kursanta.',
+			'Zwraca dynamicznie wyliczona liste krokow procesu kursanta dla aktualnej OSK kursanta lub jawnie podanego zakresu schoolId. Platnosci pomijamy w v1, bo obecny model nie przypisuje platnosci do konkretnego kursanta.',
 		security: [{ bearerAuth: [] }],
 		request: {
 			params: studentDetailParamsSchema,
@@ -108,7 +108,7 @@ export function registerStudentPaths(registry: OpenAPIRegistry): void {
 		tags: ['Students'],
 		summary: 'Historia opĹ‚at kursanta',
 		description:
-			'Zwraca data.payments, data.paymentPlans i data.summary. paymentPlans zawiera {id, courseId, courseName, currency} dla planów kursów przypisanych kursantowi, również gdy nie ma jeszcze żadnej opłaty; lista płatności może wtedy być pusta. Dla INSTRUCTOR/MANAGER/ADMIN query schoolId jest wymagane i ogranicza plany oraz opłaty do tej OSK; dla STUDENT dozwolony jest tylko własny userId.',
+			'Zwraca data.payments, data.paymentPlans i data.summary. paymentPlans zawiera {id, courseId, courseName, currency} dla planów kursów przypisanych kursantowi, również gdy nie ma jeszcze żadnej opłaty; lista płatności może wtedy być pusta. Dla INSTRUCTOR/MANAGER/ADMIN brak schoolId wybiera aktualną szkołę kursanta; jawne schoolId ogranicza plany i opłaty do wskazanej OSK, również historycznej; dla STUDENT dozwolony jest tylko własny userId.',
 		security: [{ bearerAuth: [] }],
 		request: {
 			params: studentDetailParamsSchema,
@@ -126,6 +126,8 @@ export function registerStudentPaths(registry: OpenAPIRegistry): void {
 		method: 'post',
 		path: '/students/{userId}/payments',
 		tags: ['Students'],
+		description:
+			'Szkoła wynika z planu płatności i kursu. Opcjonalne schoolId musi być zgodne. Sprawdzane są uczestnictwo kursanta i właściciel szkoły.',
 		summary: 'Utworzenie płatności kursanta (MANAGER)',
 		security: [{ bearerAuth: [] }],
 		request: {

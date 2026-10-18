@@ -1,3 +1,4 @@
+import { resolveActiveInstructorSchoolContext } from '../instructor/schoolResolver';
 import { LessonStatus, LessonType, type Prisma } from '@prisma/client';
 import { getPrisma } from '../../lib/prisma';
 import type {
@@ -277,9 +278,13 @@ export async function listInstructorLessonRatingsForManager(
 	summary: LessonRatingsSummaryDto;
 	pagination: { page: number; limit: number; totalPages: number };
 }> {
-	await assertManagerCanAccessSchool(actor, query.schoolId);
+	const schoolId =
+		query.schoolId ??
+		(await resolveActiveInstructorSchoolContext(actor, instructorId))
+			.schoolId;
+	await assertManagerCanAccessSchool(actor, schoolId);
 
-	const where = buildManagerRatingsWhere(query.schoolId, {
+	const where = buildManagerRatingsWhere(schoolId, {
 		...query,
 		instructorId,
 	});

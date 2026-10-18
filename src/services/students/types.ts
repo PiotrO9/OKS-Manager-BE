@@ -95,7 +95,7 @@ export type StudentPaymentPlanDto = {
 };
 
 export type CreateStudentPaymentInput = {
-	schoolId: string;
+	schoolId?: string;
 	paymentPlanId: string;
 	amount: string;
 	dueDate?: string | null;
@@ -103,18 +103,18 @@ export type CreateStudentPaymentInput = {
 };
 
 export type UpdateStudentPaymentInput = {
-	schoolId: string;
+	schoolId?: string;
 	dueDate?: string | null;
 	method?: string | null;
 };
 
 export type MarkStudentPaymentPaidInput = {
-	schoolId: string;
+	schoolId?: string;
 	paidAt?: string | null;
 };
 
 export type MarkStudentPaymentUnpaidInput = {
-	schoolId: string;
+	schoolId?: string;
 };
 
 export type StudentListItemDto = {

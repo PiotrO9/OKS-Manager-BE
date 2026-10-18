@@ -78,6 +78,7 @@ export const listLessonRatingsQuerySchema =
 
 export const instructorLessonRatingsQuerySchema = lessonRatingsBaseQuerySchema
 	.omit({ instructorId: true })
+	.extend({ schoolId: optionalUuidQueryValue('Invalid schoolId') })
 	.superRefine(refineDateRange);
 
 export const ownLessonRatingsQuerySchema = z

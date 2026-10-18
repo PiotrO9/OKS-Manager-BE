@@ -280,7 +280,7 @@ function buildAdvancedFilterWhere(
 
 /** All predicates are applied before counting and pagination, within the selected school. */
 export function buildStudentListWhere(
-	query: ListStudentsQuery,
+	query: ListStudentsQuery & { schoolId: string },
 	now = new Date(),
 ): Prisma.StudentProfileWhereInput {
 	const { schoolId, courseId, search, view, filters = [] } = query;

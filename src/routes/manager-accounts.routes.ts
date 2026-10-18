@@ -36,7 +36,11 @@ const statusBody = z.object({ isActive: z.boolean() });
 
 function scope(req: Request) {
 	const actor = requireUser(req);
-	const { schoolId } = parseRequestPart(schoolQuery, req.query, 'query');
+	const { schoolId } = parseRequestPart(
+		schoolQuery.partial(),
+		req.query,
+		'query',
+	);
 	const { userId } = parseRequestPart(targetParams, req.params, 'params');
 	return { actorId: actor.id, schoolId, userId, requestId: req.requestId };
 }

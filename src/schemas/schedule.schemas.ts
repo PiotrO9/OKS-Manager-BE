@@ -76,13 +76,6 @@ export const scheduleQuerySchema = z
 				path: ['instructorId'],
 			});
 		}
-		if (hasS && data.schoolId === undefined) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: 'schoolId is required when filtering by studentId',
-				path: ['schoolId'],
-			});
-		}
 	});
 
 export type ScheduleMeQuery = z.infer<typeof scheduleMeQuerySchema>;

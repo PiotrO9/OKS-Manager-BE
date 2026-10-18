@@ -1,4 +1,4 @@
-import { Role } from '@prisma/client';
+import { Role, type Prisma } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 
@@ -57,13 +57,14 @@ export async function assertActorCanListStudentsForSchool(
 	actorId: string,
 	actorRole: Role,
 	schoolId: string,
+	db: Prisma.TransactionClient = prisma,
 ): Promise<void> {
 	if (actorRole === Role.ADMIN) {
 		return;
 	}
 
 	if (actorRole === Role.MANAGER) {
-		const ownsSchool = await prisma.drivingSchool.findFirst({
+		const ownsSchool = await db.drivingSchool.findFirst({
 			where: { id: schoolId, ownerId: actorId, deletedAt: null },
 			select: { id: true },
 		});
@@ -74,7 +75,7 @@ export async function assertActorCanListStudentsForSchool(
 	}
 
 	if (actorRole === Role.INSTRUCTOR) {
-		const instructorInSchool = await prisma.instructorSchool.findFirst({
+		const instructorInSchool = await db.instructorSchool.findFirst({
 			where: {
 				instructor: { userId: actorId },
 				schoolId,

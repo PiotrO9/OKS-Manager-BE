@@ -68,7 +68,7 @@ type ApiResult = {
 
 async function request(
 	actorId: string,
-	method: 'PATCH' | 'POST',
+	method: 'GET' | 'PATCH' | 'POST',
 	path: string,
 	body: Record<string, unknown>,
 ): Promise<{ status: number; result: ApiResult }> {
@@ -79,7 +79,7 @@ async function request(
 			authorization: `Bearer ${actorToken(actorId)}`,
 			'content-type': 'application/json',
 		},
-		body: JSON.stringify(body),
+		body: method === 'GET' ? undefined : JSON.stringify(body),
 	});
 	return {
 		status: response.status,
@@ -517,6 +517,68 @@ describe('QA-04 student mutations over HTTP and PostgreSQL', () => {
 		).toBe(ids.school);
 	});
 
+	it('serves resource reads without schoolId and rejects foreign callers and malformed scope', async () => {
+		const paths = [
+			'/students/' + ids.studentUser + '/process-status',
+			'/students/' + ids.studentUser + '/payments',
+			'/schedule?studentId=' +
+				ids.studentProfile +
+				'&dateFrom=2026-10-01&dateTo=2026-10-07',
+			'/students?courseId=' + ids.course,
+			'/instructors/' + ids.instructorProfile + '/ratings',
+			'/manager/accounts/' + ids.studentUser,
+			'/manager/accounts/' + ids.studentUser + '/archive-obligations',
+		];
+		for (const path of paths) {
+			expect(
+				(await request(ids.manager, 'GET', path, {})).status,
+				path,
+			).toBe(200);
+			expect([403, 404]).toContain(
+				(await request(ids.otherManager, 'GET', path, {})).status,
+			);
+			expect(
+				(
+					await request(
+						ids.manager,
+						'GET',
+						path +
+							(path.includes('?') ? '&' : '?') +
+							'schoolId=invalid',
+						{},
+					)
+				).status,
+				path,
+			).toBe(400);
+		}
+		expect(
+			(await request(ids.manager, 'GET', '/students', {})).status,
+		).toBe(400);
+		expect(
+			(await request(ids.manager, 'GET', '/manager/accounts', {})).status,
+		).toBe(400);
+		// Account reads include archived users and still infer the membership.
+		await prisma.studentSchool.create({
+			data: { studentId: ids.deletedProfile, schoolId: ids.school },
+		});
+		try {
+			expect(
+				(
+					await request(
+						ids.manager,
+						'GET',
+						'/manager/accounts/' + ids.deletedUser,
+						{},
+					)
+				).status,
+			).toBe(200);
+		} finally {
+			await prisma.studentSchool.deleteMany({
+				where: { studentId: ids.deletedProfile },
+			});
+		}
+	});
+
 	it('allows admin to reassign a student school using userId', async () => {
 		const moved = await request(
 			ids.admin,
@@ -533,5 +595,113 @@ describe('QA-04 student mutations over HTTP and PostgreSQL', () => {
 			where: { studentId: ids.studentProfile },
 		});
 		expect(relation.schoolId).toBe(ids.otherSchool);
+	});
+	it('mutates historical payments by course ownership after transfer, preserving legacy scope checks', async () => {
+		const plan = await prisma.paymentPlan.create({
+			data: { courseId: ids.course, totalAmount: '100.00', type: 'FULL' },
+		});
+		const path = '/students/' + ids.studentUser + '/payments';
+		const created = await request(ids.manager, 'POST', path, {
+			paymentPlanId: plan.id,
+			amount: '10.00',
+		});
+		expect(created.status).toBe(201);
+		const payment = await prisma.payment.findFirstOrThrow({
+			where: { paymentPlanId: plan.id },
+		});
+		expect(
+			(
+				await request(
+					ids.otherManager,
+					'PATCH',
+					path + '/' + payment.id + '/mark-paid',
+					{},
+				)
+			).status,
+		).toBe(403);
+		expect(
+			(
+				await request(
+					ids.manager,
+					'PATCH',
+					path + '/' + payment.id + '/mark-paid',
+					{ schoolId: ids.otherSchool },
+				)
+			).status,
+		).toBe(404);
+		expect(
+			(
+				await request(
+					ids.manager,
+					'PATCH',
+					'/students/' +
+						ids.otherStudentUser +
+						'/payments/' +
+						payment.id +
+						'/mark-paid',
+					{},
+				)
+			).status,
+		).toBe(404);
+		expect(
+			(
+				await prisma.payment.findUniqueOrThrow({
+					where: { id: payment.id },
+				})
+			).status,
+		).toBe('PENDING');
+		expect(
+			(
+				await request(
+					ids.manager,
+					'PATCH',
+					path + '/' + payment.id + '/mark-paid',
+					{},
+				)
+			).status,
+		).toBe(200);
+		expect(
+			(
+				await prisma.payment.findUniqueOrThrow({
+					where: { id: payment.id },
+				})
+			).status,
+		).toBe('PAID');
+		expect(
+			(
+				await request(
+					ids.manager,
+					'PATCH',
+					path + '/' + payment.id + '/mark-unpaid',
+					{ schoolId: ids.school },
+				)
+			).status,
+		).toBe(200);
+		// Default read uses the new school; the explicit history remains owned by the old school.
+		expect((await request(ids.manager, 'GET', path, {})).status).toBe(403);
+		const history = await request(
+			ids.manager,
+			'GET',
+			path + '?schoolId=' + ids.school,
+			{},
+		);
+		expect(history.status).toBe(200);
+		expect(history.result.data?.payments).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: payment.id }),
+			]),
+		);
+		for (const actor of [ids.admin, ids.instructorUser, ids.studentUser]) {
+			expect(
+				(
+					await request(
+						actor,
+						'PATCH',
+						path + '/' + payment.id + '/mark-paid',
+						{},
+					)
+				).status,
+			).toBe(403);
+		}
 	});
 });

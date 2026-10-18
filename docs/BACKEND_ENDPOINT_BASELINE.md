@@ -205,6 +205,7 @@ Mounted at `/manager`, routes in `src/routes/manager-attention.routes.ts`.
 | GET | `/manager/attention-items` | `listAttentionItems` | bearer, min role `MANAGER` | 200 |
 | GET | `/manager/accounts` | `listManagerAccounts` | bearer, manager and owned school | 200 |
 | GET | `/manager/accounts/:userId` | `getManagerAccount` | bearer, manager and owned school | 200 |
+| GET | `/manager/accounts/:userId/archive-obligations` | `listManagerAccountObligations` | bearer, manager and owned school | 200 |
 | PATCH | `/manager/accounts/:userId/profile` | `updateManagerAccountProfile` | bearer, manager and owned school | 200 |
 | PATCH | `/manager/accounts/:userId/email` | `changeManagerAccountEmail` | bearer, manager and owned school | 200 |
 | POST | `/manager/accounts/:userId/email/reconcile` | `reconcileManagerAccountEmail` | bearer, manager and owned school | 200 |

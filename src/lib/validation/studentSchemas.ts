@@ -22,10 +22,7 @@ export type StudentDetailQuery = z.infer<typeof studentDetailQuerySchema>;
 
 export const studentProcessStatusQuerySchema = z.object({
 	schoolId: zodPreprocessQueryFirst(
-		z
-			.string({ required_error: 'schoolId is required' })
-			.min(1, 'schoolId is required')
-			.regex(UUID_PARAM_RE, 'Invalid schoolId'),
+		z.string().trim().regex(UUID_PARAM_RE, 'Invalid schoolId').optional(),
 	),
 });
 
@@ -78,7 +75,11 @@ const studentPaymentMethodSchema = z.preprocess(
 );
 
 const studentPaymentSchoolIdBodySchema = z.object({
-	schoolId: z.string().trim().regex(UUID_PARAM_RE, 'Invalid schoolId'),
+	schoolId: z
+		.string()
+		.trim()
+		.regex(UUID_PARAM_RE, 'Invalid schoolId')
+		.optional(),
 });
 
 export const studentPaymentParamsSchema = z.object({
@@ -390,33 +391,45 @@ export const studentAdvancedFiltersQuerySchema = z.preprocess((val) => {
 
 export type StudentAdvancedFilter = z.infer<typeof studentAdvancedFilterSchema>;
 
-export const listStudentsQuerySchema = z.object({
-	search: zodPreprocessQueryFirst(z.string().trim().max(120).optional()),
-	view: zodPreprocessQueryFirst(
-		z
-			.enum([
-				'all',
-				'without-pkk',
-				'without-course',
-				'overdue',
-				'without-lesson',
-			])
-			.optional(),
-	),
-	schoolId: zodPreprocessQueryFirst(
-		z
-			.string({ required_error: 'schoolId is required' })
-			.min(1, 'schoolId is required')
-			.regex(UUID_PARAM_RE, 'Invalid schoolId'),
-	),
-	courseId: zodPreprocessQueryFirst(
-		z.string().trim().regex(UUID_PARAM_RE, 'Invalid courseId').optional(),
-	),
-	page: zodPreprocessQueryFirst(z.coerce.number().int().min(1).default(1)),
-	limit: zodPreprocessQueryFirst(
-		z.coerce.number().int().min(1).max(100).default(20),
-	),
-	filters: studentAdvancedFiltersQuerySchema.default([]),
-});
+export const listStudentsQuerySchema = z
+	.object({
+		search: zodPreprocessQueryFirst(z.string().trim().max(120).optional()),
+		view: zodPreprocessQueryFirst(
+			z
+				.enum([
+					'all',
+					'without-pkk',
+					'without-course',
+					'overdue',
+					'without-lesson',
+				])
+				.optional(),
+		),
+		schoolId: zodPreprocessQueryFirst(
+			z
+				.string()
+				.trim()
+				.regex(UUID_PARAM_RE, 'Invalid schoolId')
+				.optional(),
+		),
+		courseId: zodPreprocessQueryFirst(
+			z
+				.string()
+				.trim()
+				.regex(UUID_PARAM_RE, 'Invalid courseId')
+				.optional(),
+		),
+		page: zodPreprocessQueryFirst(
+			z.coerce.number().int().min(1).default(1),
+		),
+		limit: zodPreprocessQueryFirst(
+			z.coerce.number().int().min(1).max(100).default(20),
+		),
+		filters: studentAdvancedFiltersQuerySchema.default([]),
+	})
+	.refine((query) => Boolean(query.schoolId || query.courseId), {
+		message: 'schoolId or courseId is required',
+		path: ['schoolId'],
+	});
 
 export type ListStudentsQuery = z.infer<typeof listStudentsQuerySchema>;

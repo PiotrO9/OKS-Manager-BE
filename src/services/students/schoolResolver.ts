@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 
@@ -5,10 +6,30 @@ const prisma = getPrisma();
 
 export async function resolveActiveStudentSchoolId(
 	studentUserId: string,
+	db: Prisma.TransactionClient = prisma,
 ): Promise<string> {
-	const links = await prisma.studentSchool.findMany({
+	return resolveStudentSchool(
+		{ userId: studentUserId, user: { deletedAt: null } },
+		db,
+	);
+}
+
+export async function resolveStudentSchoolByProfileId(
+	studentId: string,
+): Promise<string> {
+	return resolveStudentSchool(
+		{ id: studentId, user: { deletedAt: null } },
+		prisma,
+	);
+}
+
+async function resolveStudentSchool(
+	student: Prisma.StudentProfileWhereInput,
+	db: Prisma.TransactionClient,
+): Promise<string> {
+	const links = await db.studentSchool.findMany({
 		where: {
-			student: { userId: studentUserId, user: { deletedAt: null } },
+			student,
 			school: { deletedAt: null },
 		},
 		select: { schoolId: true },
