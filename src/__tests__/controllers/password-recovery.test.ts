@@ -137,7 +137,7 @@ describe('requestPasswordRecovery', () => {
 		);
 		expect(mocks.resetPasswordForEmail).toHaveBeenCalledWith(
 			'new@example.com',
-			{ redirectTo: 'http://localhost:3000/reset-password' },
+			{ redirectTo: 'http://localhost:3000/ustaw-haslo' },
 		);
 		expect(res.status).toHaveBeenCalledWith(200);
 	});

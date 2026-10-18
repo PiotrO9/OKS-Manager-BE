@@ -6,6 +6,7 @@ import { logger } from '../../lib/logger';
 import { getPrisma } from '../../lib/prisma';
 import { recordRequestSecurityEvent } from '../../lib/securityEventContext';
 import { getSupabaseClient } from '../../lib/supabase';
+import { passwordResetRedirect } from '../../lib/passwordResetRedirect';
 import { resolveLoginTarget } from '../../services/security-events/record';
 import { parseRequestPart } from '../requestParsing';
 
@@ -27,16 +28,9 @@ async function recoveryTarget(email: string) {
 	}
 }
 
-function resetRedirect(): string {
-	const frontendUrl = process.env.FRONTEND_URL?.split(',')[0]?.trim();
-	if (!frontendUrl)
-		throw new Error('FRONTEND_URL is required for password reset');
-	return new URL('/reset-password', frontendUrl).toString();
-}
-
 export async function requestPasswordRecovery(req: Request, res: Response) {
 	const { email } = parseRequestPart(requestSchema, req.body, 'body');
-	const redirectTo = resetRedirect();
+	const redirectTo = passwordResetRedirect();
 	try {
 		const { error } = await getSupabaseClient().auth.resetPasswordForEmail(
 			email,
