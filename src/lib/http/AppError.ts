@@ -1,10 +1,23 @@
 export class AppError extends Error {
 	readonly statusCode: number;
+	securityAudit?: {
+		reasonCode: string;
+		schoolId?: string;
+		targetUserId?: string;
+		targetDisplayName?: string;
+		resourceType?: string;
+		resourceId?: string;
+	};
 
 	constructor(statusCode: number, message: string) {
 		super(message);
 		this.name = 'AppError';
 		this.statusCode = statusCode;
+	}
+
+	withSecurityAudit(context: NonNullable<AppError['securityAudit']>): this {
+		this.securityAudit = context;
+		return this;
 	}
 
 	static badRequest(message: string): AppError {

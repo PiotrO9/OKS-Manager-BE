@@ -13,7 +13,11 @@ const BASELINE_PATH = join(
 	'docs',
 	'BACKEND_ENDPOINT_BASELINE.md',
 );
-const TECHNICAL_ENDPOINT_PATHS = new Set(['/api-docs', '/openapi.json']);
+const TECHNICAL_ENDPOINT_PATHS = new Set([
+	'/api-docs',
+	'/openapi.json',
+	'/internal/security-events/bff-denial',
+]);
 
 function endpointKey(endpoint: Endpoint): string {
 	return `${endpoint.method.toLowerCase()} ${endpoint.path}`;

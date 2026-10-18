@@ -3,6 +3,11 @@ import { Role } from '@prisma/client';
 import { sendJsonError } from '../../lib/apiResponse';
 import { AppError } from '../../lib/http/AppError';
 import { logger } from '../../lib/logger';
+import {
+	actorSchoolScopes,
+	recordRequestSecurityEvent,
+	verifiedSchoolScope,
+} from '../../lib/securityEventContext';
 import { canInvokerRegisterUserWithRole } from '../../lib/registerRolePolicy';
 import { getSupabaseAdminClient } from '../../lib/supabaseAdmin';
 import { parseInstructorBirthDate } from '../../lib/validation/instructorBirthDate';
@@ -20,8 +25,25 @@ import {
 } from './register.helpers';
 import type { RegisterBody, RequestWithUser } from './types';
 
-function sendAppError(res: Response, err: unknown): Response | null {
+async function sendAppError(
+	req: Request,
+	res: Response,
+	err: unknown,
+): Promise<Response | null> {
 	if (err instanceof AppError) {
+		if (err.statusCode === 403) {
+			await recordRequestSecurityEvent(req, {
+				type: 'ACCESS_DENIED',
+				actorUserId: req.user?.id,
+				actorRole: req.user?.role,
+				reasonCode:
+					err.securityAudit?.reasonCode ??
+					'REGISTRATION_SCOPE_DENIED',
+				eventPhase: 'access_decision',
+				httpStatus: 403,
+				schoolScopes: await actorSchoolScopes(req),
+			});
+		}
 		return sendJsonError(res, err.message, err.statusCode);
 	}
 	return null;
@@ -62,6 +84,16 @@ export async function register(req: Request, res: Response) {
 	}
 
 	if (!canInvokerRegisterUserWithRole(actor.role, targetRole)) {
+		await recordRequestSecurityEvent(req, {
+			type: 'ACCESS_DENIED',
+			actorUserId: actor.id,
+			actorRole: actor.role,
+			actorDisplayName: `${actor.firstName} ${actor.lastName}`.trim(),
+			reasonCode: 'ROLE_CANNOT_REGISTER_TARGET',
+			eventPhase: 'access_decision',
+			httpStatus: 403,
+			schoolScopes: await actorSchoolScopes(req),
+		});
 		return sendJsonError(res, 'Forbidden', 403);
 	}
 
@@ -82,18 +114,19 @@ export async function register(req: Request, res: Response) {
 			emailTrimmed,
 		);
 	} catch (err) {
-		const appErrorResponse = sendAppError(res, err);
+		const appErrorResponse = await sendAppError(req, res, err);
 		if (appErrorResponse) {
 			return appErrorResponse;
 		}
 		throw err;
 	}
 
-	const { data, error } = await getSupabaseAdminClient().auth.admin.createUser({
-		email: emailTrimmed,
-		password,
-		email_confirm: true,
-	});
+	const { data, error } =
+		await getSupabaseAdminClient().auth.admin.createUser({
+			email: emailTrimmed,
+			password,
+			email_confirm: true,
+		});
 
 	if (error) {
 		logAuthSignUpError(error);
@@ -122,7 +155,7 @@ export async function register(req: Request, res: Response) {
 			...registrationSchoolIds,
 		});
 	} catch (err) {
-		const appErrorResponse = sendAppError(res, err);
+		const appErrorResponse = await sendAppError(req, res, err);
 		if (appErrorResponse) {
 			return appErrorResponse;
 		}
@@ -135,6 +168,25 @@ export async function register(req: Request, res: Response) {
 		});
 		return sendJsonError(res, 'Registration incomplete', 500);
 	}
+	const schoolId =
+		registrationSchoolIds.validatedStudentSchoolId ??
+		registrationSchoolIds.validatedInstructorSchoolId;
+	await recordRequestSecurityEvent(req, {
+		type: 'ACCOUNT_CREATED',
+		actorUserId: actor.id,
+		actorRole: actor.role,
+		actorDisplayName: `${actor.firstName} ${actor.lastName}`.trim(),
+		targetUserId: authUserId,
+		targetDisplayName: `${firstName} ${lastName}`.trim(),
+		eventPhase: 'account_created',
+		httpStatus: targetRole === Role.INSTRUCTOR ? 201 : 200,
+		schoolScopes: schoolId
+			? await verifiedSchoolScope(req, schoolId, {
+					userId: authUserId,
+					displayName: `${firstName} ${lastName}`.trim(),
+				})
+			: [],
+	});
 
 	return completeRegisterSuccessResponse(
 		res,

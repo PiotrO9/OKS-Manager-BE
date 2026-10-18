@@ -87,7 +87,10 @@ describe('mapAuthSignUpErrorForClient — other errors (500)', () => {
 				status: 400,
 				message: 'Supabase validation detail',
 			}),
-		).toEqual({ statusCode: 400, clientMessage: 'Invalid registration data' });
+		).toEqual({
+			statusCode: 400,
+			clientMessage: 'Invalid registration data',
+		});
 	});
 
 	it('maps unrelated messages to 500', () => {

@@ -3,14 +3,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
 	const db = {
-		drivingSchool: { findFirst: vi.fn() },
-		user: { findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn() },
+		drivingSchool: { findFirst: vi.fn(), findUnique: vi.fn() },
+		user: {
+			findFirst: vi.fn(),
+			findUnique: vi.fn(),
+			findMany: vi.fn(),
+			update: vi.fn(),
+		},
 		accountAction: { count: vi.fn(), create: vi.fn(), update: vi.fn() },
 		accountSession: { updateMany: vi.fn() },
 		$queryRaw: vi.fn(),
 		$transaction: vi.fn(),
 	};
-	return { db, updateAuthUser: vi.fn() };
+	return { db, updateAuthUser: vi.fn(), recordEvent: vi.fn() };
 });
 
 vi.mock('../../lib/prisma', () => ({ getPrisma: () => mocks.db }));
@@ -22,11 +27,15 @@ vi.mock('../../lib/supabaseAdmin', () => ({
 vi.mock('../../lib/supabase', () => ({
 	getSupabaseClient: () => ({ auth: {} }),
 }));
+vi.mock('../../services/security-events/record', () => ({
+	recordSecurityEvent: mocks.recordEvent,
+}));
 
 import {
 	changeManagerAccountEmail,
 	getManagerAccount,
 	listManagerAccounts,
+	setManagerAccountActive,
 } from '../../services/managerAccounts.service';
 
 const actorId = '11111111-1111-4111-8111-111111111111';
@@ -53,7 +62,9 @@ describe('manager account scope and email synchronization', () => {
 		);
 		mocks.db.$queryRaw.mockResolvedValue([{ id: userId }]);
 		mocks.db.drivingSchool.findFirst.mockResolvedValue({ id: schoolId });
+		mocks.db.drivingSchool.findUnique.mockResolvedValue(null);
 		mocks.db.user.findFirst.mockResolvedValue(account);
+		mocks.db.user.findUnique.mockResolvedValue(null);
 		mocks.db.accountAction.count.mockResolvedValue(0);
 		mocks.db.accountAction.create.mockResolvedValue({ id: 'action-1' });
 		mocks.db.accountAction.update.mockResolvedValue({ id: 'action-1' });
@@ -63,6 +74,7 @@ describe('manager account scope and email synchronization', () => {
 			data: { user: { email: 'new@example.com' } },
 			error: null,
 		});
+		mocks.recordEvent.mockResolvedValue({ id: 'event-1', created: true });
 	});
 
 	it('does not expose accounts when the manager does not own the school', async () => {
@@ -75,6 +87,44 @@ describe('manager account scope and email synchronization', () => {
 		).rejects.toMatchObject({ statusCode: 404 });
 		expect(mocks.db.user.findFirst).not.toHaveBeenCalled();
 		expect(mocks.db.user.findMany).not.toHaveBeenCalled();
+	});
+
+	it('marks an existing but inaccessible school without changing the public 404', async () => {
+		mocks.db.drivingSchool.findFirst.mockResolvedValue(null);
+		mocks.db.drivingSchool.findUnique.mockResolvedValue({ id: schoolId });
+		await expect(
+			getManagerAccount(actorId, schoolId, userId),
+		).rejects.toMatchObject({
+			statusCode: 404,
+			message: 'Driving school not found',
+			securityAudit: {
+				reasonCode: 'SCHOOL_ACCESS_DENIED',
+				schoolId,
+			},
+		});
+	});
+
+	it('attributes a masked account denial to the account actual school', async () => {
+		const otherSchoolId = '44444444-4444-4444-8444-444444444444';
+		mocks.db.user.findFirst.mockResolvedValue(null);
+		mocks.db.user.findUnique.mockResolvedValue({
+			id: userId,
+			firstName: 'Jan',
+			lastName: 'Kowalski',
+			studentProfile: { studentSchools: [{ schoolId: otherSchoolId }] },
+			instructorProfile: null,
+		});
+		await expect(
+			getManagerAccount(actorId, schoolId, userId),
+		).rejects.toMatchObject({
+			statusCode: 404,
+			message: 'Account not found',
+			securityAudit: {
+				reasonCode: 'ACCOUNT_ACCESS_DENIED',
+				schoolId: otherSchoolId,
+				targetUserId: userId,
+			},
+		});
 	});
 
 	it('requires current school membership before calling Supabase Auth', async () => {
@@ -121,5 +171,42 @@ describe('manager account scope and email synchronization', () => {
 			where: { id: 'action-1' },
 			data: { status: 'REPAIR_REQUIRED' },
 		});
+		expect(mocks.recordEvent).toHaveBeenCalledWith(
+			expect.objectContaining({ type: 'ACCOUNT_CHANGE_REPAIR_REQUIRED' }),
+		);
+		expect(mocks.recordEvent).not.toHaveBeenCalledWith(
+			expect.objectContaining({ type: 'ACCOUNT_EMAIL_CHANGED' }),
+		);
+	});
+
+	it('records a completed block after the account transaction', async () => {
+		mocks.db.user.update.mockResolvedValue({ id: userId, isActive: false });
+		await setManagerAccountActive(
+			actorId,
+			schoolId,
+			userId,
+			false,
+			'request-1',
+		);
+		expect(mocks.recordEvent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'ACCOUNT_BLOCKED',
+				accountActionId: 'action-1',
+				actorUserId: actorId,
+				targetUserId: userId,
+				schoolScopes: [expect.objectContaining({ schoolId })],
+			}),
+		);
+	});
+
+	it('does not record a block when status already matches', async () => {
+		await setManagerAccountActive(
+			actorId,
+			schoolId,
+			userId,
+			true,
+			'request-1',
+		);
+		expect(mocks.recordEvent).not.toHaveBeenCalled();
 	});
 });

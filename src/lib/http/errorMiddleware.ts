@@ -2,10 +2,15 @@ import type { ErrorRequestHandler } from 'express';
 import { ZodError } from 'zod';
 import { sendJsonError } from '../apiResponse';
 import { logger } from '../logger';
+import {
+	actorSchoolScopes,
+	recordRequestSecurityEvent,
+	verifiedSchoolScope,
+} from '../securityEventContext';
 import { AppError } from './AppError';
 import { ScheduleDomainError } from './ScheduleDomainError';
 
-export const errorRequestHandler: ErrorRequestHandler = (
+export const errorRequestHandler: ErrorRequestHandler = async (
 	err,
 	req,
 	res,
@@ -17,6 +22,31 @@ export const errorRequestHandler: ErrorRequestHandler = (
 	}
 
 	if (err instanceof AppError) {
+		if (err.statusCode === 403 || err.securityAudit) {
+			const audit = err.securityAudit;
+			const schoolScopes = audit?.schoolId
+				? await verifiedSchoolScope(req, audit.schoolId, {
+						userId: audit.targetUserId,
+						displayName: audit.targetDisplayName,
+					})
+				: await actorSchoolScopes(req);
+			await recordRequestSecurityEvent(req, {
+				type: 'ACCESS_DENIED',
+				actorUserId: req.user?.id,
+				actorRole: req.user?.role,
+				actorDisplayName: req.user
+					? `${req.user.firstName} ${req.user.lastName}`.trim()
+					: undefined,
+				targetUserId: audit?.targetUserId,
+				targetDisplayName: audit?.targetDisplayName,
+				resourceType: audit?.resourceType,
+				resourceId: audit?.resourceId,
+				reasonCode: audit?.reasonCode ?? 'SERVICE_FORBIDDEN',
+				eventPhase: 'access_decision',
+				httpStatus: err.statusCode,
+				schoolScopes,
+			});
+		}
 		sendJsonError(
 			res,
 			err.message,

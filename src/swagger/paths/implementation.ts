@@ -9,6 +9,7 @@ import { registerInstructorPaths } from './instructors.paths';
 import { registerLessonPaths } from './lessons.paths';
 import { registerManagerAttentionPaths } from './managerAttention.paths';
 import { registerManagerAccountsPaths } from './managerAccounts.paths';
+import { registerSecurityLogPaths } from './security-log.paths';
 import { registerSchedulePaths } from './schedule.paths';
 import { registerDevPaths } from './dev.paths';
 import { registerStudentPaths } from './students.paths';
@@ -35,6 +36,7 @@ export function registerOpenApiPaths(registry: OpenAPIRegistry): void {
 	registerCourseTypePaths(registry);
 	registerManagerAttentionPaths(registry);
 	registerManagerAccountsPaths(registry);
+	registerSecurityLogPaths(registry);
 	registerSchedulePaths(registry);
 	registerDevPaths(registry);
 }

@@ -5,6 +5,7 @@ import express from 'express';
 import { sendJsonSuccess } from './lib/apiResponse';
 import { errorRequestHandler } from './lib/http/errorMiddleware';
 import { requestIdMiddleware } from './middleware/requestId.middleware';
+import { securityOperationContext } from './middleware/securityOperationContext';
 import { createAuthRouter } from './routes/auth.routes';
 import { createCourseTypesRouter } from './routes/course-types.routes';
 import { createCoursesRouter } from './routes/courses.routes';
@@ -12,10 +13,12 @@ import { createDevRouter } from './routes/dev.routes';
 import { createDrivingSchoolsRouter } from './routes/driving-schools.routes';
 import { createEventsRouter } from './routes/events.routes';
 import { createInstructorsRouter } from './routes/instructors.routes';
+import { createInternalSecurityEventsRouter } from './routes/internal-security-events.routes';
 import { createLessonRatingsRouter } from './routes/lesson-ratings.routes';
 import { createLessonsRouter } from './routes/lessons.routes';
 import { createManagerAttentionRouter } from './routes/manager-attention.routes';
 import { createManagerAccountsRouter } from './routes/manager-accounts.routes';
+import { createManagerSecurityLogsRouter } from './routes/manager-security-logs.routes';
 import { createMeRouter } from './routes/me.routes';
 import { createScheduleRouter } from './routes/schedule.routes';
 import { createStudentsRouter } from './routes/students.routes';
@@ -44,6 +47,8 @@ export function createApp() {
 	app.use(express.json());
 	app.use(cookieParser());
 	app.use(requestIdMiddleware);
+	app.use(securityOperationContext);
+	app.use('/internal/security-events', createInternalSecurityEventsRouter());
 
 	app.use('/auth', createAuthRouter());
 	app.use('/driving-schools', createDrivingSchoolsRouter());
@@ -56,6 +61,7 @@ export function createApp() {
 	app.use('/lessons', createLessonsRouter());
 	app.use('/ratings', createLessonRatingsRouter());
 	app.use('/manager', createManagerAttentionRouter());
+	app.use('/manager', createManagerSecurityLogsRouter());
 	app.use('/manager', createManagerAccountsRouter());
 	app.use('/me', createMeRouter());
 	app.use('/schedule', createScheduleRouter());

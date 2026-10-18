@@ -35,7 +35,9 @@ function mapAuthSignUpErrorForClient(error: SignUpErrorLike): {
 	}
 	if (
 		error.code === 'email_address_invalid' ||
-		(error.status === 400 && normalized.includes('email') && normalized.includes('invalid'))
+		(error.status === 400 &&
+			normalized.includes('email') &&
+			normalized.includes('invalid'))
 	) {
 		return { statusCode: 400, clientMessage: 'Invalid email address' };
 	}

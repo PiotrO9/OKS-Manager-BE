@@ -21,18 +21,43 @@ export async function isAccountSessionAllowed(
 	userId: string,
 	sessionId: string | null,
 ): Promise<boolean> {
-	if (!sessionId) return false;
+	return (await getAccountSessionDecision(userId, sessionId)).allowed;
+}
+
+export type AccountSessionDecision =
+	| { allowed: true; reason: 'ALLOWED' }
+	| {
+			allowed: false;
+			reason:
+				| 'MISSING_SESSION_ID'
+				| 'UNKNOWN_SESSION'
+				| 'SESSION_USER_MISMATCH'
+				| 'REVOKED_SESSION'
+				| 'ACCOUNT_CHANGE_PENDING';
+	  };
+
+export async function getAccountSessionDecision(
+	userId: string,
+	sessionId: string | null,
+): Promise<AccountSessionDecision> {
+	if (!sessionId) return { allowed: false, reason: 'MISSING_SESSION_ID' };
 	const session = await prisma.accountSession.findUnique({
 		where: { sessionId },
 	});
-	if (session?.userId !== userId || session.revokedAt !== null) return false;
+	if (!session) return { allowed: false, reason: 'UNKNOWN_SESSION' };
+	if (session.userId !== userId)
+		return { allowed: false, reason: 'SESSION_USER_MISMATCH' };
+	if (session.revokedAt !== null)
+		return { allowed: false, reason: 'REVOKED_SESSION' };
 	const pending = await prisma.accountAction.count({
 		where: {
 			targetId: userId,
 			status: { in: ['PENDING', 'AUTH_UPDATED', 'REPAIR_REQUIRED'] },
 		},
 	});
-	return pending === 0;
+	return pending === 0
+		? { allowed: true, reason: 'ALLOWED' }
+		: { allowed: false, reason: 'ACCOUNT_CHANGE_PENDING' };
 }
 
 export async function registerAccountSession(

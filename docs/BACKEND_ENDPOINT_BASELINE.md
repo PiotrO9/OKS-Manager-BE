@@ -211,6 +211,10 @@ Mounted at `/manager`, routes in `src/routes/manager-attention.routes.ts`.
 | PATCH | `/manager/accounts/:userId/status` | `setManagerAccountActive` | bearer, manager and owned school | 200 |
 | POST | `/manager/accounts/:userId/archive` | `archiveManagerAccount` | bearer, manager and owned school | 200 |
 | POST | `/manager/accounts/:userId/password-reset` | `sendManagerAccountPasswordReset` | bearer, manager and owned school | 200 |
+| GET | `/manager/security-logs` | `listManagerSecurityLogs` | bearer, exact manager role and owned school | 200 |
+| GET | `/manager/security-logs/filter-options` | `listManagerSecurityLogFilterOptions` | bearer, exact manager role and owned school | 200 |
+| GET | `/manager/security-logs/:eventId` | `getManagerSecurityLog` | bearer, exact manager role and owned school | 200 |
+| POST | `/internal/security-events/bff-denial` | `createInternalSecurityEventsRouter` | server-to-server HMAC, 5-minute freshness, allowlisted operation | 202 |
 
 ## Me
 

@@ -1,11 +1,81 @@
 import { Prisma, Role } from '@prisma/client';
 import { AppError } from '../lib/http/AppError';
+import { logger } from '../lib/logger';
 import { getPrisma } from '../lib/prisma';
 import { getSupabaseClient } from '../lib/supabase';
 import { getSupabaseAdminClient } from '../lib/supabaseAdmin';
+import { recordSecurityEvent } from './security-events/record';
+import type { SecurityEventType } from './security-events/types';
 
 const prisma = getPrisma();
 type Tx = Prisma.TransactionClient;
+
+async function recordAccountActionEvent(input: {
+	actionId: string;
+	type: SecurityEventType;
+	actorId: string;
+	targetId: string;
+	targetDisplayName?: string;
+	schoolId: string;
+	operationCode: string;
+	operationLabel: string;
+	requestId?: string;
+	reasonCode?: string;
+}) {
+	try {
+		const [actor, target] = await Promise.all([
+			prisma.user.findUnique({
+				where: { id: input.actorId },
+				select: { firstName: true, lastName: true },
+			}),
+			prisma.user.findUnique({
+				where: { id: input.targetId },
+				select: { firstName: true, lastName: true },
+			}),
+		]);
+		const actorDisplayName = actor
+			? `${actor.firstName} ${actor.lastName}`.trim()
+			: undefined;
+		const targetDisplayName =
+			input.targetDisplayName ??
+			(target
+				? `${target.firstName} ${target.lastName}`.trim()
+				: undefined);
+		await recordSecurityEvent({
+			type: input.type,
+			source: 'ACCOUNT_ACTION',
+			attemptId: input.actionId,
+			eventPhase: input.type,
+			accountActionId: input.actionId,
+			actorUserId: input.actorId,
+			actorRole: 'MANAGER',
+			actorDisplayName,
+			targetUserId: input.targetId,
+			targetDisplayName,
+			operationCode: input.operationCode,
+			operationLabel: input.operationLabel,
+			requestId: input.requestId,
+			reasonCode: input.reasonCode,
+			schoolScopes: [
+				{
+					schoolId: input.schoolId,
+					actorVisibility: 'KNOWN',
+					actorUserId: input.actorId,
+					actorRole: 'MANAGER',
+					actorDisplayName,
+					targetUserId: input.targetId,
+					targetDisplayName,
+				},
+			],
+		});
+	} catch (error) {
+		logger.error('Account action security event could not be recorded', {
+			actionId: input.actionId,
+			type: input.type,
+			error,
+		});
+	}
+}
 
 function accountWhere(
 	schoolId: string,
@@ -37,7 +107,23 @@ async function assertManagerOwnsSchool(
 		where: { id: schoolId, ownerId: actorId, deletedAt: null },
 		select: { id: true },
 	});
-	if (!school) throw AppError.notFound('Driving school not found');
+	if (!school) {
+		const existing = await db.drivingSchool.findUnique({
+			where: { id: schoolId },
+			select: { id: true },
+		});
+		if (existing) {
+			throw AppError.notFound(
+				'Driving school not found',
+			).withSecurityAudit({
+				reasonCode: 'SCHOOL_ACCESS_DENIED',
+				schoolId: existing.id,
+				resourceType: 'DRIVING_SCHOOL',
+				resourceId: existing.id,
+			});
+		}
+		throw AppError.notFound('Driving school not found');
+	}
 }
 
 async function scopedAccount(
@@ -68,7 +154,39 @@ async function scopedAccount(
 			},
 		},
 	});
-	if (!account) throw AppError.notFound('Account not found');
+	if (!account) {
+		const target = await db.user.findUnique({
+			where: { id: userId },
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				studentProfile: {
+					select: { studentSchools: { select: { schoolId: true } } },
+				},
+				instructorProfile: {
+					select: {
+						instructorSchools: { select: { schoolId: true } },
+					},
+				},
+			},
+		});
+		const actualSchoolId =
+			target?.studentProfile?.studentSchools[0]?.schoolId ??
+			target?.instructorProfile?.instructorSchools[0]?.schoolId;
+		if (target && actualSchoolId) {
+			throw AppError.notFound('Account not found').withSecurityAudit({
+				reasonCode: 'ACCOUNT_ACCESS_DENIED',
+				schoolId: actualSchoolId,
+				targetUserId: target.id,
+				targetDisplayName:
+					`${target.firstName} ${target.lastName}`.trim(),
+				resourceType: 'ACCOUNT',
+				resourceId: target.id,
+			});
+		}
+		throw AppError.notFound('Account not found');
+	}
 	return account;
 }
 
@@ -177,21 +295,27 @@ export async function setManagerAccountActive(
 	isActive: boolean,
 	requestId?: string,
 ) {
-	return prisma.$transaction(async (tx) => {
+	const outcome = await prisma.$transaction(async (tx) => {
 		await lockAccount(tx, userId);
 		const account = await scopedAccount(tx, actorId, schoolId, userId);
 		await requireAvailable(tx, account);
-		if (account.isActive === isActive) return account;
+		if (account.isActive === isActive)
+			return {
+				result: account,
+				actionId: null,
+				targetDisplayName: '',
+				revokedCount: 0,
+			};
 		const updated = await tx.user.update({
 			where: { id: userId },
 			data: { isActive, updatedAt: new Date() },
 			select: { id: true, isActive: true },
 		});
-		await tx.accountSession.updateMany({
+		const revoked = await tx.accountSession.updateMany({
 			where: { userId, revokedAt: null },
 			data: { revokedAt: new Date() },
 		});
-		await tx.accountAction.create({
+		const action = await tx.accountAction.create({
 			data: {
 				actorId,
 				targetId: userId,
@@ -201,8 +325,42 @@ export async function setManagerAccountActive(
 				requestId,
 			},
 		});
-		return updated;
+		return {
+			result: updated,
+			actionId: action.id,
+			targetDisplayName:
+				`${account.firstName} ${account.lastName}`.trim(),
+			revokedCount: revoked.count,
+		};
 	});
+	if (outcome.actionId) {
+		await recordAccountActionEvent({
+			actionId: outcome.actionId,
+			type: isActive ? 'ACCOUNT_UNBLOCKED' : 'ACCOUNT_BLOCKED',
+			actorId,
+			targetId: userId,
+			targetDisplayName: outcome.targetDisplayName,
+			schoolId,
+			operationCode: 'MANAGER_ACCOUNT_STATUS_UPDATE',
+			operationLabel: 'Zmiana aktywności konta',
+			requestId,
+		});
+		if (outcome.revokedCount > 0) {
+			await recordAccountActionEvent({
+				actionId: outcome.actionId,
+				type: 'SESSION_REVOKED',
+				actorId,
+				targetId: userId,
+				targetDisplayName: outcome.targetDisplayName,
+				schoolId,
+				operationCode: 'MANAGER_ACCOUNT_STATUS_UPDATE',
+				operationLabel: 'Zmiana aktywności konta',
+				requestId,
+				reasonCode: 'ACCOUNT_STATUS_CHANGED',
+			});
+		}
+	}
+	return outcome.result;
 }
 
 async function assertNoActiveObligations(
@@ -308,10 +466,16 @@ export async function archiveManagerAccount(
 	userId: string,
 	requestId?: string,
 ) {
-	return prisma.$transaction(async (tx) => {
+	const outcome = await prisma.$transaction(async (tx) => {
 		await lockAccount(tx, userId);
 		const account = await scopedAccount(tx, actorId, schoolId, userId);
-		if (account.deletedAt) return { id: userId, archived: true };
+		if (account.deletedAt)
+			return {
+				result: { id: userId, archived: true },
+				actionId: null,
+				targetDisplayName: '',
+				revokedCount: 0,
+			};
 		await requireAvailable(tx, account);
 		await assertNoActiveObligations(tx, userId, account.role, schoolId);
 		await tx.user.update({
@@ -322,11 +486,11 @@ export async function archiveManagerAccount(
 				updatedAt: new Date(),
 			},
 		});
-		await tx.accountSession.updateMany({
+		const revoked = await tx.accountSession.updateMany({
 			where: { userId, revokedAt: null },
 			data: { revokedAt: new Date() },
 		});
-		await tx.accountAction.create({
+		const action = await tx.accountAction.create({
 			data: {
 				actorId,
 				targetId: userId,
@@ -336,8 +500,42 @@ export async function archiveManagerAccount(
 				requestId,
 			},
 		});
-		return { id: userId, archived: true };
+		return {
+			result: { id: userId, archived: true },
+			actionId: action.id,
+			targetDisplayName:
+				`${account.firstName} ${account.lastName}`.trim(),
+			revokedCount: revoked.count,
+		};
 	});
+	if (outcome.actionId) {
+		await recordAccountActionEvent({
+			actionId: outcome.actionId,
+			type: 'ACCOUNT_ARCHIVED',
+			actorId,
+			targetId: userId,
+			targetDisplayName: outcome.targetDisplayName,
+			schoolId,
+			operationCode: 'MANAGER_ACCOUNT_ARCHIVE',
+			operationLabel: 'Archiwizacja konta',
+			requestId,
+		});
+		if (outcome.revokedCount > 0) {
+			await recordAccountActionEvent({
+				actionId: outcome.actionId,
+				type: 'SESSION_REVOKED',
+				actorId,
+				targetId: userId,
+				targetDisplayName: outcome.targetDisplayName,
+				schoolId,
+				operationCode: 'MANAGER_ACCOUNT_ARCHIVE',
+				operationLabel: 'Archiwizacja konta',
+				requestId,
+				reasonCode: 'ACCOUNT_ARCHIVED',
+			});
+		}
+	}
+	return outcome.result;
 }
 
 async function finishEmailAction(
@@ -397,6 +595,16 @@ export async function changeManagerAccountEmail(
 			},
 		});
 	});
+	await recordAccountActionEvent({
+		actionId: action.id,
+		type: 'ACCOUNT_EMAIL_CHANGE_REQUESTED',
+		actorId,
+		targetId: userId,
+		schoolId,
+		operationCode: 'MANAGER_ACCOUNT_EMAIL_UPDATE',
+		operationLabel: 'Zmiana adresu e-mail konta',
+		requestId,
+	});
 	const { data, error } =
 		await getSupabaseAdminClient().auth.admin.updateUserById(userId, {
 			email,
@@ -406,6 +614,17 @@ export async function changeManagerAccountEmail(
 		await prisma.accountAction.update({
 			where: { id: action.id },
 			data: { status: 'FAILED' },
+		});
+		await recordAccountActionEvent({
+			actionId: action.id,
+			type: 'ACCOUNT_CHANGE_FAILED',
+			actorId,
+			targetId: userId,
+			schoolId,
+			operationCode: 'MANAGER_ACCOUNT_EMAIL_UPDATE',
+			operationLabel: 'Zmiana adresu e-mail konta',
+			requestId,
+			reasonCode: 'AUTH_PROVIDER_UPDATE_FAILED',
 		});
 		throw AppError.badGateway('Email could not be changed in Auth');
 	}
@@ -420,10 +639,31 @@ export async function changeManagerAccountEmail(
 			where: { id: action.id },
 			data: { status: 'REPAIR_REQUIRED' },
 		});
+		await recordAccountActionEvent({
+			actionId: action.id,
+			type: 'ACCOUNT_CHANGE_REPAIR_REQUIRED',
+			actorId,
+			targetId: userId,
+			schoolId,
+			operationCode: 'MANAGER_ACCOUNT_EMAIL_UPDATE',
+			operationLabel: 'Zmiana adresu e-mail konta',
+			requestId,
+			reasonCode: 'LOCAL_SYNCHRONIZATION_FAILED',
+		});
 		throw AppError.badGateway(
 			'Email changed in Auth; account synchronization required',
 		);
 	}
+	await recordAccountActionEvent({
+		actionId: action.id,
+		type: 'ACCOUNT_EMAIL_CHANGED',
+		actorId,
+		targetId: userId,
+		schoolId,
+		operationCode: 'MANAGER_ACCOUNT_EMAIL_UPDATE',
+		operationLabel: 'Zmiana adresu e-mail konta',
+		requestId,
+	});
 	return { id: userId, email: data.user.email };
 }
 
@@ -452,11 +692,32 @@ export async function reconcileManagerAccountEmail(
 				where: { id: action.id },
 				data: { status: 'FAILED' },
 			});
+			await recordAccountActionEvent({
+				actionId: action.id,
+				type: 'ACCOUNT_CHANGE_FAILED',
+				actorId,
+				targetId: userId,
+				schoolId,
+				operationCode: 'MANAGER_ACCOUNT_EMAIL_UPDATE',
+				operationLabel: 'Zmiana adresu e-mail konta',
+				requestId: action.requestId ?? undefined,
+				reasonCode: 'AUTH_EMAIL_UNCHANGED',
+			});
 			return { id: userId, status: 'FAILED' };
 		}
 		throw AppError.conflict('Auth email differs from expected value');
 	}
 	await finishEmailAction(action.id, userId, data.user.email);
+	await recordAccountActionEvent({
+		actionId: action.id,
+		type: 'ACCOUNT_EMAIL_CHANGED',
+		actorId,
+		targetId: userId,
+		schoolId,
+		operationCode: 'MANAGER_ACCOUNT_EMAIL_UPDATE',
+		operationLabel: 'Zmiana adresu e-mail konta',
+		requestId: action.requestId ?? undefined,
+	});
 	return { id: userId, email: data.user.email, status: 'COMPLETED' };
 }
 
@@ -500,6 +761,18 @@ export async function sendManagerAccountPasswordReset(
 	await prisma.accountAction.update({
 		where: { id: action.id },
 		data: { status: error ? 'FAILED' : 'COMPLETED' },
+	});
+	await recordAccountActionEvent({
+		actionId: action.id,
+		type: error ? 'PASSWORD_RESET_FAILED' : 'PASSWORD_RESET_REQUESTED',
+		actorId,
+		targetId: userId,
+		targetDisplayName: `${account.firstName} ${account.lastName}`.trim(),
+		schoolId,
+		operationCode: 'MANAGER_ACCOUNT_PASSWORD_RESET',
+		operationLabel: 'Zlecenie resetu hasła',
+		requestId,
+		reasonCode: error ? 'AUTH_PROVIDER_REQUEST_FAILED' : undefined,
 	});
 	if (error)
 		throw AppError.badGateway('Password reset email could not be sent');

@@ -93,8 +93,8 @@ model User {
   drivingSchoolsOwned DrivingSchool[]    @relation("OwnerDrivingSchools")
   defaultOsk          DrivingSchool?     @relation("DefaultOSK", fields: [defaultOskId], references: [id])
   accountSessions     AccountSession[]
-  accountActionsMade  AccountAction[]     @relation("AccountActionActor")
-  accountActionsFor   AccountAction[]     @relation("AccountActionTarget")
+  accountActionsMade  AccountAction[]    @relation("AccountActionActor")
+  accountActionsFor   AccountAction[]    @relation("AccountActionTarget")
 
   @@index([role], name: "idx_users_role")
   @@map("users")
@@ -183,24 +183,107 @@ model AccountAction {
   @@map("account_actions")
 }
 
+// Security history deliberately has no foreign keys to users/schools: removing an
+// account or a school must not silently rewrite or erase historical evidence.
+model SecurityEvent {
+  id                        String                @id @default(uuid()) @db.Uuid
+  occurredAt                DateTime              @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  recordedAt                DateTime              @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  type                      String                @db.VarChar(64)
+  category                  String                @db.VarChar(32)
+  severity                  String                @db.VarChar(16)
+  outcome                   String                @db.VarChar(16)
+  reasonCode                String?               @map("reason_code") @db.VarChar(64)
+  operationCode             String?               @map("operation_code") @db.VarChar(96)
+  operationLabelSnapshot    String?               @map("operation_label_snapshot") @db.VarChar(160)
+  httpMethod                String?               @map("http_method") @db.VarChar(8)
+  routeTemplate             String?               @map("route_template") @db.VarChar(180)
+  httpStatus                Int?                  @map("http_status")
+  actorUserId               String?               @map("actor_user_id") @db.Uuid
+  actorRoleSnapshot         String?               @map("actor_role_snapshot") @db.VarChar(24)
+  actorDisplayNameSnapshot  String?               @map("actor_display_name_snapshot") @db.VarChar(160)
+  targetUserId              String?               @map("target_user_id") @db.Uuid
+  targetDisplayNameSnapshot String?               @map("target_display_name_snapshot") @db.VarChar(160)
+  resourceType              String?               @map("resource_type") @db.VarChar(48)
+  resourceId                String?               @map("resource_id") @db.VarChar(100)
+  loginIdentifierHash       String?               @map("login_identifier_hash") @db.VarChar(64)
+  hashKeyVersion            String?               @map("hash_key_version") @db.VarChar(24)
+  loginIdentifierMasked     String?               @map("login_identifier_masked") @db.VarChar(100)
+  clientIp                  String?               @map("client_ip") @db.VarChar(45)
+  ipSource                  String?               @map("ip_source") @db.VarChar(24)
+  userAgent                 String?               @map("user_agent") @db.VarChar(256)
+  requestId                 String?               @map("request_id") @db.VarChar(100)
+  attemptId                 String                @map("attempt_id") @db.VarChar(100)
+  eventPhase                String                @default("RESULT") @map("event_phase") @db.VarChar(48)
+  source                    String                @db.VarChar(32)
+  sourceEventId             String?               @map("source_event_id") @db.VarChar(100)
+  accountActionId           String?               @map("account_action_id") @db.Uuid
+  metadata                  Json                  @default("{}")
+  schools                   SecurityEventSchool[]
+
+  @@unique([source, attemptId, eventPhase], name: "uq_security_events_source_attempt_phase")
+  @@index([occurredAt(sort: Desc), id(sort: Desc)], name: "idx_security_events_time")
+  @@index([type, occurredAt(sort: Desc)], name: "idx_security_events_type_time")
+  @@index([loginIdentifierHash, occurredAt(sort: Desc)], name: "idx_security_events_login_time")
+  @@index([clientIp, occurredAt(sort: Desc)], name: "idx_security_events_ip_time")
+  @@map("security_events")
+}
+
+model SecurityEventSchool {
+  eventId           String        @map("event_id") @db.Uuid
+  schoolId          String        @map("school_id") @db.Uuid
+  occurredAt        DateTime      @map("occurred_at") @db.Timestamptz(3)
+  viewerUserId      String?       @map("viewer_user_id") @db.Uuid
+  actorVisibility   String        @map("actor_visibility") @db.VarChar(12)
+  actorUserId       String?       @map("actor_user_id") @db.Uuid
+  actorDisplayName  String?       @map("actor_display_name") @db.VarChar(160)
+  actorRole         String?       @map("actor_role") @db.VarChar(24)
+  targetUserId      String?       @map("target_user_id") @db.Uuid
+  targetDisplayName String?       @map("target_display_name") @db.VarChar(160)
+  event             SecurityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, schoolId])
+  @@index([schoolId, occurredAt(sort: Desc), eventId(sort: Desc)], name: "idx_security_event_schools_list")
+  @@index([schoolId, actorUserId], name: "idx_security_event_schools_actor")
+  @@index([schoolId, targetUserId], name: "idx_security_event_schools_target")
+  @@map("security_event_schools")
+}
+
+model SecurityDetectionState {
+  rule                 String    @db.VarChar(24)
+  scopeKey             String    @map("scope_key") @db.VarChar(100)
+  subjectKey           String    @map("subject_key") @db.VarChar(100)
+  keyVersion           String    @map("key_version") @db.VarChar(24)
+  queuedGeneration     Int       @default(0) @map("queued_generation")
+  doneGeneration       Int       @default(0) @map("done_generation")
+  nextEligibleAt       DateTime? @map("next_eligible_at") @db.Timestamptz(3)
+  lastProcessedAt      DateTime? @map("last_processed_at") @db.Timestamptz(3)
+  lastProcessedEventId String?   @map("last_processed_event_id") @db.Uuid
+  lastActiveAt         DateTime  @default(now()) @map("last_active_at") @db.Timestamptz(3)
+
+  @@id([rule, scopeKey, subjectKey, keyVersion])
+  @@index([doneGeneration, queuedGeneration, lastActiveAt], name: "idx_security_detection_pending")
+  @@map("security_detection_states")
+}
+
 model SchoolSettings {
-  id                         String       @id @default(uuid()) @map("id") @db.Uuid
-  schoolId                   String       @unique @map("school_id") @db.Uuid
-  workingDaysMask            Int          @default(62) @map("working_days_mask")
-  workingHoursStart          DateTime     @default(dbgenerated("'08:00'::time")) @map("working_hours_start") @db.Time
-  workingHoursEnd            DateTime     @default(dbgenerated("'18:00'::time")) @map("working_hours_end") @db.Time
-  slotDurationMinutes        Int          @default(60) @map("slot_duration_minutes")
-  slotMustStartFullHour      Boolean      @default(true) @map("slot_must_start_full_hour")
-  practiceMinDurationMinutes Int          @default(60) @map("practice_min_duration_minutes")
-  practiceMaxDurationMinutes Int          @default(120) @map("practice_max_duration_minutes")
-  allowShortFinalPracticeLesson Boolean    @default(true) @map("allow_short_final_practice_lesson")
-  minFinalPracticeDurationMinutes Int      @default(30) @map("min_final_practice_duration_minutes")
-  theoryMinDurationMinutes   Int          @default(45) @map("theory_min_duration_minutes")
-  theoryMaxDurationMinutes   Int          @default(90) @map("theory_max_duration_minutes")
-  bookingMaxDaysAhead        Int          @default(30) @map("booking_max_days_ahead")
-  enabledCourseKinds         CourseKind[] @default([]) @map("enabled_course_kinds")
-  createdAt                  DateTime     @default(now()) @map("created_at")
-  updatedAt                  DateTime?    @map("updated_at")
+  id                              String       @id @default(uuid()) @map("id") @db.Uuid
+  schoolId                        String       @unique @map("school_id") @db.Uuid
+  workingDaysMask                 Int          @default(62) @map("working_days_mask")
+  workingHoursStart               DateTime     @default(dbgenerated("'08:00'::time")) @map("working_hours_start") @db.Time
+  workingHoursEnd                 DateTime     @default(dbgenerated("'18:00'::time")) @map("working_hours_end") @db.Time
+  slotDurationMinutes             Int          @default(60) @map("slot_duration_minutes")
+  slotMustStartFullHour           Boolean      @default(true) @map("slot_must_start_full_hour")
+  practiceMinDurationMinutes      Int          @default(60) @map("practice_min_duration_minutes")
+  practiceMaxDurationMinutes      Int          @default(120) @map("practice_max_duration_minutes")
+  allowShortFinalPracticeLesson   Boolean      @default(true) @map("allow_short_final_practice_lesson")
+  minFinalPracticeDurationMinutes Int          @default(30) @map("min_final_practice_duration_minutes")
+  theoryMinDurationMinutes        Int          @default(45) @map("theory_min_duration_minutes")
+  theoryMaxDurationMinutes        Int          @default(90) @map("theory_max_duration_minutes")
+  bookingMaxDaysAhead             Int          @default(30) @map("booking_max_days_ahead")
+  enabledCourseKinds              CourseKind[] @default([]) @map("enabled_course_kinds")
+  createdAt                       DateTime     @default(now()) @map("created_at")
+  updatedAt                       DateTime?    @map("updated_at")
 
   school             DrivingSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   offeredCourseTypes CourseType[]  @relation("SchoolSettingsOfferedCourseTypes")
@@ -209,25 +292,25 @@ model SchoolSettings {
 }
 
 model InstructorProfile {
-  id              String   @id @default(uuid()) @map("id") @db.Uuid
-  userId          String   @unique @map("user_id") @db.Uuid
-  licenseNumber   String   @map("license_number")
+  id              String    @id @default(uuid()) @map("id") @db.Uuid
+  userId          String    @unique @map("user_id") @db.Uuid
+  licenseNumber   String    @map("license_number")
   birthDate       DateTime? @map("birth_date") @db.Date
-  experienceYears Int?     @map("experience_years")
-  qualifications  String?  @map("qualifications") @db.Text
-  createdAt       DateTime @default(now()) @map("created_at")
+  experienceYears Int?      @map("experience_years")
+  qualifications  String?   @map("qualifications") @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
 
-  user                User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  instructorSchools   InstructorSchool[]
-  workingHoursDefault InstructorWorkingHoursDefault[]
-  workingHours        InstructorWorkingHours[]
-  timeBlocks          InstructorTimeBlock[]
-  leaves              InstructorLeave[]
-  lessons             Lesson[]                        @relation("InstructorLessons")
-  lessonRatings       LessonRating[]                  @relation("InstructorLessonRatings")
-  assignedCourses     Course[]                        @relation("CourseAssignedInstructor")
-  instructorEvents    InstructorEvent[]               @relation("InstructorEvents")
-  qualifiedCourseTypes CourseType[]                   @relation("InstructorQualifiedCourseTypes")
+  user                 User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instructorSchools    InstructorSchool[]
+  workingHoursDefault  InstructorWorkingHoursDefault[]
+  workingHours         InstructorWorkingHours[]
+  timeBlocks           InstructorTimeBlock[]
+  leaves               InstructorLeave[]
+  lessons              Lesson[]                        @relation("InstructorLessons")
+  lessonRatings        LessonRating[]                  @relation("InstructorLessonRatings")
+  assignedCourses      Course[]                        @relation("CourseAssignedInstructor")
+  instructorEvents     InstructorEvent[]               @relation("InstructorEvents")
+  qualifiedCourseTypes CourseType[]                    @relation("InstructorQualifiedCourseTypes")
 
   @@map("instructor_profiles")
 }
@@ -312,9 +395,9 @@ model CourseType {
   name      String   @map("name")
   createdAt DateTime @default(now()) @map("created_at")
 
-  schoolSettingsOffered SchoolSettings[]      @relation("SchoolSettingsOfferedCourseTypes")
-  qualifiedInstructors InstructorProfile[] @relation("InstructorQualifiedCourseTypes")
-  courses Course[]
+  schoolSettingsOffered SchoolSettings[]    @relation("SchoolSettingsOfferedCourseTypes")
+  qualifiedInstructors  InstructorProfile[] @relation("InstructorQualifiedCourseTypes")
+  courses               Course[]
 
   @@map("course_types")
 }

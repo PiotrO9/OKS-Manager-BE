@@ -28,6 +28,11 @@ const ROUTE_MOUNTS: Array<{ file: string; mountPath: string }> = [
 	{ file: 'lesson-ratings.routes.ts', mountPath: '/ratings' },
 	{ file: 'manager-attention.routes.ts', mountPath: '/manager' },
 	{ file: 'manager-accounts.routes.ts', mountPath: '/manager' },
+	{ file: 'manager-security-logs.routes.ts', mountPath: '/manager' },
+	{
+		file: 'internal-security-events.routes.ts',
+		mountPath: '/internal/security-events',
+	},
 	{ file: 'me.routes.ts', mountPath: '/me' },
 	{ file: 'schedule.routes.ts', mountPath: '/schedule' },
 	{ file: 'dev.routes.ts', mountPath: '/dev' },
