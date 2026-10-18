@@ -53,7 +53,9 @@ export const errorRequestHandler: ErrorRequestHandler = async (
 			err.statusCode,
 			err instanceof ScheduleDomainError
 				? { code: err.reason, details: err.details }
-				: undefined,
+				: err.code
+					? { code: err.code }
+					: undefined,
 		);
 		return;
 	}

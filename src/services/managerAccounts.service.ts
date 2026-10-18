@@ -6,6 +6,7 @@ import { getSupabaseClient } from '../lib/supabase';
 import { getSupabaseAdminClient } from '../lib/supabaseAdmin';
 import { recordSecurityEvent } from './security-events/record';
 import type { SecurityEventType } from './security-events/types';
+import { findManagerAccountObligations } from './managerAccountObligations.service';
 
 const prisma = getPrisma();
 type Tx = Prisma.TransactionClient;
@@ -144,6 +145,8 @@ async function scopedAccount(
 			phone: true,
 			isActive: true,
 			deletedAt: true,
+			studentProfile: { select: { id: true } },
+			instructorProfile: { select: { id: true } },
 			accountActionsFor: {
 				where: {
 					status: {
@@ -369,95 +372,36 @@ async function assertNoActiveObligations(
 	role: Role,
 	schoolId: string,
 ) {
-	const now = new Date();
-	if (role === Role.STUDENT) {
-		const profile = await tx.studentProfile.findUnique({
-			where: { userId },
-			select: { id: true },
-		});
-		if (!profile) throw AppError.notFound('Student profile not found');
-		const [lessons, courses, events, pendingPayments] = await Promise.all([
-			tx.lesson.count({
-				where: {
-					studentId: profile.id,
-					startTime: { gte: now },
-					deletedAt: null,
-					course: { schoolId },
-				},
-			}),
-			tx.courseParticipant.count({
-				where: {
-					student: { userId },
-					status: 'ACTIVE',
-					course: { schoolId, deletedAt: null },
-				},
-			}),
-			tx.eventParticipant.count({
-				where: {
-					student: { userId },
-					event: {
-						schoolId,
-						isActive: true,
-						startTime: { gte: now },
-					},
-				},
-			}),
-			tx.payment.count({
-				where: {
-					status: 'PENDING',
-					paymentPlan: {
-						course: {
-							schoolId,
-							participants: { some: { studentId: profile.id } },
-						},
-					},
-				},
-			}),
-		]);
-		if (lessons || courses || events || pendingPayments)
-			throw AppError.conflict('Student has active school obligations');
-	} else {
-		const profile = await tx.instructorProfile.findUnique({
-			where: { userId },
-			select: { id: true },
-		});
-		if (!profile) throw AppError.notFound('Instructor profile not found');
-		const [lessons, courses, events, blocks] = await Promise.all([
-			tx.lesson.count({
-				where: {
-					instructorId: profile.id,
-					startTime: { gte: now },
-					deletedAt: null,
-					course: { schoolId },
-				},
-			}),
-			tx.course.count({
-				where: {
-					instructor: { userId },
-					schoolId,
-					deletedAt: null,
-					status: 'active',
-				},
-			}),
-			tx.instructorEvent.count({
-				where: {
-					instructor: { userId },
-					schoolId,
-					isActive: true,
-					startTime: { gte: now },
-				},
-			}),
-			tx.instructorTimeBlock.count({
-				where: {
-					instructor: { userId },
-					schoolId,
-					startTime: { gte: now },
-				},
-			}),
-		]);
-		if (lessons || courses || events || blocks)
-			throw AppError.conflict('Instructor has active school obligations');
+	const obligations = await findManagerAccountObligations(
+		tx,
+		userId,
+		role,
+		schoolId,
+	);
+	if (obligations.length) {
+		throw AppError.conflict(
+			role === Role.STUDENT
+				? 'Student has active school obligations'
+				: 'Instructor has active school obligations',
+		).withCode('ACCOUNT_ARCHIVE_OBLIGATIONS');
 	}
+}
+
+export async function listManagerAccountObligations(
+	actorId: string,
+	schoolId: string,
+	userId: string,
+) {
+	return prisma.$transaction(async (tx) => {
+		const account = await scopedAccount(tx, actorId, schoolId, userId);
+		if (account.deletedAt) return [];
+		return findManagerAccountObligations(
+			tx,
+			userId,
+			account.role,
+			schoolId,
+		);
+	});
 }
 
 export async function archiveManagerAccount(

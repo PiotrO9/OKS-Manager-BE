@@ -1,5 +1,6 @@
 export class AppError extends Error {
 	readonly statusCode: number;
+	code?: string;
 	securityAudit?: {
 		reasonCode: string;
 		schoolId?: string;
@@ -17,6 +18,11 @@ export class AppError extends Error {
 
 	withSecurityAudit(context: NonNullable<AppError['securityAudit']>): this {
 		this.securityAudit = context;
+		return this;
+	}
+
+	withCode(code: string): this {
+		this.code = code;
 		return this;
 	}
 

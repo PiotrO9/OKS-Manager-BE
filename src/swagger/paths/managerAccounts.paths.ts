@@ -3,6 +3,16 @@ import { okDataUnknown, stdBearerResponses, z } from './shared';
 
 const schoolQuery = z.object({ schoolId: z.string().uuid() });
 const targetParams = z.object({ userId: z.string().uuid() });
+const accountObligation = z.object({
+	type: z.enum(['LESSON', 'COURSE', 'EVENT', 'PAYMENT', 'TIME_BLOCK']),
+	id: z.string().uuid(),
+	title: z.string(),
+	startTime: z.string().datetime().nullable(),
+	endTime: z.string().datetime().nullable(),
+	amount: z.string().optional(),
+	currency: z.string().optional(),
+	status: z.string().optional(),
+});
 
 export function registerManagerAccountsPaths(registry: OpenAPIRegistry): void {
 	registry.registerPath({
@@ -65,4 +75,25 @@ export function registerManagerAccountsPaths(registry: OpenAPIRegistry): void {
 			}),
 		});
 	}
+	registry.registerPath({
+		method: 'get',
+		path: '/manager/accounts/{userId}/archive-obligations',
+		tags: ['Manager'],
+		summary: 'Zobowiązania blokujące archiwizację konta',
+		security: [{ bearerAuth: [] }],
+		request: { params: targetParams, query: schoolQuery },
+		responses: stdBearerResponses({
+			200: {
+				description: 'Aktualne zobowiązania',
+				content: {
+					'application/json': {
+						schema: z.object({
+							success: z.literal(true),
+							data: z.array(accountObligation),
+						}),
+					},
+				},
+			},
+		}),
+	});
 }

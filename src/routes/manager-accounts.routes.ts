@@ -10,6 +10,7 @@ import {
 	changeManagerAccountEmail,
 	getManagerAccount,
 	listManagerAccounts,
+	listManagerAccountObligations,
 	reconcileManagerAccountEmail,
 	sendManagerAccountPasswordReset,
 	setManagerAccountActive,
@@ -65,6 +66,16 @@ function createManagerAccountsRouter() {
 			return sendJsonSuccess(
 				res,
 				await getManagerAccount(actorId, schoolId, userId),
+			);
+		}),
+	);
+	router.get(
+		'/accounts/:userId/archive-obligations',
+		asyncHandler(async (req, res) => {
+			const { actorId, schoolId, userId } = scope(req);
+			return sendJsonSuccess(
+				res,
+				await listManagerAccountObligations(actorId, schoolId, userId),
 			);
 		}),
 	);
