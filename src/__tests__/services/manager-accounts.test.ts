@@ -1,5 +1,5 @@
 import { Role } from '@prisma/client';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
 	const db = {
@@ -15,7 +15,12 @@ const mocks = vi.hoisted(() => {
 		$queryRaw: vi.fn(),
 		$transaction: vi.fn(),
 	};
-	return { db, updateAuthUser: vi.fn(), recordEvent: vi.fn() };
+	return {
+		db,
+		updateAuthUser: vi.fn(),
+		recordEvent: vi.fn(),
+		resetPasswordForEmail: vi.fn(),
+	};
 });
 
 vi.mock('../../lib/prisma', () => ({ getPrisma: () => mocks.db }));
@@ -25,7 +30,9 @@ vi.mock('../../lib/supabaseAdmin', () => ({
 	}),
 }));
 vi.mock('../../lib/supabase', () => ({
-	getSupabaseClient: () => ({ auth: {} }),
+	getSupabaseClient: () => ({
+		auth: { resetPasswordForEmail: mocks.resetPasswordForEmail },
+	}),
 }));
 vi.mock('../../services/security-events/record', () => ({
 	recordSecurityEvent: mocks.recordEvent,
@@ -36,6 +43,7 @@ import {
 	getManagerAccount,
 	listManagerAccounts,
 	setManagerAccountActive,
+	sendManagerAccountPasswordReset,
 } from '../../services/managerAccounts.service';
 
 const actorId = '11111111-1111-4111-8111-111111111111';
@@ -54,6 +62,25 @@ const account = {
 };
 
 describe('manager account scope and email synchronization', () => {
+	afterEach(() => vi.unstubAllEnvs());
+
+	it('sends a password reset to the canonical Polish page', async () => {
+		vi.stubEnv(
+			'FRONTEND_URL',
+			'https://school.example,https://preview.example',
+		);
+		mocks.resetPasswordForEmail.mockResolvedValue({ error: null });
+		await expect(
+			sendManagerAccountPasswordReset(actorId, schoolId, userId),
+		).resolves.toEqual({ sent: true });
+		expect(mocks.resetPasswordForEmail).toHaveBeenCalledWith(
+			account.email,
+			{
+				redirectTo: 'https://school.example/ustaw-haslo',
+			},
+		);
+	});
+
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mocks.db.$transaction.mockImplementation(

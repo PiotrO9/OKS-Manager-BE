@@ -3,6 +3,7 @@ import { AppError } from '../lib/http/AppError';
 import { logger } from '../lib/logger';
 import { getPrisma } from '../lib/prisma';
 import { getSupabaseClient } from '../lib/supabase';
+import { passwordResetRedirect } from '../lib/passwordResetRedirect';
 import { getSupabaseAdminClient } from '../lib/supabaseAdmin';
 import { recordSecurityEvent } from './security-events/record';
 import type { SecurityEventType } from './security-events/types';
@@ -671,10 +672,7 @@ export async function sendManagerAccountPasswordReset(
 	userId: string,
 	requestId?: string,
 ) {
-	const frontendUrl = process.env.FRONTEND_URL?.split(',')[0]?.trim();
-	if (!frontendUrl)
-		throw AppError.internal('FRONTEND_URL is required for password reset');
-	const redirectTo = new URL('/reset-password', frontendUrl).toString();
+	const redirectTo = passwordResetRedirect();
 	const { account, action } = await prisma.$transaction(async (tx) => {
 		await lockAccount(tx, userId);
 		const account = await scopedAccount(tx, actorId, schoolId, userId);
