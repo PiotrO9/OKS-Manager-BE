@@ -1,3 +1,4 @@
+import { supportedCourseTypesInclude } from '../../lib/vehicleCourseCategories';
 import type { DrivingSchool } from '@prisma/client';
 import { getPrisma } from '../../lib/prisma';
 import type { VehicleForAccessRow } from './types';
@@ -40,6 +41,7 @@ export async function loadVehicleWithSchoolForAccess(
 			unavailableUntil: true,
 			createdAt: true,
 			updatedAt: true,
+			...supportedCourseTypesInclude,
 			school: {
 				select: {
 					ownerId: true,

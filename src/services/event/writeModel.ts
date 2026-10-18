@@ -1,4 +1,5 @@
-import { EventType, Role } from '@prisma/client';
+import { assertVehicleSupportsCourse } from '../../lib/vehicleCourseCategories';
+import { EventType, EventStatus, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { validateVehicleForInstructor } from '../../lib/vehicle.helpers';
 import { getPrisma } from '../../lib/prisma';
@@ -212,6 +213,18 @@ export async function updateInstructorEvent(
 	const needsTimeValidation = timeChanged || instructorChanged;
 
 	const row = await runScheduleWriteTransaction(async (tx) => {
+		if (
+			mergedType === EventType.DRIVE &&
+			mergedCourseId &&
+			resolvedVehicleId &&
+			mergedStatus !== EventStatus.CANCELLED
+		) {
+			await assertVehicleSupportsCourse(
+				tx,
+				resolvedVehicleId,
+				mergedCourseId,
+			);
+		}
 		if (timeChanged || body.type !== undefined) {
 			await assertScheduleDurationAllowed(tx, {
 				schoolId: mergedSchoolId,

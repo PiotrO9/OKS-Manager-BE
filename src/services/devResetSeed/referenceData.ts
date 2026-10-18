@@ -73,6 +73,15 @@ export async function seedReferenceData(
 		const vehicleCount = context.seedPlan.schools[i]!.vehicles;
 		for (let v = 1; v <= vehicleCount; v += 1) {
 			const vehicleId = randomUUID();
+			const category = courseTypes[(v - 1) % courseTypes.length]!;
+			const demoVehicle = (
+				{
+					A: ['Honda', 'CB500F'],
+					B: ['Toyota', 'Yaris'],
+					C: ['MAN', 'TGL'],
+					CE: ['MAN', 'TGL z przyczepą'],
+				} as Record<string, [string, string]>
+			)[category.code]!;
 			const isUnavailable = vehicleCount >= 3 && v === vehicleCount;
 			const isActive = !isUnavailable;
 			const availabilityStatus = isUnavailable
@@ -82,6 +91,7 @@ export async function seedReferenceData(
 				defaultVehicleBySchool.set(school.id, vehicleId);
 			}
 			vehicles.push({
+				supportedCourseTypeIds: [category.id],
 				id: vehicleId,
 				schoolId: school.id,
 				isActive,
@@ -90,10 +100,10 @@ export async function seedReferenceData(
 			vehicleInputs.push({
 				id: vehicleId,
 				schoolId: school.id,
-				name: `Pojazd ${v} - ${pick(['Toyota Yaris', 'Hyundai i20', 'Kia Rio', 'Skoda Fabia'], v)}`,
+				name: `Pojazd ${v} - ${demoVehicle.join(' ')} (${category.code})`,
 				registrationNumber: `DW${i}${String(v).padStart(4, '0')}`,
-				brand: pick(['Toyota', 'Hyundai', 'Kia', 'Skoda'], v),
-				model: pick(['Yaris', 'i20', 'Rio', 'Fabia'], v),
+				brand: demoVehicle[0],
+				model: demoVehicle[1],
 				modelYear: 2018 + ((i + v) % 6),
 				mileageKm: 35000 + i * 9000 + v * 4200,
 				inspectionDate: addDays(new Date(), 80 + v * 12),
@@ -105,6 +115,15 @@ export async function seedReferenceData(
 		}
 	}
 	await tx.vehicle.createMany({ data: vehicleInputs });
+	const categoryRows = vehicles.flatMap((vehicle) =>
+		vehicle.supportedCourseTypeIds.map(
+			(id) => Prisma.sql`(${id}::uuid, ${vehicle.id}::uuid)`,
+		),
+	);
+	if (categoryRows.length)
+		await tx.$executeRaw(
+			Prisma.sql`INSERT INTO "_VehicleSupportedCourseTypes" ("A", "B") VALUES ${Prisma.join(categoryRows)}`,
+		);
 
 	const defaultVehicleRows = schools.map(
 		(school) =>

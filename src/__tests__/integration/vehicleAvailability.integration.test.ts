@@ -153,6 +153,7 @@ describe('vehicle availability with PostgreSQL', () => {
 				ids.schoolId,
 				new Date('2026-09-25T08:00:00.000Z'),
 				new Date('2026-09-25T09:00:00.000Z'),
+				randomUUID(),
 			),
 		).rejects.toEqual(
 			expect.objectContaining<Partial<AppError>>({ statusCode: 400 }),

@@ -14,6 +14,8 @@ export function registerSchedulePaths(registry: OpenAPIRegistry): void {
 		path: '/schedule/availability-check',
 		tags: ['Schedule'],
 		summary: 'Sprawdzenie dostępności kandydata bez zapisu',
+		description:
+			'Dla jazd kursowych issues[].code może wynosić VEHICLE_COURSE_TYPE_MISMATCH (field: vehicleId). Rezerwacja własna bez wolnego zgodnego pojazdu zwraca NO_VEHICLE_AVAILABLE.',
 		security: [{ bearerAuth: [] }],
 		request: {
 			body: {

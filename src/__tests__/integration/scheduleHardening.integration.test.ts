@@ -299,6 +299,18 @@ describe('schedule write hardening with PostgreSQL', () => {
 				},
 			],
 		});
+		for (const id of [
+			ids.vehicleId,
+			ids.secondVehicleId,
+			ids.foreignVehicleId,
+		]) {
+			await prisma.vehicle.update({
+				where: { id },
+				data: {
+					supportedCourseTypes: { connect: { id: ids.courseTypeId } },
+				},
+			});
+		}
 		await prisma.course.create({
 			data: {
 				id: ids.courseId,

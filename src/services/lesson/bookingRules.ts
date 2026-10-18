@@ -100,10 +100,13 @@ async function createPracticeLessonForStudent(input: {
 	start: Date;
 	end: Date;
 	bookingMode?: 'REMAINING_PACKAGE';
-	resolveVehicleId: (tx: Prisma.TransactionClient) => Promise<string>;
+	resolveVehicleId: (
+		tx: Prisma.TransactionClient,
+		currentCourse: CourseForBooking,
+	) => Promise<string>;
 }): Promise<{ lesson: LessonDto }> {
 	const {
-		course,
+		course: initialCourse,
 		studentProfileId,
 		instructorId,
 		start,
@@ -113,6 +116,16 @@ async function createPracticeLessonForStudent(input: {
 	} = input;
 
 	const row = await runScheduleWriteTransaction(async (tx) => {
+		const course = await loadCourseForBooking(initialCourse.id, tx);
+		if (
+			course.courseTypeId !== initialCourse.courseTypeId ||
+			course.kind !== initialCourse.kind ||
+			course.instructorId !== initialCourse.instructorId
+		) {
+			throw AppError.conflict(
+				'Kurs zmienił się podczas rezerwacji. Odśwież dane i wybierz termin ponownie.',
+			);
+		}
 		if (bookingMode) {
 			await assertStudentSelfBookingDurationAllowed(tx, {
 				schoolId: course.schoolId,
@@ -141,7 +154,7 @@ async function createPracticeLessonForStudent(input: {
 			end,
 		});
 
-		const vehicleId = await resolveVehicleId(tx);
+		const vehicleId = await resolveVehicleId(tx, course);
 
 		return tx.lesson.create({
 			data: {
@@ -197,14 +210,15 @@ export async function bookLesson(
 		instructorId: body.instructorId,
 		start,
 		end,
-		resolveVehicleId: async (tx) => {
+		resolveVehicleId: async (tx, currentCourse) => {
 			await assertVehicleAvailableForBooking(
 				tx,
 				body.instructorId,
 				body.vehicleId,
-				course.schoolId,
+				currentCourse.schoolId,
 				start,
 				end,
+				currentCourse.courseTypeId,
 			);
 			return body.vehicleId;
 		},
@@ -240,13 +254,14 @@ export async function bookOwnLesson(
 		start,
 		end,
 		bookingMode: body.bookingMode,
-		resolveVehicleId: (tx) =>
+		resolveVehicleId: (tx, currentCourse) =>
 			findAvailableVehicleIdForStudentBooking(
 				tx,
 				body.instructorId,
-				course.schoolId,
+				currentCourse.schoolId,
 				start,
 				end,
+				currentCourse.courseTypeId,
 			),
 	});
 }

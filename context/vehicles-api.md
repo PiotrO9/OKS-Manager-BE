@@ -24,7 +24,7 @@ Szczegóły sesji: [auth.md](./auth.md).
 | GET | `/vehicles/:id` | Szczegóły pojazdu + `isDefault`. Dostęp tylko, gdy użytkownik jest właścicielem szkoły pojazdu. |
 | POST | `/vehicles` | **Upsert:** bez `id` (lub bez sensownego UUID) w body → **tworzenie**; z poprawnym `id` → **aktualizacja** jak patch (patrz body). |
 | PATCH | `/vehicles/:id` | Aktualizacja pól pojazdu (ten sam kształt body co przy upsert „update”). |
-| PATCH | `/vehicles/:id/status` | Zmiana statusu dostępności pojazdu. Body: `{ "status": "ACTIVE" }` albo `{ "status": "UNAVAILABLE" }`. Sukces zwraca zaktualizowany pojazd w `data`, z publicznym polem `status`. Status jest informacyjny na MVP i nie blokuje automatycznie lekcji/eventów. |
+| PATCH | `/vehicles/:id/status` | Zmiana statusu dostępności pojazdu. Body: `{ "status": "ACTIVE" }` albo `{ "status": "UNAVAILABLE" }`. Sukces zwraca zaktualizowany pojazd w `data`, z publicznym polem `status`. Pojazdy niedostępne są wykluczane z nowych rezerwacji. |
 | DELETE | `/vehicles/:id` | **Soft delete:** `isActive: false`. Idempotentnie: drugi delete na już nieaktywnym zwraca sukces z `{ id }`. |
 | POST | `/vehicles/:id/photo` | Upload zdjęcia: **multipart**, pole pliku **`file`**. Dozwolone typy: `image/jpeg`, `image/png`, `image/webp`. Limit rozmiaru: **5 MB**; przy przekroczeniu → **400** `file too large (max 5 MB)`. |
 
@@ -34,7 +34,7 @@ Operacje na liście / pojedynczym pojeździe / zapis wymagają, żeby **`schoolI
 
 ## Body: tworzenie (`POST /vehicles` bez `id`)
 
-Wymagane: `name`, `registrationNumber`, `schoolId` (UUID). Opcjonalnie: `inspectionDate`, `insuranceDate` (ISO lub null), `brand`, `model`, `photoUrl` (http/https lub null), `modelYear`, `mileageKm`, `note` — semantyka jak w `parseVehicleWriteBody` w `schemas/vehicle.schemas.ts`.
+Wymagane: `name`, `registrationNumber`, `schoolId` (UUID), `supportedCourseTypeIds` (niepusta lista UUID z katalogu CourseType). Opcjonalnie: `inspectionDate`, `insuranceDate` (ISO lub null), `brand`, `model`, `photoUrl` (http/https lub null), `modelYear`, `mileageKm`, `note` — semantyka jak w `parseVehicleWriteBody` w `schemas/vehicle.schemas.ts`.
 
 - **`registrationNumber`**: unikalny **w obrębie danej szkoły**; duplikat → **409** z komunikatem o konflikcie.
 - **Pierwszy pojazd** dla danego `schoolId`: w transakcji ustawiane jest `defaultVehicleId` na rekordzie szkoły (jak w [driving-schools-api.md](./driving-schools-api.md)).
@@ -67,3 +67,13 @@ Typowe statusy: **400** (walidacja, brak pliku, zły MIME), **401** (brak/niepra
 
 - Domyślny pojazd szkoły z poziomu OSK: `PATCH /driving-schools/:id/default-vehicle` — [driving-schools-api.md](./driving-schools-api.md).
 - Struktura kodu: [backend-structure.md](./backend-structure.md).
+
+## Kategorie pojazdu (2026-10-18)
+
+- Lista i szczegóły oraz pełne odpowiedzi create/PATCH/status zwracają `supportedCourseTypes: [{ id, code, name }]`. Upload zdjęcia ma własny częściowy kontrakt; klient scala go z zachowanymi kategoriami.
+- Create wymaga przynajmniej jednej kategorii w `supportedCourseTypeIds`. Aktualizacja przez PATCH lub POST z id: pominięcie tego pola zachowuje relację, jawne `[]`, `null`, błędny lub nieznany UUID daje 400. Powtórzone ID są deduplikowane.
+- Opcjonalny `courseId` w GET /vehicles musi wskazywać kurs tej samej szkoły. Filtr zwraca tylko aktywne, dostępne pojazdy o dokładnie pasującej kategorii. Można łączyć z filtrem czasu. Zwykła lista floty pokazuje również pojazdy bez kategorii i niedostępne.
+- Usunięcie kategorii używanej w trwającej/przyszłej lekcji SCHEDULED lub aktywnym wydarzeniu DRIVE/PLANNED z kursem kończy się 409. Historia, anulowanie i dodawanie kategorii nie blokują zmiany.
+- Domyślność pojazdu nie oznacza zgodności z każdym kursem. Istniejąca pusta relacja jest stanem do uzupełnienia; taki pojazd nie może otrzymać nowej/zmienionej jazdy kursowej.
+- Relacja jest dostępna przez Express/Prisma. Tabela `_VehicleSupportedCourseTypes` ma RLS i odebrane uprawnienia anon/authenticated.
+- Migrację i jawne mapowanie floty opisuje [instrukcja wdrożenia](../docs/VEHICLE_COURSE_CATEGORIES_ROLLOUT.md).

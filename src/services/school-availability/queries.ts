@@ -1,3 +1,4 @@
+import { loadCourseVehicleSlotFilter } from './vehicleSlots';
 import { Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { filterInstructorIdsQualifiedForCourseType } from '../../lib/instructorCourseQualification';
@@ -56,6 +57,7 @@ export async function listSchoolAvailabilitySlots(
 	let { instructorIds } = instructorSelection;
 	const { metaById } = instructorSelection;
 
+	let courseTypeId: string | undefined;
 	if (query.courseId) {
 		const course = await prisma.course.findFirst({
 			where: {
@@ -92,6 +94,7 @@ export async function listSchoolAvailabilitySlots(
 				(id) => id === course.instructorId,
 			);
 		}
+		courseTypeId = course.courseTypeId;
 		instructorIds = await filterInstructorIdsQualifiedForCourseType(
 			instructorIds,
 			course.courseTypeId,
@@ -114,6 +117,15 @@ export async function listSchoolAvailabilitySlots(
 			? new Set(query.weekdays)
 			: null;
 
+	const vehicleFitsSlot = courseTypeId
+		? await loadCourseVehicleSlotFilter(
+				prisma,
+				school.id,
+				courseTypeId,
+				effectiveDateFrom,
+				effectiveDateTo,
+			)
+		: () => true;
 	const all: SchoolSlotItemDto[] = [];
 
 	for (const instructorId of instructorIds) {
@@ -165,6 +177,7 @@ export async function listSchoolAvailabilitySlots(
 				continue;
 			}
 
+			if (!vehicleFitsSlot(slot)) continue;
 			all.push({
 				instructorId,
 				instructorFirstName: meta.firstName,

@@ -240,6 +240,7 @@ describe('course management service', () => {
 		expect(qualificationMock).toHaveBeenCalledWith(
 			instructorId,
 			courseTypeId,
+			prismaMock,
 		);
 		expect(prismaMock.course.update).toHaveBeenCalledWith({
 			where: { id: courseId },

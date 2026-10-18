@@ -25,7 +25,7 @@ export type UserWithProfiles = User & {
 export type SeedVehicle = Pick<
 	Vehicle,
 	'id' | 'schoolId' | 'isActive' | 'availabilityStatus'
->;
+> & { supportedCourseTypeIds: string[] };
 
 export type SeedContext = {
 	users: User[];

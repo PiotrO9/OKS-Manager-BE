@@ -149,6 +149,7 @@ async function getEventEditAvailabilityOptions(
 			instructorId: true,
 			schoolId: true,
 			courseId: true,
+			course: { select: { courseTypeId: true } },
 			type: true,
 		},
 	});
@@ -204,7 +205,10 @@ async function getEventEditAvailabilityOptions(
 			windows,
 			policy,
 			startStepMinutes,
-			{ excludeEventId: current.id },
+			{
+				excludeEventId: current.id,
+				courseTypeId: current.course?.courseTypeId,
+			},
 		);
 
 		availableVehicleIds = [...vehicleWindows.keys()];
@@ -356,7 +360,10 @@ async function getLessonEditAvailabilityOptions(
 		windows,
 		policy,
 		startStepMinutes,
-		{ excludeLessonId: lesson.id },
+		{
+			excludeLessonId: lesson.id,
+			courseTypeId: lesson.course.courseTypeId,
+		},
 	);
 	const availableVehicleIds = [...vehicleWindows.keys()];
 

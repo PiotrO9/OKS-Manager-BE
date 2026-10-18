@@ -90,6 +90,10 @@ export function buildVehicleCreateData(
 		modelYear: optional.modelYear,
 		mileageKm: optional.mileageKm,
 		note: optional.note,
+		supportedCourseTypes: {
+			connect:
+				payload.supportedCourseTypeIds?.map((id) => ({ id })) ?? [],
+		},
 	};
 }
 
@@ -104,5 +108,14 @@ export function buildVehicleUpdateData(
 		inspectionDate: payload.inspectionDate,
 		insuranceDate: payload.insuranceDate,
 		...optional,
+		...(payload.supportedCourseTypeIds === undefined
+			? {}
+			: {
+					supportedCourseTypes: {
+						set: payload.supportedCourseTypeIds.map((id) => ({
+							id,
+						})),
+					},
+				}),
 	};
 }

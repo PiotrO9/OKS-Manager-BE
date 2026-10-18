@@ -6,6 +6,10 @@ import {
 	PrismaClient,
 	VehicleAvailabilityStatus,
 } from '@prisma/client';
+import {
+	assertVehicleSupportsCourseType,
+	vehicleCourseTypeWhere,
+} from '../../lib/vehicleCourseCategories';
 import { ScheduleDomainError } from '../../lib/http/ScheduleDomainError';
 import { validateVehicleForInstructor } from '../../lib/vehicle.helpers';
 import { refreshExpiredVehicleUnavailabilitiesForSchool } from '../vehicle/availabilityRefresh';
@@ -57,6 +61,7 @@ export async function assertVehicleAvailableForBooking(
 	courseSchoolId: string,
 	start: Date,
 	end: Date,
+	courseTypeId: string,
 	options?: { excludeLessonId?: string },
 ): Promise<void> {
 	await refreshExpiredVehicleUnavailabilitiesForSchool(db, courseSchoolId);
@@ -76,6 +81,7 @@ export async function assertVehicleAvailableForBooking(
 			'Vehicle is not for this driving school',
 		);
 	}
+	await assertVehicleSupportsCourseType(db, vehicleId, courseTypeId);
 	await validateVehicleForInstructor(instructorId, vehicleId, db);
 
 	const hasConflict = await vehicleHasBookingConflict(
@@ -101,6 +107,7 @@ export async function findAvailableVehicleIdForStudentBooking(
 	schoolId: string,
 	start: Date,
 	end: Date,
+	courseTypeId: string,
 ): Promise<string> {
 	const school = await db.drivingSchool.findUnique({
 		where: { id: schoolId },
@@ -110,6 +117,7 @@ export async function findAvailableVehicleIdForStudentBooking(
 
 	const candidates = await db.vehicle.findMany({
 		where: {
+			...vehicleCourseTypeWhere(courseTypeId),
 			schoolId,
 			isActive: true,
 			availabilityStatus: VehicleAvailabilityStatus.ACTIVE,
@@ -143,6 +151,6 @@ export async function findAvailableVehicleIdForStudentBooking(
 
 	throw ScheduleDomainError.conflictFor(
 		'NO_VEHICLE_AVAILABLE',
-		'No available vehicle for this time slot',
+		'Brak dostępnego pojazdu odpowiedniej kategorii w tym terminie.',
 	);
 }

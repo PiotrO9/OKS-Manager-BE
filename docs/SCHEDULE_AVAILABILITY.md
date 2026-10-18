@@ -208,3 +208,11 @@ npm run build
 Testy integracyjne wymagają osobnej testowej bazy PostgreSQL zgodnie z
 konfiguracją runnera. Nie wolno uruchamiać ich na współdzielonej bazie DEV ani
 PROD.
+
+## Kategorie floty (2026-10-18)
+
+- `availability-check` dla lesson_create i lesson_edit zwraca `issues[].code = VEHICLE_COURSE_TYPE_MISMATCH`, `field = vehicleId`. Rezerwacja własna zwraca NO_VEHICLE_AVAILABLE, gdy nie ma wolnego zgodnego pojazdu.
+- `availability-options` dla lekcji filtruje `availableVehicleIds` oraz okna czasu po kategorii kursu; wyklucza edytowaną lekcję z konfliktów.
+- Wydarzenie DRIVE z zachowanym courseId jest sprawdzane przy zmianie i reaktywacji. DRIVE bez kursu zachowuje zasady wydarzeń instruktora.
+- Terminy szkoły z courseId wymagają jednego zgodnego pojazdu wolnego przez cały slot. Flota i zajętość są pobierane raz na zakres dat; filtrowanie poprzedza total/offset/limit. Dwa pojazdy wolne po pół slotu nie tworzą jednego dostępnego terminu.
+- Terminy bez courseId zachowują dotychczasową semantykę grafiku ogólnego. Zapis ponownie sprawdza dostępność i zgodność w transakcji.

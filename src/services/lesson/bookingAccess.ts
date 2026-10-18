@@ -1,4 +1,9 @@
-import { CourseKind, CourseParticipantStatus, Role } from '@prisma/client';
+import {
+	CourseKind,
+	CourseParticipantStatus,
+	Role,
+	type Prisma,
+} from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { assertInstructorQualifiedForCourseType } from '../../lib/instructorCourseQualification';
 import { getPrisma } from '../../lib/prisma';
@@ -42,8 +47,9 @@ export function assertCourseCanBeSelfBooked(course: CourseForBooking): void {
 
 export async function loadCourseForBooking(
 	courseId: string,
+	db: Prisma.TransactionClient = prisma,
 ): Promise<CourseForBooking> {
-	const course = await prisma.course.findFirst({
+	const course = await db.course.findFirst({
 		where: { id: courseId, deletedAt: null, status: 'active' },
 		select: {
 			id: true,

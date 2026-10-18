@@ -229,8 +229,13 @@ export async function seedOperationalData(
 				courseType.id,
 			);
 
-			return schoolInstructors.some((instructor) =>
-				qualified?.has(instructor.instructorProfile.id),
+			return (
+				schoolVehicles.some((vehicle) =>
+					vehicle.supportedCourseTypeIds.includes(courseType.id),
+				) &&
+				schoolInstructors.some((instructor) =>
+					qualified?.has(instructor.instructorProfile.id),
+				)
 			);
 		});
 		if (eligibleCourseTypes.length === 0) {
@@ -257,6 +262,9 @@ export async function seedOperationalData(
 			const courseId = randomUUID();
 			const courseType =
 				eligibleCourseTypes[c % eligibleCourseTypes.length]!;
+			const courseVehicles = schoolVehicles.filter((vehicle) =>
+				vehicle.supportedCourseTypeIds.includes(courseType.id),
+			);
 			const kind = courseKindForIndex(
 				c,
 				schoolInstructors.length,
@@ -364,7 +372,7 @@ export async function seedOperationalData(
 				kind,
 				instructor,
 				participants,
-				schoolVehicles,
+				schoolVehicles: courseVehicles,
 			});
 
 			for (let p = 0; p < participants.length; p += 1) {
@@ -430,7 +438,7 @@ export async function seedOperationalData(
 				for (let l = 0; l < lessonCount; l += 1) {
 					const lessonId = randomUUID();
 					const student = pick(participants, l);
-					const vehicle = random.pick(schoolVehicles);
+					const vehicle = random.pick(courseVehicles);
 					const lessonDurationMinutes =
 						l % 3 === 0
 							? Math.min(

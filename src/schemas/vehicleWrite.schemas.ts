@@ -1,3 +1,5 @@
+import { UUID_PARAM_RE } from '../lib/validation/uuid';
+
 export type OptionalVehicleFields = {
 	brand: string | null;
 	model: string | null;
@@ -154,6 +156,7 @@ export function parseVehicleWriteBody(
 ):
 	| {
 			ok: true;
+			supportedCourseTypeIds?: string[];
 			name: string;
 			registrationNumber: string;
 			inspectionDate: Date | null;
@@ -161,6 +164,21 @@ export function parseVehicleWriteBody(
 			optional: OptionalVehicleFields | OptionalVehiclePatch;
 	  }
 	| { ok: false; error: string } {
+	const rawIds = body.supportedCourseTypeIds;
+	if (mode === 'create' || 'supportedCourseTypeIds' in body) {
+		if (
+			!Array.isArray(rawIds) ||
+			rawIds.length === 0 ||
+			rawIds.some(
+				(id) => typeof id !== 'string' || !UUID_PARAM_RE.test(id),
+			)
+		) {
+			return {
+				ok: false,
+				error: 'Wybierz co najmniej jedną poprawną kategorię pojazdu.',
+			};
+		}
+	}
 	const nameRaw = body.name;
 	if (typeof nameRaw !== 'string' || nameRaw.trim() === '') {
 		return { ok: false, error: 'name is required' };
@@ -203,5 +221,8 @@ export function parseVehicleWriteBody(
 		inspectionDate: inspectionDate.value,
 		insuranceDate: insuranceDate.value,
 		optional: optionalFields.data,
+		...(Array.isArray(rawIds)
+			? { supportedCourseTypeIds: [...new Set(rawIds as string[])] }
+			: {}),
 	};
 }

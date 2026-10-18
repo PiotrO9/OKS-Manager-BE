@@ -11,17 +11,36 @@ import {
 } from './shared';
 
 export function registerVehiclePaths(registry: OpenAPIRegistry): void {
+	const categories = z
+		.array(z.string().uuid())
+		.min(1)
+		.describe(
+			'Dokładne kategorie CourseType; brak dziedziczenia. Pusta lista i null są niedozwolone.',
+		);
+	const writeFields = z
+		.object({
+			name: z.string(),
+			registrationNumber: z.string(),
+			supportedCourseTypeIds: categories.optional(),
+		})
+		.passthrough();
 	// ── Vehicles ─────────────────────────────────────────────────────────────
 	registry.registerPath({
 		method: 'get',
 		path: '/vehicles',
 		tags: ['Vehicles'],
 		summary:
-			'Lista pojazdów dla OSK (MANAGER); opcjonalnie startTime+endTime (ISO) — bez pojazdów zajętych w tym oknie',
+			'Lista pojazdów dla OSK (MANAGER); courseId ogranicza do aktywnych pojazdów zgodnej kategorii, startTime+endTime wyklucza zajęte',
 		security: [{ bearerAuth: [] }],
 		request: { query: vehicleListQuerySchema },
 		responses: stdBearerResponses({
-			200: okDataUnknown('Lista pojazdów'),
+			200: okDataSchema(
+				'Lista pojazdów',
+				z.object({
+					vehicles: z.array(vehicleDataSchema),
+					defaultVehicleId: z.string().uuid().nullable(),
+				}),
+			),
 		}),
 	});
 
@@ -47,11 +66,13 @@ export function registerVehiclePaths(registry: OpenAPIRegistry): void {
 			body: {
 				content: {
 					'application/json': {
-						schema: z
-							.record(z.unknown())
-							.describe(
-								'Patrz vehicleService.upsertVehicleForUser',
-							),
+						schema: z.union([
+							writeFields.extend({
+								schoolId: z.string().uuid(),
+								supportedCourseTypeIds: categories,
+							}),
+							writeFields.extend({ id: z.string().uuid() }),
+						]),
 					},
 				},
 			},
@@ -114,11 +135,9 @@ export function registerVehiclePaths(registry: OpenAPIRegistry): void {
 			body: {
 				content: {
 					'application/json': {
-						schema: z
-							.record(z.unknown())
-							.describe(
-								'Patrz vehicleService.updateVehicleForUser',
-							),
+						schema: writeFields.describe(
+							'Pominięcie supportedCourseTypeIds zachowuje kategorie. Usunięcie kategorii używanej przez trwającą/zaplanowaną jazdę zwraca 409.',
+						),
 					},
 				},
 			},

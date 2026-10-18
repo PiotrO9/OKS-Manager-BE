@@ -381,6 +381,7 @@ model Vehicle {
   updatedAt          DateTime?                 @map("updated_at") @db.Timestamptz(3)
 
   school            DrivingSchool     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  supportedCourseTypes CourseType[] @relation("VehicleSupportedCourseTypes")
   defaultForSchools DrivingSchool[]   @relation("SchoolDefaultVehicle")
   lessons           Lesson[]          @relation("VehicleLessons")
   instructorEvents  InstructorEvent[] @relation("VehicleEvents")
@@ -396,6 +397,7 @@ model CourseType {
   createdAt DateTime @default(now()) @map("created_at")
 
   schoolSettingsOffered SchoolSettings[]    @relation("SchoolSettingsOfferedCourseTypes")
+  supportedVehicles Vehicle[] @relation("VehicleSupportedCourseTypes")
   qualifiedInstructors  InstructorProfile[] @relation("InstructorQualifiedCourseTypes")
   courses               Course[]
 

@@ -148,6 +148,7 @@ export async function getLessonBookingOptions(
 								id: true,
 								name: true,
 								category: true,
+								courseTypeId: true,
 								kind: true,
 							},
 						},

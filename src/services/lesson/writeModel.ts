@@ -1,4 +1,5 @@
 import { LessonType, Role } from '@prisma/client';
+import { assertVehicleSupportsCourseType } from '../../lib/vehicleCourseCategories';
 import { AppError } from '../../lib/http/AppError';
 import { assertInstructorQualifiedForCourseType } from '../../lib/instructorCourseQualification';
 import { validateVehicleForInstructor } from '../../lib/vehicle.helpers';
@@ -148,6 +149,11 @@ export async function updateLesson(
 		});
 		if (!vehicleInSchool)
 			throw AppError.badRequest('Vehicle is not for this driving school');
+		await assertVehicleSupportsCourseType(
+			tx,
+			vehicleId,
+			course.courseTypeId,
+		);
 		await validateVehicleForInstructor(instructorId, vehicleId, tx, {
 			requireAvailable:
 				timeChanged || vehicleChanged || instructorChanged,

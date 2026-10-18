@@ -4,6 +4,7 @@ import {
 	LessonStatus,
 	VehicleAvailabilityStatus,
 } from '@prisma/client';
+import { vehicleCourseTypeWhere } from '../../lib/vehicleCourseCategories';
 import { getPrisma } from '../../lib/prisma';
 import {
 	polishDayRange,
@@ -22,13 +23,20 @@ export async function resolveAvailableVehicleWindows(
 	instructorWindows: readonly TimeWindow[],
 	policy: { minDurationMinutes: number; maxDurationMinutes: number },
 	startStepMinutes: number,
-	options: { excludeLessonId?: string; excludeEventId?: string },
+	options: {
+		excludeLessonId?: string;
+		excludeEventId?: string;
+		courseTypeId?: string;
+	},
 ): Promise<Map<string, TimeWindow[]>> {
 	await refreshExpiredVehicleUnavailabilitiesForSchool(prisma, schoolId);
 
 	const vehicles = await prisma.vehicle.findMany({
 		where: {
 			schoolId,
+			...(options.courseTypeId
+				? vehicleCourseTypeWhere(options.courseTypeId)
+				: {}),
 			isActive: true,
 			availabilityStatus: VehicleAvailabilityStatus.ACTIVE,
 		},

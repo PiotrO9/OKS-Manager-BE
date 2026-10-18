@@ -260,3 +260,11 @@ Użycie: wybór pojazdu w modalu rezerwacji przy konkretnym slocie.
 
 - Wolne sloty: [driving-schools-api.md](./driving-schools-api.md) (`GET .../availability/slots`)
 - Harmonogram: [events-schedule-api.md](./events-schedule-api.md).
+
+## Zgodność kategorii pojazdu (2026-10-18)
+
+Tworzenie, rezerwacja własna i rzeczywista zmiana lekcji wymagają, aby kategoria kursu była w `Vehicle.supportedCourseTypes`. Nie ma dziedziczenia kategorii. Manager otrzymuje 400 przy niezgodnym pojeździe; automatyczny dobór kursanta wybiera pierwszy wolny zgodny pojazd, preferując domyślny wyłącznie wśród zgodnych. Brak takiego pojazdu daje 409 (NO_VEHICLE_AVAILABLE). Pozostają kontrole OSK, kwalifikacji, czasu, konfliktów i pakietu godzin.
+
+GET /lessons/:id dodaje `courseType: { id, code, name }` oraz `vehicle.supportedCourseTypes`. Kursy w GET /lessons/booking-options zawierają `courseTypeId` do filtrowania floty. Odczyt, anulowanie i żądanie edycji bez rzeczywistych zmian pozostają możliwe dla dawnych niezgodnych wpisów.
+
+Kategoria jest ponownie odczytywana w transakcji Serializable. Zapis rezerwacji oraz usuwanie kategorii pojazdu współpracują z retry istniejącego mechanizmu transakcji harmonogramu.

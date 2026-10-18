@@ -641,6 +641,7 @@ describe('schedule availability check', () => {
 			'school-1',
 			expect.any(Date),
 			expect.any(Date),
+			'course-type-1',
 		);
 	});
 
@@ -678,6 +679,7 @@ describe('schedule availability check', () => {
 			'school-1',
 			expect.any(Date),
 			expect.any(Date),
+			'course-type-1',
 		);
 	});
 

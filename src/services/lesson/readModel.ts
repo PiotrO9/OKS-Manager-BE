@@ -31,6 +31,9 @@ export async function getLessonById(
 			course: {
 				select: {
 					schoolId: true,
+					courseType: {
+						select: { id: true, code: true, name: true },
+					},
 					school: {
 						select: {
 							settings: {
@@ -65,6 +68,9 @@ export async function getLessonById(
 					modelYear: true,
 					mileageKm: true,
 					note: true,
+					supportedCourseTypes: {
+						select: { id: true, code: true, name: true },
+					},
 					isActive: true,
 					createdAt: true,
 				},
@@ -114,6 +120,7 @@ export async function getLessonById(
 			id: base.id,
 			courseId: base.courseId,
 			schoolId: existing.course.schoolId,
+			courseType: existing.course.courseType,
 			lessonType: base.lessonType,
 			startTime: base.startTime,
 			endTime: base.endTime,

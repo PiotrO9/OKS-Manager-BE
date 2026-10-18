@@ -1,3 +1,9 @@
+import {
+	supportedCourseTypesInclude,
+	assertSupportedCourseTypeIdsExist,
+	assertVehicleCategoriesCanChange,
+} from '../../lib/vehicleCourseCategories';
+import { runScheduleWriteTransaction } from '../schedule-validation/transaction';
 import type { VehicleAvailabilityStatus } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
@@ -54,7 +60,12 @@ export async function upsertVehicleForUser(
 			const activeVehicleCount = await tx.vehicle.count({
 				where: { schoolId, isActive: true },
 			});
+			await assertSupportedCourseTypeIdsExist(
+				tx,
+				payload.supportedCourseTypeIds,
+			);
 			const vehicle = await tx.vehicle.create({
+				include: supportedCourseTypesInclude,
 				data: buildVehicleCreateData(schoolId, payload),
 			});
 
@@ -101,9 +112,17 @@ export async function upsertVehicleForUser(
 		{ excludeVehicleId: idParse },
 	);
 
-	const updated = await prisma.vehicle.update({
-		where: { id: idParse },
-		data: buildVehicleUpdateData(patchPayload),
+	const updated = await runScheduleWriteTransaction(async (tx) => {
+		await assertVehicleCategoriesCanChange(
+			tx,
+			idParse,
+			patchPayload.supportedCourseTypeIds,
+		);
+		return tx.vehicle.update({
+			where: { id: idParse },
+			data: buildVehicleUpdateData(patchPayload),
+			include: supportedCourseTypesInclude,
+		});
 	});
 
 	return { status: 200, vehicle: vehicleToResponse(updated) };
@@ -123,9 +142,17 @@ export async function updateVehicleForUser(
 		{ excludeVehicleId: vehicleId },
 	);
 
-	const updated = await prisma.vehicle.update({
-		where: { id: vehicleId },
-		data: buildVehicleUpdateData(payload),
+	const updated = await runScheduleWriteTransaction(async (tx) => {
+		await assertVehicleCategoriesCanChange(
+			tx,
+			vehicleId,
+			payload.supportedCourseTypeIds,
+		);
+		return tx.vehicle.update({
+			where: { id: vehicleId },
+			data: buildVehicleUpdateData(payload),
+			include: supportedCourseTypesInclude,
+		});
 	});
 
 	return vehicleToResponse(updated);
@@ -149,6 +176,7 @@ export async function updateVehicleStatusForUser(
 			availabilityStatus: payload.status as VehicleAvailabilityStatus,
 			unavailableUntil,
 		},
+		include: supportedCourseTypesInclude,
 	});
 
 	return vehicleToResponse(updated);

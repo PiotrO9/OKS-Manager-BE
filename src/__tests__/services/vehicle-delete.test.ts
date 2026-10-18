@@ -6,6 +6,7 @@ import {
 
 const { db } = vi.hoisted(() => {
 	const tx = {
+		courseType: { count: vi.fn().mockResolvedValue(1) },
 		$queryRaw: vi.fn(),
 		vehicle: {
 			findUnique: vi.fn(),
@@ -183,6 +184,9 @@ describe('upsertVehicleForUser after an empty fleet', () => {
 	it('makes a new vehicle default even when inactive historical vehicles remain', async () => {
 		await expect(
 			upsertVehicleForUser(userId, {
+				supportedCourseTypeIds: [
+					'11111111-1111-4111-8111-111111111111',
+				],
 				schoolId,
 				name: 'Nowy samochód',
 				registrationNumber: 'WX12345',

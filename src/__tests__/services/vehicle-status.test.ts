@@ -1,3 +1,4 @@
+import { supportedCourseTypesInclude } from '../../lib/vehicleCourseCategories';
 import { VehicleAvailabilityStatus } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { vehicleService } from '../../services/vehicle.service';
@@ -83,6 +84,7 @@ describe('vehicleService.updateVehicleStatusForUser', () => {
 		});
 
 		expect(prismaMock.vehicle.update).toHaveBeenCalledWith({
+			include: supportedCourseTypesInclude,
 			where: { id: vehicleId },
 			data: {
 				availabilityStatus: VehicleAvailabilityStatus.UNAVAILABLE,
@@ -108,6 +110,7 @@ describe('vehicleService.updateVehicleStatusForUser', () => {
 		});
 
 		expect(prismaMock.vehicle.update).toHaveBeenCalledWith({
+			include: supportedCourseTypesInclude,
 			where: { id: vehicleId },
 			data: {
 				availabilityStatus: VehicleAvailabilityStatus.ACTIVE,
@@ -138,6 +141,7 @@ describe('vehicleService.updateVehicleStatusForUser', () => {
 		});
 
 		expect(prismaMock.vehicle.update).toHaveBeenCalledWith({
+			include: supportedCourseTypesInclude,
 			where: { id: vehicleId },
 			data: {
 				availabilityStatus: VehicleAvailabilityStatus.UNAVAILABLE,

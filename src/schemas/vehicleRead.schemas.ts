@@ -45,6 +45,7 @@ export type VehicleAvailabilityStatusPayload = z.infer<
 export const vehicleListQuerySchema = schoolIdQuerySchema
 	.merge(
 		z.object({
+			courseId: z.string().uuid().optional(),
 			startTime: z.preprocess(
 				(value) =>
 					value === '' || value === undefined ? undefined : value,

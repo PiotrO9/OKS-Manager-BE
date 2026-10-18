@@ -193,7 +193,14 @@ export const lessonRatingDtoSchema = z
 	})
 	.passthrough();
 
-export const vehicleDataSchema = z.record(z.unknown());
+export const vehicleDataSchema = z
+	.object({
+		id: uuidSchema,
+		supportedCourseTypes: z.array(
+			z.object({ id: uuidSchema, code: z.string(), name: z.string() }),
+		),
+	})
+	.passthrough();
 
 export function okDataUnknown(description: string) {
 	return {

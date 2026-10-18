@@ -389,6 +389,30 @@ describe('bookOwnLesson', () => {
 		});
 	});
 
+	it('rejects a category changed between the initial read and transaction', async () => {
+		mockHappyPath();
+		const current = {
+			id: courseId,
+			schoolId,
+			instructorId: null,
+			courseTypeId: '88888888-8888-4888-8888-888888888888',
+			kind: CourseKind.PRACTICAL,
+			totalHours: 30,
+		};
+		prismaMock.course.findFirst
+			.mockResolvedValueOnce(current)
+			.mockResolvedValue({ ...current, courseTypeId: 'new-category' });
+		await expect(
+			bookOwnLesson(actor, {
+				courseId,
+				instructorId,
+				startTime,
+				endTime,
+			}),
+		).rejects.toMatchObject({ statusCode: 409 });
+		expect(prismaMock.lesson.create).not.toHaveBeenCalled();
+	});
+
 	it('returns conflict when no vehicle is available', async () => {
 		mockHappyPath();
 		prismaMock.vehicle.findMany.mockResolvedValue([]);
@@ -402,7 +426,8 @@ describe('bookOwnLesson', () => {
 			}),
 		).rejects.toMatchObject({
 			statusCode: 409,
-			message: 'No available vehicle for this time slot',
+			message:
+				'Brak dostępnego pojazdu odpowiedniej kategorii w tym terminie.',
 		});
 	});
 });

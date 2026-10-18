@@ -1,4 +1,13 @@
-import { EventStatus, EventType, LessonStatus } from '@prisma/client';
+import {
+	supportedCourseTypesInclude,
+	vehicleCourseTypeWhere,
+} from '../../lib/vehicleCourseCategories';
+import {
+	EventStatus,
+	EventType,
+	LessonStatus,
+	VehicleAvailabilityStatus,
+} from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 import {
@@ -20,6 +29,7 @@ export async function listVehiclesBySchoolForUser(
 	userId: string,
 	schoolId: string,
 	timeRange?: { start: Date; end: Date },
+	courseId?: string,
 ): Promise<{
 	vehicles: VehicleResponse[];
 	defaultVehicleId: string | null;
@@ -29,8 +39,20 @@ export async function listVehiclesBySchoolForUser(
 		throw AppError.forbidden('Forbidden');
 	}
 
+	const course = courseId
+		? await prisma.course.findFirst({
+				where: { id: courseId, schoolId, deletedAt: null },
+				select: { courseTypeId: true },
+			})
+		: null;
+	if (courseId && !course) throw AppError.notFound('Course not found');
 	const vehicles = await prisma.vehicle.findMany({
-		where: { schoolId, isActive: true },
+		where: {
+			schoolId,
+			isActive: true,
+			...(course ? vehicleCourseTypeWhere(course.courseTypeId) : {}),
+		},
+		include: supportedCourseTypesInclude,
 		orderBy: { createdAt: 'asc' },
 	});
 	const refreshedVehicles = await refreshExpiredVehicleUnavailabilities(
@@ -44,10 +66,17 @@ export async function listVehiclesBySchoolForUser(
 		refreshedVehicles.map((vehicle) => vehicle.id),
 		new Date(),
 	);
-	let vehiclesWithDefault = refreshedVehicles.map((vehicle) => ({
-		...vehicle,
-		isDefault: defaultVehicleId !== null && vehicle.id === defaultVehicleId,
-	}));
+	let vehiclesWithDefault = refreshedVehicles
+		.filter(
+			(vehicle) =>
+				!course ||
+				vehicle.availabilityStatus === VehicleAvailabilityStatus.ACTIVE,
+		)
+		.map((vehicle) => ({
+			...vehicle,
+			isDefault:
+				defaultVehicleId !== null && vehicle.id === defaultVehicleId,
+		}));
 
 	if (timeRange) {
 		const { start, end } = timeRange;

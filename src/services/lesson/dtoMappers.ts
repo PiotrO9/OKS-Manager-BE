@@ -39,6 +39,7 @@ export type LessonVehicleDetailDto = {
 	photoUrl: string | null;
 	modelYear: number | null;
 	mileageKm: number | null;
+	supportedCourseTypes?: { id: string; code: string; name: string }[];
 	note: string | null;
 	isActive: boolean;
 	createdAt: string;
@@ -53,6 +54,7 @@ export type LessonWithDetailsDto = Omit<
 	instructor: LessonPersonDetailDto;
 	student: LessonPersonDetailDto;
 	vehicle: LessonVehicleDetailDto | null;
+	courseType: { id: string; code: string; name: string };
 	assignedCourseInstructor: { id: string; name: string } | null;
 	bookingMaxDaysAhead: number;
 	schoolWorkingDaysMask: number;
@@ -119,6 +121,7 @@ export function mapVehicleToLessonDetailDto(vehicle: {
 	modelYear: number | null;
 	mileageKm: number | null;
 	note: string | null;
+	supportedCourseTypes?: { id: string; code: string; name: string }[];
 	isActive: boolean;
 	createdAt: Date;
 }): LessonVehicleDetailDto {
@@ -135,6 +138,7 @@ export function mapVehicleToLessonDetailDto(vehicle: {
 		modelYear: vehicle.modelYear,
 		mileageKm: vehicle.mileageKm,
 		note: vehicle.note,
+		supportedCourseTypes: vehicle.supportedCourseTypes ?? [],
 		isActive: vehicle.isActive,
 		createdAt: vehicle.createdAt.toISOString(),
 	};

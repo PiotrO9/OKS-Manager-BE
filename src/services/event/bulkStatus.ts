@@ -1,4 +1,7 @@
-import { Role } from '@prisma/client';
+import { assertVehicleSupportsCourse } from '../../lib/vehicleCourseCategories';
+import { runScheduleWriteTransaction } from '../schedule-validation/transaction';
+import { Role, EventStatus, EventType } from '@prisma/client';
+import { ScheduleDomainError } from '../../lib/http/ScheduleDomainError';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
 import type { BulkUpdateEventStatusBody } from '../../schemas/event.schemas';
@@ -60,9 +63,34 @@ export async function bulkUpdateEventStatus(
 		return { updated: 0, skipped: uniqueIds.length };
 	}
 
-	const result = await prisma.instructorEvent.updateMany({
-		where: { id: { in: allowedEventIds } },
-		data: { status: body.status },
+	const result = await runScheduleWriteTransaction(async (tx) => {
+		if (body.status === EventStatus.PLANNED) {
+			const drives = await tx.instructorEvent.findMany({
+				where: {
+					id: { in: allowedEventIds },
+					type: EventType.DRIVE,
+					courseId: { not: null },
+				},
+				select: { vehicleId: true, courseId: true },
+			});
+			for (const drive of drives) {
+				if (!drive.vehicleId)
+					throw ScheduleDomainError.badRequestFor(
+						'VEHICLE_UNAVAILABLE',
+						'Wybierz pojazd dla jazdy.',
+					);
+				if (drive.courseId && drive.vehicleId)
+					await assertVehicleSupportsCourse(
+						tx,
+						drive.vehicleId,
+						drive.courseId,
+					);
+			}
+		}
+		return tx.instructorEvent.updateMany({
+			where: { id: { in: allowedEventIds } },
+			data: { status: body.status },
+		});
 	});
 
 	return {

@@ -7,6 +7,8 @@ import { listSchoolAvailabilitySlots } from '../../services/school-availability/
 
 const { prismaMock, accessMock, selectionMock, slotsMock } = vi.hoisted(() => ({
 	prismaMock: {
+		vehicle: { findMany: vi.fn(), updateMany: vi.fn() },
+		instructorEvent: { findMany: vi.fn() },
 		course: { findFirst: vi.fn() },
 		courseParticipant: { findFirst: vi.fn() },
 		instructorProfile: { findMany: vi.fn() },
@@ -53,6 +55,9 @@ function lesson(
 beforeEach(() => {
 	vi.clearAllMocks();
 	lessons = [];
+	prismaMock.vehicle.findMany.mockResolvedValue([{ id: 'vehicle-1' }]);
+	prismaMock.vehicle.updateMany.mockResolvedValue({ count: 0 });
+	prismaMock.instructorEvent.findMany.mockResolvedValue([]);
 	prismaMock.studentProfile.findUnique.mockResolvedValue({ id: 'student-1' });
 	prismaMock.lesson.findMany.mockImplementation(({ where }) =>
 		lessons
@@ -328,4 +333,56 @@ describe('student busy lessons in Polish school slots', () => {
 		);
 		expect(result.total).toBe(2);
 	});
+});
+
+it('filters occupied slots before total and pagination with one fleet load', async () => {
+	vi.useFakeTimers();
+	vi.setSystemTime(new Date('2026-10-11T10:00:00Z'));
+	prismaMock.course.findFirst.mockResolvedValue({
+		instructorId: 'instructor-1',
+		courseTypeId: 'type-b',
+	});
+	prismaMock.instructorProfile.findMany.mockResolvedValue(
+		instructorIds.map((id) => ({ id })),
+	);
+	prismaMock.lesson.findMany.mockResolvedValue([
+		{
+			vehicleId: 'vehicle-1',
+			startTime: new Date('2026-10-16T07:00:00Z'),
+			endTime: new Date('2026-10-16T08:00:00Z'),
+		},
+	]);
+	slotsMock.mockResolvedValue([
+		{ date: '2026-10-16', startTime: '09:00', endTime: '10:00' },
+		{ date: '2026-10-16', startTime: '11:00', endTime: '12:00' },
+	]);
+	const result = await listSchoolAvailabilitySlots(
+		{ id: 'manager', role: Role.MANAGER },
+		'school-1',
+		{
+			dateFrom: '2026-10-16',
+			dateTo: '2026-10-16',
+			courseId: 'course-1',
+			sort: 'startTime',
+			excludeMyLessons: false,
+			offset: 1,
+			limit: 1,
+		},
+	);
+	expect(result.total).toBe(2);
+	expect(result.slots).toEqual([
+		expect.objectContaining({
+			startTime: '11:00',
+			instructorId: 'instructor-2',
+		}),
+	]);
+	expect(prismaMock.vehicle.findMany).toHaveBeenCalledTimes(1);
+	expect(prismaMock.vehicle.findMany).toHaveBeenCalledWith(
+		expect.objectContaining({
+			where: expect.objectContaining({
+				supportedCourseTypes: { some: { id: 'type-b' } },
+			}),
+		}),
+	);
+	expect(prismaMock.instructorEvent.findMany).toHaveBeenCalledTimes(1);
 });

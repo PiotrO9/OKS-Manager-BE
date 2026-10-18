@@ -1,3 +1,7 @@
+import {
+	assertVehicleSupportsCourseType,
+	assertVehicleSupportsCourse,
+} from '../../lib/vehicleCourseCategories';
 import { EventType, Role } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import {
@@ -59,6 +63,7 @@ export type ScheduleAvailabilityIssueCode =
 	| 'STUDENT_NOT_ELIGIBLE'
 	| 'COURSE_LIMIT_EXCEEDED'
 	| 'DATE_NOT_BOOKABLE'
+	| 'VEHICLE_COURSE_TYPE_MISMATCH'
 	| 'VEHICLE_UNAVAILABLE'
 	| 'VEHICLE_BUSY'
 	| 'NO_VEHICLE_AVAILABLE'
@@ -222,10 +227,12 @@ async function checkLessonCreateAvailability(
 				course.schoolId,
 				start,
 				end,
+				course.courseTypeId,
 			);
 		} catch (error) {
 			issues.push({
 				code: scheduleIssueCode(error, [
+					'VEHICLE_COURSE_TYPE_MISMATCH',
 					'VEHICLE_BUSY',
 					'VEHICLE_UNAVAILABLE',
 				]),
@@ -375,6 +382,7 @@ async function checkLessonSelfBookAvailability(
 						course.schoolId,
 						start,
 						shortEnd,
+						course.courseTypeId,
 					);
 					const shortEndTime = instantToPolishDateTime(shortEnd).time;
 					alternative = {
@@ -395,6 +403,7 @@ async function checkLessonSelfBookAvailability(
 				course.schoolId,
 				start,
 				end,
+				course.courseTypeId,
 			);
 		} catch (error) {
 			scheduleIssueCode(error, ['NO_VEHICLE_AVAILABLE']);
@@ -525,6 +534,11 @@ async function checkLessonEditAvailability(
 				'Vehicle is not for this driving school',
 			);
 		}
+		await assertVehicleSupportsCourseType(
+			prisma,
+			body.vehicleId,
+			existing.course.courseTypeId,
+		);
 		await validateVehicleForInstructor(
 			body.instructorId,
 			body.vehicleId,
@@ -532,8 +546,13 @@ async function checkLessonEditAvailability(
 			{ requireAvailable: true },
 		);
 	} catch (error) {
-		scheduleIssueCode(error, ['VEHICLE_UNAVAILABLE']);
-		issues.push({ code: 'VEHICLE_UNAVAILABLE', field: 'vehicleId' });
+		issues.push({
+			code: scheduleIssueCode(error, [
+				'VEHICLE_UNAVAILABLE',
+				'VEHICLE_COURSE_TYPE_MISMATCH',
+			]),
+			field: 'vehicleId',
+		});
 	}
 
 	await prisma.$transaction(async (tx) => {
@@ -744,6 +763,12 @@ async function checkEventEditAvailability(
 
 	if (current.type === EventType.DRIVE && vehicleId) {
 		try {
+			if (current.courseId)
+				await assertVehicleSupportsCourse(
+					prisma,
+					vehicleId,
+					current.courseId,
+				);
 			await validateVehicleForInstructor(
 				body.instructorId,
 				vehicleId,
@@ -751,8 +776,13 @@ async function checkEventEditAvailability(
 				{ requireAvailable: true },
 			);
 		} catch (error) {
-			scheduleIssueCode(error, ['VEHICLE_UNAVAILABLE']);
-			issues.push({ code: 'VEHICLE_UNAVAILABLE', field: 'vehicleId' });
+			issues.push({
+				code: scheduleIssueCode(error, [
+					'VEHICLE_UNAVAILABLE',
+					'VEHICLE_COURSE_TYPE_MISMATCH',
+				]),
+				field: 'vehicleId',
+			});
 		}
 	}
 

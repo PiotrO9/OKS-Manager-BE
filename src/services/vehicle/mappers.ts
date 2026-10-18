@@ -2,13 +2,16 @@ import type { Vehicle } from '@prisma/client';
 import type { VehicleResponse } from './types';
 
 export function vehicleToResponse(
-	vehicle: Vehicle,
+	vehicle: Vehicle & {
+		supportedCourseTypes?: { id: string; code: string; name: string }[];
+	},
 	isDefault?: boolean,
 ): VehicleResponse {
 	const { availabilityStatus, unavailableUntil, ...rest } = vehicle;
 
 	return {
 		...rest,
+		supportedCourseTypes: vehicle.supportedCourseTypes ?? [],
 		status: availabilityStatus,
 		unavailableUntil: formatDateYmd(unavailableUntil),
 		...(isDefault === undefined ? {} : { isDefault }),

@@ -19,6 +19,7 @@ export type VehicleForAccessRow = {
 	unavailableUntil: Date | null;
 	createdAt: Date;
 	updatedAt: Date | null;
+	supportedCourseTypes: { id: string; code: string; name: string }[];
 	school: {
 		ownerId: string;
 		deletedAt: Date | null;
@@ -30,6 +31,7 @@ export type VehicleResponse = Omit<
 	Vehicle,
 	'availabilityStatus' | 'unavailableUntil'
 > & {
+	supportedCourseTypes: { id: string; code: string; name: string }[];
 	status: VehicleAvailabilityStatus;
 	unavailableUntil: string | null;
 	isDefault?: boolean;

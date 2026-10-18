@@ -1,4 +1,5 @@
-import { CourseKind } from '@prisma/client';
+import { runScheduleWriteTransaction } from '../schedule-validation/transaction';
+import { CourseKind, type Prisma } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { assertInstructorQualifiedForCourseType } from '../../lib/instructorCourseQualification';
 import { getPrisma } from '../../lib/prisma';
@@ -15,9 +16,10 @@ const prisma = getPrisma();
 
 async function resolveCourseTypeByCategory(
 	category: string,
+	db: Prisma.TransactionClient = prisma,
 ): Promise<CourseTypeDto> {
 	const code = category.trim();
-	const courseType = await prisma.courseType.findUnique({
+	const courseType = await db.courseType.findUnique({
 		where: { code },
 		select: { id: true, code: true, name: true },
 	});
@@ -112,171 +114,176 @@ export async function patchCourseForOwner(
 	courseId: string,
 	body: PatchCourseBody,
 ): Promise<CourseDetailDto> {
-	if (Object.keys(body).length === 0) {
+	if (Object.keys(body).length === 0)
 		return getCourseDetailForOwner(userId, courseId);
-	}
-
-	const row = await prisma.course.findUnique({
-		where: { id: courseId },
-		include: {
-			school: { select: { ownerId: true } },
-		},
-	});
-
-	if (!row || row.deletedAt !== null) {
-		throw AppError.notFound('Course not found');
-	}
-	if (row.school.ownerId !== userId) {
-		throw AppError.forbidden('Forbidden');
-	}
-
-	const nextKind = body.kind ?? row.kind;
-	const nextCategory = body.category ?? row.category;
-	const nextStart =
-		body.theoryStartDate === undefined
-			? row.theoryStartDate
-			: body.theoryStartDate;
-	const nextEnd =
-		body.theoryEndDate === undefined
-			? row.theoryEndDate
-			: body.theoryEndDate;
-	const nextCapacity =
-		body.capacity === undefined ? row.capacity : body.capacity;
-	if (nextKind === CourseKind.THEORY_GROUP) {
-		if (
-			(body.kind !== undefined ||
-				body.theoryStartDate !== undefined ||
-				body.theoryEndDate !== undefined) &&
-			(!nextStart || !nextEnd || nextEnd < nextStart)
-		) {
-			throw AppError.badRequest(
-				'Valid theory dates are required for THEORY_GROUP',
-			);
-		}
-	} else if (nextCapacity != null && body.capacity !== undefined) {
-		throw AppError.badRequest(
-			'capacity is only allowed for THEORY_GROUP courses',
-		);
-	}
-
-	const structuralChange =
-		nextKind !== row.kind ||
-		nextCategory !== row.category ||
-		(body.totalHours !== undefined && body.totalHours !== row.totalHours) ||
-		(body.theoryStartDate !== undefined &&
-			nextStart?.getTime() !== row.theoryStartDate?.getTime()) ||
-		(body.theoryEndDate !== undefined &&
-			nextEnd?.getTime() !== row.theoryEndDate?.getTime());
-	if (structuralChange) {
-		const [participants, lessons, events] = await Promise.all([
-			prisma.courseParticipant.count({ where: { courseId } }),
-			prisma.lesson.count({ where: { courseId, deletedAt: null } }),
-			prisma.instructorEvent.count({ where: { courseId } }),
-		]);
-		if (participants || lessons || events) {
-			throw AppError.conflict(
-				'Nie można zmienić kategorii, rodzaju, godzin ani terminów kursu, który ma zapisy lub zajęcia.',
-			);
-		}
-	}
-
-	if (
-		nextKind === CourseKind.THEORY_GROUP &&
-		nextCapacity != null &&
-		body.capacity !== undefined
-	) {
-		const activeParticipants = await prisma.courseParticipant.count({
-			where: { courseId, status: 'ACTIVE' },
+	await runScheduleWriteTransaction(async (tx) => {
+		const row = await tx.course.findUnique({
+			where: { id: courseId },
+			include: {
+				school: { select: { ownerId: true } },
+			},
 		});
-		if (nextCapacity < activeParticipants) {
-			throw AppError.conflict(
-				'Limit miejsc nie może być mniejszy od liczby aktywnych zapisów.',
-			);
+
+		if (!row || row.deletedAt !== null) {
+			throw AppError.notFound('Course not found');
 		}
-	}
-
-	let courseTypeId = row.courseTypeId;
-	if (body.category !== undefined && body.category !== row.category) {
-		const courseType = await resolveCourseTypeByCategory(body.category);
-		courseTypeId = courseType.id;
-	}
-	if (body.kind !== undefined && body.kind !== row.kind) {
-		const settings = await prisma.schoolSettings.findUnique({
-			where: { schoolId: row.schoolId },
-		});
-		if (!settings?.enabledCourseKinds.includes(body.kind)) {
-			throw AppError.badRequest(
-				'Course kind is not enabled for this school',
-			);
+		if (row.school.ownerId !== userId) {
+			throw AppError.forbidden('Forbidden');
 		}
-	}
 
-	const data: {
-		name?: string;
-		category?: string;
-		courseTypeId?: string;
-		kind?: CourseKind;
-		totalHours?: number;
-		theoryStartDate?: Date | null;
-		theoryEndDate?: Date | null;
-		instructorId?: string | null;
-		capacity?: number | null;
-	} = {};
-	if (body.name !== undefined) data.name = body.name;
-	if (body.category !== undefined) {
-		data.category = body.category;
-		data.courseTypeId = courseTypeId;
-	}
-	if (body.kind !== undefined) data.kind = body.kind;
-	if (body.totalHours !== undefined) data.totalHours = body.totalHours;
-	if (body.kind !== undefined && nextKind !== CourseKind.THEORY_GROUP) {
-		data.theoryStartDate = null;
-		data.theoryEndDate = null;
-		data.capacity = null;
-	} else {
-		if (body.theoryStartDate !== undefined)
-			data.theoryStartDate = body.theoryStartDate;
-		if (body.theoryEndDate !== undefined)
-			data.theoryEndDate = body.theoryEndDate;
-		if (body.capacity !== undefined) data.capacity = body.capacity;
-	}
-
-	if ('instructorId' in body) {
-		const nextInstructorId = body.instructorId;
-		if (nextInstructorId != null) {
-			const link = await prisma.instructorSchool.findFirst({
-				where: {
-					instructorId: nextInstructorId,
-					schoolId: row.schoolId,
-				},
-			});
-			if (!link) {
+		const nextKind = body.kind ?? row.kind;
+		const nextCategory = body.category ?? row.category;
+		const nextStart =
+			body.theoryStartDate === undefined
+				? row.theoryStartDate
+				: body.theoryStartDate;
+		const nextEnd =
+			body.theoryEndDate === undefined
+				? row.theoryEndDate
+				: body.theoryEndDate;
+		const nextCapacity =
+			body.capacity === undefined ? row.capacity : body.capacity;
+		if (nextKind === CourseKind.THEORY_GROUP) {
+			if (
+				(body.kind !== undefined ||
+					body.theoryStartDate !== undefined ||
+					body.theoryEndDate !== undefined) &&
+				(!nextStart || !nextEnd || nextEnd < nextStart)
+			) {
 				throw AppError.badRequest(
-					'instructor does not belong to this school',
+					'Valid theory dates are required for THEORY_GROUP',
 				);
 			}
-			await assertInstructorQualifiedForCourseType(
-				nextInstructorId,
-				courseTypeId,
+		} else if (nextCapacity != null && body.capacity !== undefined) {
+			throw AppError.badRequest(
+				'capacity is only allowed for THEORY_GROUP courses',
 			);
 		}
-		data.instructorId = nextInstructorId ?? null;
-	} else if (courseTypeId !== row.courseTypeId && row.instructorId) {
-		await assertInstructorQualifiedForCourseType(
-			row.instructorId,
-			courseTypeId,
-		);
-	}
 
-	if (Object.keys(data).length === 0) {
-		return getCourseDetailForOwner(userId, courseId);
-	}
+		const structuralChange =
+			nextKind !== row.kind ||
+			nextCategory !== row.category ||
+			(body.totalHours !== undefined &&
+				body.totalHours !== row.totalHours) ||
+			(body.theoryStartDate !== undefined &&
+				nextStart?.getTime() !== row.theoryStartDate?.getTime()) ||
+			(body.theoryEndDate !== undefined &&
+				nextEnd?.getTime() !== row.theoryEndDate?.getTime());
+		if (structuralChange) {
+			const [participants, lessons, events] = await Promise.all([
+				tx.courseParticipant.count({ where: { courseId } }),
+				tx.lesson.count({ where: { courseId, deletedAt: null } }),
+				tx.instructorEvent.count({ where: { courseId } }),
+			]);
+			if (participants || lessons || events) {
+				throw AppError.conflict(
+					'Nie można zmienić kategorii, rodzaju, godzin ani terminów kursu, który ma zapisy lub zajęcia.',
+				);
+			}
+		}
 
-	await prisma.course.update({
-		where: { id: courseId },
-		data,
+		if (
+			nextKind === CourseKind.THEORY_GROUP &&
+			nextCapacity != null &&
+			body.capacity !== undefined
+		) {
+			const activeParticipants = await tx.courseParticipant.count({
+				where: { courseId, status: 'ACTIVE' },
+			});
+			if (nextCapacity < activeParticipants) {
+				throw AppError.conflict(
+					'Limit miejsc nie może być mniejszy od liczby aktywnych zapisów.',
+				);
+			}
+		}
+
+		let courseTypeId = row.courseTypeId;
+		if (body.category !== undefined && body.category !== row.category) {
+			const courseType = await resolveCourseTypeByCategory(
+				body.category,
+				tx,
+			);
+			courseTypeId = courseType.id;
+		}
+		if (body.kind !== undefined && body.kind !== row.kind) {
+			const settings = await tx.schoolSettings.findUnique({
+				where: { schoolId: row.schoolId },
+			});
+			if (!settings?.enabledCourseKinds.includes(body.kind)) {
+				throw AppError.badRequest(
+					'Course kind is not enabled for this school',
+				);
+			}
+		}
+
+		const data: {
+			name?: string;
+			category?: string;
+			courseTypeId?: string;
+			kind?: CourseKind;
+			totalHours?: number;
+			theoryStartDate?: Date | null;
+			theoryEndDate?: Date | null;
+			instructorId?: string | null;
+			capacity?: number | null;
+		} = {};
+		if (body.name !== undefined) data.name = body.name;
+		if (body.category !== undefined) {
+			data.category = body.category;
+			data.courseTypeId = courseTypeId;
+		}
+		if (body.kind !== undefined) data.kind = body.kind;
+		if (body.totalHours !== undefined) data.totalHours = body.totalHours;
+		if (body.kind !== undefined && nextKind !== CourseKind.THEORY_GROUP) {
+			data.theoryStartDate = null;
+			data.theoryEndDate = null;
+			data.capacity = null;
+		} else {
+			if (body.theoryStartDate !== undefined)
+				data.theoryStartDate = body.theoryStartDate;
+			if (body.theoryEndDate !== undefined)
+				data.theoryEndDate = body.theoryEndDate;
+			if (body.capacity !== undefined) data.capacity = body.capacity;
+		}
+
+		if ('instructorId' in body) {
+			const nextInstructorId = body.instructorId;
+			if (nextInstructorId != null) {
+				const link = await tx.instructorSchool.findFirst({
+					where: {
+						instructorId: nextInstructorId,
+						schoolId: row.schoolId,
+					},
+				});
+				if (!link) {
+					throw AppError.badRequest(
+						'instructor does not belong to this school',
+					);
+				}
+				await assertInstructorQualifiedForCourseType(
+					nextInstructorId,
+					courseTypeId,
+					tx,
+				);
+			}
+			data.instructorId = nextInstructorId ?? null;
+		} else if (courseTypeId !== row.courseTypeId && row.instructorId) {
+			await assertInstructorQualifiedForCourseType(
+				row.instructorId,
+				courseTypeId,
+				tx,
+			);
+		}
+
+		if (Object.keys(data).length === 0) {
+			return;
+		}
+
+		await tx.course.update({
+			where: { id: courseId },
+			data,
+		});
 	});
-
 	return getCourseDetailForOwner(userId, courseId);
 }
 

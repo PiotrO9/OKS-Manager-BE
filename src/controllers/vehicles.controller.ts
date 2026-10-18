@@ -28,6 +28,7 @@ async function listVehiclesBySchool(req: Request, res: Response) {
 		user.id,
 		query.schoolId,
 		timeRange,
+		query.courseId,
 	);
 	return sendJsonSuccess(res, data);
 }

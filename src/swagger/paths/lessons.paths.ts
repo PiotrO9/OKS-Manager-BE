@@ -26,7 +26,7 @@ export function registerLessonPaths(registry: OpenAPIRegistry): void {
 		tags: ['Lessons'],
 		summary: 'Kursanci i kursy dostępne do rezerwacji jazdy (MANAGER+)',
 		description:
-			'Wyszukuje kursantów z aktywnym uczestnictwem w aktywnych kursach praktycznych lub dodatkowych, których kategorię może prowadzić co najmniej jeden wskazany instruktor. instructorIds to lista UUID oddzielonych przecinkami. Wynik jest stronicowany.',
+			'Wyszukuje kursantów z aktywnym uczestnictwem w aktywnych kursach praktycznych lub dodatkowych, których kategorię może prowadzić co najmniej jeden wskazany instruktor. instructorIds to lista UUID oddzielonych przecinkami. Wynik jest stronicowany. Każdy kurs zawiera courseTypeId, używany do dopasowania pojazdu.',
 		security: [{ bearerAuth: [] }],
 		request: {
 			query: z.object({
@@ -50,7 +50,7 @@ export function registerLessonPaths(registry: OpenAPIRegistry): void {
 		tags: ['Lessons'],
 		summary: 'Rezerwacja lekcji (MANAGER+)',
 		description:
-			'Tworzy jazdę praktyczną. Instruktor musi mieć uprawnienie do kategorii kursu (`Course.courseTypeId`).',
+			'Tworzy jazdę praktyczną. Instruktor musi mieć uprawnienie do kategorii kursu (Course.courseTypeId), a pojazd musi obsługiwać dokładnie tę kategorię.',
 		security: [{ bearerAuth: [] }],
 		request: {
 			body: {
