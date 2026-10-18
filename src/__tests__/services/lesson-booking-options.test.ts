@@ -42,7 +42,11 @@ describe('lesson booking options', () => {
 		mocks.findMany.mockResolvedValue([
 			{
 				userId: 'student-b-c',
-				user: { firstName: 'Jan', lastName: 'Nowak' },
+				user: {
+					firstName: 'Jan',
+					lastName: 'Nowak',
+					email: 'jan@example.com',
+				},
 				courseParticipants: [
 					{
 						course: {
@@ -79,6 +83,7 @@ describe('lesson booking options', () => {
 				userId: 'student-b-c',
 				firstName: 'Jan',
 				lastName: 'Nowak',
+				email: 'jan@example.com',
 				courses: [
 					{
 						id: 'course-b',
@@ -90,6 +95,29 @@ describe('lesson booking options', () => {
 				],
 			},
 		]);
+	});
+
+	it('finds a student by full name and returns email for identification', async () => {
+		await getLessonBookingOptions(actor, { ...query, q: 'Jan Nowak' });
+		const userWhere = mocks.findMany.mock.calls[0]![0].where.user;
+		expect(userWhere.OR).toEqual(
+			expect.arrayContaining([
+				{
+					AND: [
+						{ firstName: { contains: 'Jan', mode: 'insensitive' } },
+						{
+							lastName: {
+								contains: 'Nowak',
+								mode: 'insensitive',
+							},
+						},
+					],
+				},
+			]),
+		);
+		expect(mocks.findMany.mock.calls[0]![0].select.user.select.email).toBe(
+			true,
+		);
 	});
 
 	it('returns no students for an instructor without qualifications', async () => {

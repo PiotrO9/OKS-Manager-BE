@@ -60,6 +60,28 @@ export async function getLessonBookingOptions(
 		kind: { in: [CourseKind.PRACTICAL, CourseKind.EXTRA] },
 		courseTypeId: { in: qualifiedTypeIds },
 	};
+	const nameParts = query.q.trim().split(/\s+/);
+	const fullNameFilters =
+		nameParts.length > 1
+			? [
+					{
+						AND: [
+							{
+								firstName: {
+									contains: nameParts[0],
+									mode: 'insensitive' as const,
+								},
+							},
+							{
+								lastName: {
+									contains: nameParts.slice(1).join(' '),
+									mode: 'insensitive' as const,
+								},
+							},
+						],
+					},
+				]
+			: [];
 	const where: Prisma.StudentProfileWhereInput = {
 		studentSchools: { some: { schoolId: query.schoolId } },
 		user: {
@@ -87,6 +109,7 @@ export async function getLessonBookingOptions(
 									mode: 'insensitive',
 								},
 							},
+							...fullNameFilters,
 						],
 					}
 				: {}),
@@ -111,7 +134,9 @@ export async function getLessonBookingOptions(
 			take: query.limit,
 			select: {
 				userId: true,
-				user: { select: { firstName: true, lastName: true } },
+				user: {
+					select: { firstName: true, lastName: true, email: true },
+				},
 				courseParticipants: {
 					where: {
 						status: CourseParticipantStatus.ACTIVE,
@@ -136,6 +161,7 @@ export async function getLessonBookingOptions(
 			userId: student.userId,
 			firstName: student.user.firstName,
 			lastName: student.user.lastName,
+			email: student.user.email,
 			courses: student.courseParticipants.map(({ course }) => ({
 				...course,
 				status: 'ACTIVE',
