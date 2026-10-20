@@ -1,5 +1,6 @@
 import type { OpenAPIRegistry } from '@asteasolutions/zod-to-openapi';
 import { okDataUnknown, stdBearerResponses, z } from './shared';
+import { managerAccountsQuerySchema } from '../../lib/validation/managerAccountSchemas';
 
 const schoolQuery = z.object({ schoolId: z.string().uuid() });
 const targetParams = z.object({ userId: z.string().uuid() });
@@ -21,8 +22,49 @@ export function registerManagerAccountsPaths(registry: OpenAPIRegistry): void {
 		tags: ['Manager'],
 		summary: 'Konta kursantów i instruktorów w OSK managera',
 		security: [{ bearerAuth: [] }],
-		request: { query: schoolQuery },
-		responses: stdBearerResponses({ 200: okDataUnknown('Konta') }),
+		description:
+			'Podaj page, aby otrzymać stronicowaną listę. Brak page zachowuje tymczasowo pełną tablicę dla starszych klientów. Wyszukiwanie wymaga dopasowania każdego wyrazu do imienia, nazwiska lub e-maila. profileId umożliwia punktowe znalezienie konta instruktora.',
+		request: { query: managerAccountsQuerySchema },
+		responses: stdBearerResponses({
+			200: {
+				description:
+					'Strona kont lub tablica zgodna ze starszym klientem',
+				content: {
+					'application/json': {
+						schema: z.object({
+							success: z.literal(true),
+							data: z.union([
+								z.object({
+									items: z.array(
+										z.object({
+											id: z.string().uuid(),
+											role: z.enum([
+												'STUDENT',
+												'INSTRUCTOR',
+											]),
+											firstName: z.string(),
+											lastName: z.string(),
+											email: z.string(),
+											isActive: z.boolean(),
+											deletedAt: z
+												.string()
+												.datetime()
+												.nullable(),
+										}),
+									),
+									total: z.number().int().nonnegative(),
+									page: z.number().int().positive(),
+									limit: z.number().int().min(1).max(100),
+								}),
+								z
+									.array(z.unknown())
+									.describe('Legacy: tylko żądania bez page'),
+							]),
+						}),
+					},
+				},
+			},
+		}),
 	});
 
 	const routes = [

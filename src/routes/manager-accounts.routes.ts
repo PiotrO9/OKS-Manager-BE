@@ -5,11 +5,13 @@ import { asyncHandler } from '../lib/http/asyncHandler';
 import { requireUser } from '../lib/http/requireUser';
 import { authMiddleware, requireRole } from '../middleware/auth.middleware';
 import { parseRequestPart } from '../controllers/requestParsing';
+import { managerAccountsQuerySchema } from '../lib/validation/managerAccountSchemas';
 import {
 	archiveManagerAccount,
 	changeManagerAccountEmail,
 	getManagerAccount,
 	listManagerAccounts,
+	searchManagerAccounts,
 	listManagerAccountObligations,
 	reconcileManagerAccountEmail,
 	sendManagerAccountPasswordReset,
@@ -52,14 +54,19 @@ function createManagerAccountsRouter() {
 		'/accounts',
 		asyncHandler(async (req: Request, res: Response) => {
 			const actor = requireUser(req);
-			const { schoolId } = parseRequestPart(
-				schoolQuery,
+			const query = parseRequestPart(
+				managerAccountsQuerySchema,
 				req.query,
 				'query',
 			);
 			return sendJsonSuccess(
 				res,
-				await listManagerAccounts(actor.id, schoolId),
+				query.page === undefined
+					? await listManagerAccounts(actor.id, query.schoolId)
+					: await searchManagerAccounts(actor.id, {
+							...query,
+							page: query.page,
+						}),
 			);
 		}),
 	);

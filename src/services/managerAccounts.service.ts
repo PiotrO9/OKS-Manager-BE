@@ -8,6 +8,7 @@ import { getSupabaseAdminClient } from '../lib/supabaseAdmin';
 import { recordSecurityEvent } from './security-events/record';
 import type { SecurityEventType } from './security-events/types';
 import { findManagerAccountObligations } from './managerAccountObligations.service';
+import type { ManagerAccountsQuery } from '../lib/validation/managerAccountSchemas';
 
 const prisma = getPrisma();
 type Tx = Prisma.TransactionClient;
@@ -262,6 +263,56 @@ async function requireAvailable(
 		throw AppError.conflict('Account change already in progress');
 }
 
+export async function searchManagerAccounts(
+	actorId: string,
+	query: ManagerAccountsQuery & { page: number },
+) {
+	await assertManagerOwnsSchool(prisma, actorId, query.schoolId);
+	const AND: Prisma.UserWhereInput[] = [accountWhere(query.schoolId)];
+	if (query.role) AND.push({ role: query.role });
+	if (query.profileId)
+		AND.push({ instructorProfile: { id: query.profileId } });
+	for (const term of query.search?.split(/\s+/).filter(Boolean) ?? []) {
+		// Prisma contains uses LIKE patterns; user input must remain literal.
+		const contains = term.replace(/[\\%_]/g, '\\$&');
+		AND.push({
+			OR: ['firstName', 'lastName', 'email'].map((field) => ({
+				[field]: { contains, mode: 'insensitive' },
+			})),
+		});
+	}
+	const where: Prisma.UserWhereInput = { AND };
+	return prisma.$transaction(
+		async (tx) => {
+			const [items, total] = await Promise.all([
+				tx.user.findMany({
+					where,
+					select: {
+						id: true,
+						role: true,
+						firstName: true,
+						lastName: true,
+						email: true,
+						isActive: true,
+						deletedAt: true,
+					},
+					orderBy: [
+						{ lastName: 'asc' },
+						{ firstName: 'asc' },
+						{ id: 'asc' },
+					],
+					skip: (query.page - 1) * query.limit,
+					take: query.limit,
+				}),
+				tx.user.count({ where }),
+			]);
+			return { items, total, page: query.page, limit: query.limit };
+		},
+		{ isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+	);
+}
+
+// Temporary compatibility for clients deployed before server pagination.
 export async function listManagerAccounts(actorId: string, schoolId: string) {
 	await assertManagerOwnsSchool(prisma, actorId, schoolId);
 	return prisma.user.findMany({
