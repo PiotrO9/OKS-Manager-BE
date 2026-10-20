@@ -3,8 +3,7 @@ import { AppError } from '../lib/http/AppError';
 
 type RequestPartLabel = 'params' | 'query' | 'body';
 type ParserResult<TData> =
-	| { ok: true; data: TData }
-	| { ok: false; error: string };
+	{ ok: true; data: TData } | { ok: false; error: string };
 
 export function parseRequestPart<TSchema extends z.ZodType>(
 	schema: TSchema,

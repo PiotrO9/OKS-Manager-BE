@@ -26,10 +26,20 @@ const listEventsStatusQuery = z.preprocess(
 export const listEventsQuerySchema = z
 	.object({
 		dateFrom: z
-			.string({ required_error: 'dateFrom is required' })
+			.string({
+				error: (issue) =>
+					issue.input === undefined
+						? 'dateFrom is required'
+						: undefined,
+			})
 			.regex(DATE_RE, 'dateFrom must be in YYYY-MM-DD format'),
 		dateTo: z
-			.string({ required_error: 'dateTo is required' })
+			.string({
+				error: (issue) =>
+					issue.input === undefined
+						? 'dateTo is required'
+						: undefined,
+			})
 			.regex(DATE_RE, 'dateTo must be in YYYY-MM-DD format'),
 		status: listEventsStatusQuery,
 		instructorId: z

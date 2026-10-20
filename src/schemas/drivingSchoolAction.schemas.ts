@@ -17,7 +17,12 @@ export const setDefaultVehicleBodySchema = z.object({
 	vehicleId: z.preprocess(
 		firstBodyValue,
 		z
-			.string({ required_error: 'vehicleId is required' })
+			.string({
+				error: (issue) =>
+					issue.input === undefined
+						? 'vehicleId is required'
+						: undefined,
+			})
 			.min(1, 'vehicleId is required')
 			.regex(UUID_PARAM_RE, 'Invalid vehicleId'),
 	),

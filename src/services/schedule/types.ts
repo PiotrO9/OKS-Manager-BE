@@ -58,8 +58,7 @@ export type ScheduleInstructorEventItemDto = {
 };
 
 export type ScheduleItemDto =
-	| ScheduleLessonItemDto
-	| ScheduleInstructorEventItemDto;
+	ScheduleLessonItemDto | ScheduleInstructorEventItemDto;
 
 export type LessonRow = {
 	id: string;

@@ -6,20 +6,38 @@ const courseKindSchema = z.enum(['THEORY_GROUP', 'PRACTICAL', 'EXTRA']);
 export const createCourseBodySchema = z
 	.object({
 		schoolId: z
-			.string({ required_error: 'schoolId is required' })
+			.string({
+				error: (issue) =>
+					issue.input === undefined
+						? 'schoolId is required'
+						: undefined,
+			})
 			.trim()
 			.regex(UUID_PARAM_RE, 'Invalid schoolId'),
 		name: z
-			.string({ required_error: 'name is required' })
+			.string({
+				error: (issue) =>
+					issue.input === undefined ? 'name is required' : undefined,
+			})
 			.trim()
 			.min(1, 'name is required'),
 		category: z
-			.string({ required_error: 'category is required' })
+			.string({
+				error: (issue) =>
+					issue.input === undefined
+						? 'category is required'
+						: undefined,
+			})
 			.trim()
 			.min(1, 'category is required'),
 		kind: courseKindSchema,
 		totalHours: z
-			.number({ required_error: 'totalHours is required' })
+			.number({
+				error: (issue) =>
+					issue.input === undefined
+						? 'totalHours is required'
+						: undefined,
+			})
 			.int('totalHours must be an integer')
 			.positive('totalHours must be > 0'),
 		capacity: z

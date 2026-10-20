@@ -185,7 +185,7 @@ export function registerAuthPaths(registry: OpenAPIRegistry): void {
 				content: {
 					'application/json': {
 						schema: z
-							.record(z.unknown())
+							.record(z.string(), z.unknown())
 							.describe(
 								'Pola profilu — patrz context/auth.md (RBAC po polach)',
 							),

@@ -22,10 +22,20 @@ export const dayOfWeekParamsSchema = z.object({
 export const putWeeklyBodySchema = z
 	.object({
 		startTime: z
-			.string({ required_error: 'startTime is required' })
+			.string({
+				error: (issue) =>
+					issue.input === undefined
+						? 'startTime is required'
+						: undefined,
+			})
 			.regex(TIME_RE, 'startTime must be in HH:mm format'),
 		endTime: z
-			.string({ required_error: 'endTime is required' })
+			.string({
+				error: (issue) =>
+					issue.input === undefined
+						? 'endTime is required'
+						: undefined,
+			})
 			.regex(TIME_RE, 'endTime must be in HH:mm format'),
 	})
 	.superRefine((data, ctx) => {
@@ -63,10 +73,16 @@ export const exceptionDateParamsSchema = z.object({
 export const exceptionsQuerySchema = z
 	.object({
 		from: z
-			.string({ required_error: 'from is required' })
+			.string({
+				error: (issue) =>
+					issue.input === undefined ? 'from is required' : undefined,
+			})
 			.regex(DATE_RE, 'from must be in YYYY-MM-DD format'),
 		to: z
-			.string({ required_error: 'to is required' })
+			.string({
+				error: (issue) =>
+					issue.input === undefined ? 'to is required' : undefined,
+			})
 			.regex(DATE_RE, 'to must be in YYYY-MM-DD format'),
 	})
 	.superRefine((data, ctx) => {
@@ -83,7 +99,10 @@ export type ExceptionsQuery = z.infer<typeof exceptionsQuerySchema>;
 
 export const putExceptionBodySchema = z
 	.object({
-		isDayOff: z.boolean({ required_error: 'isDayOff is required' }),
+		isDayOff: z.boolean({
+			error: (issue) =>
+				issue.input === undefined ? 'isDayOff is required' : undefined,
+		}),
 		startTime: z
 			.string()
 			.regex(TIME_RE, 'startTime must be in HH:mm format')
@@ -142,7 +161,10 @@ export function parsePutExceptionBody(
 
 export const computeQuerySchema = z.object({
 	date: z
-		.string({ required_error: 'date is required' })
+		.string({
+			error: (issue) =>
+				issue.input === undefined ? 'date is required' : undefined,
+		})
 		.regex(DATE_RE, 'date must be in YYYY-MM-DD format'),
 });
 
@@ -154,10 +176,16 @@ const MAX_SLOT_RANGE_DAYS = 30;
 
 export const slotsQueryBaseSchema = z.object({
 	dateFrom: z
-		.string({ required_error: 'dateFrom is required' })
+		.string({
+			error: (issue) =>
+				issue.input === undefined ? 'dateFrom is required' : undefined,
+		})
 		.regex(DATE_RE, 'dateFrom must be in YYYY-MM-DD format'),
 	dateTo: z
-		.string({ required_error: 'dateTo is required' })
+		.string({
+			error: (issue) =>
+				issue.input === undefined ? 'dateTo is required' : undefined,
+		})
 		.regex(DATE_RE, 'dateTo must be in YYYY-MM-DD format'),
 });
 
