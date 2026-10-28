@@ -4,7 +4,12 @@ const mocks = vi.hoisted(() => {
 	const db = {
 		$queryRaw: vi.fn(),
 		$transaction: vi.fn(),
-		securityEvent: { findMany: vi.fn(), count: vi.fn(), create: vi.fn() },
+		securityEvent: {
+			findMany: vi.fn(),
+			findFirst: vi.fn(),
+			count: vi.fn(),
+			create: vi.fn(),
+		},
 		securityEventSchool: { findUnique: vi.fn() },
 		securityDetectionState: { update: vi.fn() },
 	};
@@ -42,12 +47,47 @@ describe('durable failed-login detector', () => {
 			{ id: sourceId, occurredAt },
 		]);
 		mocks.db.securityEvent.count.mockResolvedValue(5);
+		mocks.db.securityEvent.findFirst.mockResolvedValue(null);
 		mocks.db.securityEventSchool.findUnique.mockResolvedValue({
 			targetUserId: userId,
 			targetDisplayName: 'Jan Kowalski',
 		});
 		mocks.db.securityEvent.create.mockResolvedValue({});
 		mocks.db.securityDetectionState.update.mockResolvedValue({});
+	});
+
+	it('does not duplicate an existing alarm after a late-event rewind', async () => {
+		mocks.db.securityEvent.findFirst.mockResolvedValue({ occurredAt });
+		await processSecurityDetectionQueue(1);
+		expect(mocks.db.securityEvent.create).not.toHaveBeenCalled();
+		expect(mocks.db.securityDetectionState.update).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					nextEligibleAt: new Date(occurredAt.getTime() + 600_000),
+				}),
+			}),
+		);
+	});
+
+	it('keeps rotated login hashes in separate detection namespaces', async () => {
+		mocks.db.$queryRaw.mockResolvedValue([
+			{ ...state, subject_key: 'hash:abc', key_version: 'v2' },
+		]);
+		await processSecurityDetectionQueue(1);
+		expect(mocks.db.securityEvent.count).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					loginIdentifierHash: 'abc',
+					hashKeyVersion: 'v2',
+				}),
+			}),
+		);
+	});
+
+	it('does not alert below the threshold', async () => {
+		mocks.db.securityEvent.count.mockResolvedValue(4);
+		await processSecurityDetectionQueue(1);
+		expect(mocks.db.securityEvent.create).not.toHaveBeenCalled();
 	});
 
 	it('creates one alarm for the threshold in the same transaction as queue progress', async () => {

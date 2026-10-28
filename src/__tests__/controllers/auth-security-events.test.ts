@@ -7,6 +7,12 @@ const mocks = vi.hoisted(() => ({
 	registerSession: vi.fn(),
 	resolveTarget: vi.fn(),
 	recordEvent: vi.fn(),
+	checkLimit: vi.fn(),
+}));
+
+vi.mock('../../services/loginRateLimit', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../../services/loginRateLimit')>()),
+	checkLoginRateLimit: mocks.checkLimit,
 }));
 
 vi.mock('../../lib/supabase', () => ({
@@ -28,6 +34,7 @@ vi.mock('../../lib/securityEventContext', () => ({
 }));
 
 import { login } from '../../controllers/auth/session.handlers';
+import { LoginLimitExceeded } from '../../services/loginRateLimit';
 
 function request(): Request {
 	return {
@@ -47,6 +54,7 @@ function response(): Response {
 describe('login security events', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		mocks.checkLimit.mockReset().mockResolvedValue(undefined);
 		mocks.resolveTarget.mockResolvedValue({
 			targetUserId: '11111111-1111-4111-8111-111111111111',
 			targetDisplayName: 'Jan Kowalski',
@@ -58,6 +66,59 @@ describe('login security events', () => {
 			],
 		});
 		mocks.recordEvent.mockResolvedValue(undefined);
+	});
+
+	it('rejects an exhausted application budget before calling Auth', async () => {
+		mocks.checkLimit.mockRejectedValue(new LoginLimitExceeded());
+		const res = response();
+		await login(request(), res);
+		expect(res.status).toHaveBeenCalledWith(429);
+		expect(mocks.signIn).not.toHaveBeenCalled();
+		expect(mocks.recordEvent).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.objectContaining({
+				type: 'LOGIN_RATE_LIMITED',
+				httpStatus: 429,
+			}),
+		);
+	});
+
+	it('rejects storage failure as technical unavailability before calling Auth', async () => {
+		mocks.checkLimit.mockRejectedValue(new Error('storage unavailable'));
+		const res = response();
+		await login(request(), res);
+		expect(res.status).toHaveBeenCalledWith(503);
+		expect(mocks.signIn).not.toHaveBeenCalled();
+		expect(mocks.recordEvent).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.objectContaining({
+				reasonCode: 'LOGIN_LIMIT_UNAVAILABLE',
+				httpStatus: 503,
+			}),
+		);
+	});
+
+	it('preserves the provider rate-limit status in both HTTP and audit', async () => {
+		mocks.signIn.mockResolvedValue({
+			data: {},
+			error: {
+				code: 'over_request_rate_limit',
+				message: 'internal provider detail',
+			},
+		});
+		const res = response();
+		await login(request(), res);
+		expect(res.status).toHaveBeenCalledWith(429);
+		expect(JSON.stringify(vi.mocked(res.json).mock.calls)).not.toContain(
+			'internal provider detail',
+		);
+		expect(mocks.recordEvent).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.objectContaining({
+				type: 'LOGIN_RATE_LIMITED',
+				httpStatus: 429,
+			}),
+		);
 	});
 
 	it('records invalid credentials as an unknown actor attempting a known account', async () => {

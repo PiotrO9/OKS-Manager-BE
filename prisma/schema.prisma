@@ -185,6 +185,14 @@ model AccountAction {
 
 // Security history deliberately has no foreign keys to users/schools: removing an
 // account or a school must not silently rewrite or erase historical evidence.
+model SecurityMonitorHealth {
+  component     String    @id @db.VarChar(24)
+  lastSuccessAt DateTime? @map("last_success_at") @db.Timestamptz(3)
+  lastFailureAt DateTime? @map("last_failure_at") @db.Timestamptz(3)
+
+  @@map("security_monitor_health")
+}
+
 model SecurityEvent {
   id                        String                @id @default(uuid()) @db.Uuid
   occurredAt                DateTime              @default(now()) @map("occurred_at") @db.Timestamptz(3)
@@ -619,4 +627,13 @@ model LessonRating {
   @@index([instructorId, createdAt], name: "idx_lesson_ratings_instructor_id_created_at")
   @@index([studentId, createdAt], name: "idx_lesson_ratings_student_id_created_at")
   @@map("lesson_ratings")
+}
+
+model LoginRateLimitBucket {
+  key       String   @id @db.VarChar(64)
+  attempts  Int
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("login_rate_limit_buckets")
 }

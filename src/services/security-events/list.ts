@@ -8,6 +8,7 @@ import { isIP } from 'node:net';
 import { Prisma } from '@prisma/client';
 import { AppError } from '../../lib/http/AppError';
 import { getPrisma } from '../../lib/prisma';
+import { getSecurityCollectionStatus } from './health';
 import type { SecurityLogFilters } from '../../schemas/security-log.schemas';
 
 const prisma = getPrisma();
@@ -398,7 +399,7 @@ export async function listManagerSecurityLogs(
 			hasNextPage: isNewer ? Boolean(cursor) : hasOverflow,
 			hasPreviousPage: isNewer ? hasOverflow : Boolean(cursor),
 		},
-		collectionStatus: 'UNKNOWN' as const,
+		collectionStatus: await getSecurityCollectionStatus(),
 	};
 }
 

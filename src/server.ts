@@ -3,6 +3,7 @@ import { createApp } from './app';
 import { logger } from './lib/logger';
 import { processSecurityDetectionQueue } from './services/security-events/detection';
 import { pruneExpiredSecurityEvents } from './services/security-events/retention';
+import { reportSecurityHealth } from './services/security-events/health';
 
 function startSecurityDetectionWorker(): void {
 	if (process.env.SECURITY_EVENTS_DETECTION_ENABLED === 'false') return;
@@ -12,7 +13,9 @@ function startSecurityDetectionWorker(): void {
 		running = true;
 		try {
 			await processSecurityDetectionQueue();
+			await reportSecurityHealth('DETECTOR', true);
 		} catch (error) {
+			await reportSecurityHealth('DETECTOR', false);
 			logger.error('Security event detection worker failed', error);
 		} finally {
 			running = false;

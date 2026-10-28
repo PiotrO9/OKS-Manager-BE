@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => {
 	const db = {
 		securityEvent: { create: vi.fn(), findFirst: vi.fn() },
-		securityDetectionState: { upsert: vi.fn() },
+		securityDetectionState: { upsert: vi.fn(), updateMany: vi.fn() },
 		user: { findFirst: vi.fn() },
 		$transaction: vi.fn(),
 	};
@@ -19,6 +19,7 @@ const externalId = '33333333-3333-4333-8333-333333333333';
 describe('security event writer', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		delete process.env.SECURITY_EVENT_HMAC_KEY_VERSION;
 		process.env.SECURITY_EVENT_HMAC_KEY =
 			'unit-test-secret-with-more-than-32-characters';
 		mocks.db.$transaction.mockImplementation(
@@ -27,6 +28,46 @@ describe('security event writer', () => {
 		);
 		mocks.db.securityEvent.create.mockResolvedValue({});
 		mocks.db.securityDetectionState.upsert.mockResolvedValue({});
+	});
+
+	it('uses the configured key version for the event and detection states', async () => {
+		process.env.SECURITY_EVENT_HMAC_KEY_VERSION = 'v2';
+		await recordSecurityEvent({
+			type: 'LOGIN_FAILED',
+			source: 'TEST',
+			attemptId: 'rotation',
+			loginIdentifier: 'test@example.com',
+			schoolScopes: [{ schoolId }],
+		});
+		expect(
+			mocks.db.securityEvent.create.mock.calls[0][0].data.hashKeyVersion,
+		).toBe('v2');
+		for (const [query] of mocks.db.securityDetectionState.upsert.mock
+			.calls) {
+			expect(query.create.keyVersion).toBe('v2');
+		}
+	});
+
+	it('rewinds a processed cursor when an older attempt arrives', async () => {
+		const occurredAt = new Date('2026-10-18T12:00:00Z');
+		await recordSecurityEvent({
+			type: 'LOGIN_FAILED',
+			source: 'TEST',
+			attemptId: 'late',
+			targetUserId: externalId,
+			occurredAt,
+		});
+		expect(mocks.db.securityDetectionState.updateMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					lastProcessedAt: { gte: occurredAt },
+				}),
+				data: expect.objectContaining({
+					lastProcessedAt: new Date(occurredAt.getTime() - 1),
+					nextEligibleAt: null,
+				}),
+			}),
+		);
 	});
 
 	it('stores an unknown login globally and queues durable account detection', async () => {

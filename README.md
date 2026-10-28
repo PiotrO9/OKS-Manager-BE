@@ -54,6 +54,20 @@ Ustaw trzy niezależne sekrety o długości co najmniej 32 znaków: `SECURITY_EV
 
 Po zastosowaniu migracji na DEV można uruchomić `npm run build`, a następnie `node scripts/security-events-dev-smoke.mjs --confirm-dev`. Skrypt wymaga `NODE_ENV=development`, weryfikuje zapis, odczyt, izolację OSK, odmowę HTTP, podpis BFF i detekcję pięciu prób na prawdziwej bazie; własne wpisy testowe usuwa po zakończeniu. Nie uruchamiaj go na PROD.
 
+Migracja `20261018170000_security_monitor_health` dodaje wspólny stan monitorowania i indeksy detekcji. Zastosuj ją przed uruchomieniem nowej wersji. Lista zwraca teraz rzeczywisty `collectionStatus`: `UNKNOWN` przy braku danych o workerze lub błędzie odczytu, `DEGRADED` przy niepełnej konfiguracji, wyłączonym/starym workerze (30 s), znanej awarii z ostatnich 5 minut lub nieaktywnych od ponad 30 s zaległościach. `OK` oznacza brak znanej degradacji backendu, nie gwarancję kompletności historii ani dostępności każdego BFF. Heartbeat jest zapisywany również bez ruchu użytkowników. Zapisy statusu są ograniczone do jednego sukcesu na 5 s na proces/komponent, z limitem transakcji 1,5 s i oczekiwania na połączenie 0,5 s.
+
+Spóźniona próba cofa kursor właściwej reguły w transakcji zapisu. Detektor przelicza późniejsze okna i sprawdza istniejące alarmy, także te ze starszej wersji modułu, zamiast zmieniać historię. Wersja HMAC jest taka sama w zdarzeniu i kluczu stanu; rotacja otwiera nowe okno korelacji nieznanych loginów, bez łączenia skrótów różnych wersji. Konta znane są nadal korelowane po identyfikatorze użytkownika.
+
+Weryfikacja uzupełniająca na DEV:
+
+```bash
+node scripts/security-events-preflight.mjs
+npm run build
+node scripts/security-events-reliability-smoke.mjs --confirm-dev
+```
+
+Drugi skrypt sprawdza opóźnione zdarzenia, deduplikację po cofnięciu kursora, równoległe procesy, blokadę UPDATE, RLS/granty i wspólny heartbeat. Usuwa wyłącznie własne syntetyczne zdarzenia/stany, a raport zapisuje w `../output/bsi-project/reliability-results.json` (katalog jest tworzony automatycznie). Skrypty nie resetują DEV. Heartbeat pozostaje jako rzeczywista informacja diagnostyczna. Przed produkcją wymagane są test obciążeniowy, potwierdzenie topologii proxy/IP, pełny audyt maskowanych odmów 404 i decyzja o trwałym buforowaniu przy awarii bazy. Retry BFF ma maksymalnie dwie próby ze stałym podpisanym identyfikatorem i nie stanowi trwałej kolejki.
+
 ## Homelab Deployment
 
 Pushes to `main` run the backend CI workflow. When CI passes, it triggers the homelab deployment workflow in the deploy repository.

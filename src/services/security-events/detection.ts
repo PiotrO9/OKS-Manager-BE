@@ -38,7 +38,10 @@ function subjectWhere(state: LockedState): Prisma.SecurityEventWhereInput {
 	if (state.subject_key.startsWith('user:'))
 		return { targetUserId: state.subject_key.slice(5) };
 	if (state.subject_key.startsWith('hash:'))
-		return { loginIdentifierHash: state.subject_key.slice(5) };
+		return {
+			loginIdentifierHash: state.subject_key.slice(5),
+			hashKeyVersion: state.key_version,
+		};
 	return { id: '00000000-0000-0000-0000-000000000000' };
 }
 
@@ -63,6 +66,9 @@ async function processOne(): Promise<boolean> {
 				subjectKey: state.subject_key,
 				keyVersion: state.key_version,
 			};
+			const ruleId = createHash('sha256')
+				.update(JSON.stringify(key))
+				.digest('hex');
 			if (!scope && !globalScope) {
 				await tx.securityDetectionState.update({
 					where: { rule_scopeKey_subjectKey_keyVersion: key },
@@ -132,6 +138,54 @@ async function processOne(): Promise<boolean> {
 					},
 				});
 				if (attemptCount < threshold) continue;
+				// Rewinds replay event-time windows after a late arrival. Keep
+				// historical alarms immutable and suppress duplicates in either
+				// direction around an already emitted alarm for this exact scope.
+				const nearby = {
+					gt: windowStart,
+					lt: new Date(source.occurredAt.getTime() + WINDOW_MS),
+				};
+				const legacySources = await tx.securityEvent.findMany({
+					where: {
+						type: 'LOGIN_FAILED',
+						...subjectWhere(state),
+						...schoolWhere,
+						occurredAt: nearby,
+					},
+					select: { id: true },
+				});
+				const previousAlarm = await tx.securityEvent.findFirst({
+					where: {
+						source: 'DETECTOR',
+						type: 'REPEATED_LOGIN_FAILURES',
+						reasonCode:
+							state.rule === 'IP'
+								? 'IP_THRESHOLD'
+								: 'ACCOUNT_THRESHOLD',
+						occurredAt: nearby,
+						...(scope ? schoolWhere : { schools: { none: {} } }),
+						OR: [
+							{
+								resourceType: 'SECURITY_DETECTION_RULE',
+								resourceId: ruleId,
+							},
+							{
+								resourceId: null,
+								sourceEventId: {
+									in: legacySources.map((event) => event.id),
+								},
+							},
+						],
+					},
+					orderBy: { occurredAt: 'desc' },
+					select: { occurredAt: true },
+				});
+				if (previousAlarm) {
+					nextEligibleAt = new Date(
+						previousAlarm.occurredAt.getTime() + WINDOW_MS,
+					);
+					continue;
+				}
 				const projection = scope
 					? await tx.securityEventSchool.findUnique({
 							where: {
@@ -178,6 +232,8 @@ async function processOne(): Promise<boolean> {
 						clientIp:
 							state.rule === 'IP' ? state.subject_key : null,
 						source: 'DETECTOR',
+						resourceType: 'SECURITY_DETECTION_RULE',
+						resourceId: ruleId,
 						attemptId,
 						eventPhase: 'THRESHOLD',
 						sourceEventId: source.id,

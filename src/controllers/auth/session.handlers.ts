@@ -21,6 +21,10 @@ import {
 	REFRESH_TOKEN_MAX_AGE_MS,
 } from './cookies';
 import type { LoginBody } from './types';
+import {
+	checkLoginRateLimit,
+	LoginLimitExceeded,
+} from '../../services/loginRateLimit';
 
 async function loginTarget(email: string) {
 	try {
@@ -52,8 +56,41 @@ function loginErrorType(error: {
 export async function login(req: Request, res: Response) {
 	const { email, password }: LoginBody = req.body;
 
-	if (!email || !password) {
+	if (
+		typeof email !== 'string' ||
+		!email.trim() ||
+		email.length > 320 ||
+		typeof password !== 'string' ||
+		!password ||
+		password.length > 1024
+	) {
 		return sendJsonError(res, 'Email and password required', 400);
+	}
+
+	try {
+		await checkLoginRateLimit(req, email);
+	} catch (error) {
+		const limited = error instanceof LoginLimitExceeded;
+		const target = await loginTarget(email);
+		await recordRequestSecurityEvent(req, {
+			type: limited ? 'LOGIN_RATE_LIMITED' : 'LOGIN_PROVIDER_ERROR',
+			outcome: limited ? 'DENIED' : 'FAILURE',
+			reasonCode: limited
+				? 'APPLICATION_LOGIN_LIMIT'
+				: 'LOGIN_LIMIT_UNAVAILABLE',
+			httpStatus: limited ? 429 : 503,
+			loginIdentifier: email,
+			targetUserId: target.targetUserId,
+			targetDisplayName: target.targetDisplayName,
+			schoolScopes: target.schoolScopes,
+		});
+		return sendJsonError(
+			res,
+			limited
+				? 'Too many login attempts. Try again later.'
+				: 'Login temporarily unavailable',
+			limited ? 429 : 503,
+		);
 	}
 
 	const supabase = getSupabaseClient();
@@ -65,6 +102,7 @@ export async function login(req: Request, res: Response) {
 
 	if (error) {
 		const type = loginErrorType(error);
+		const status = type === 'LOGIN_RATE_LIMITED' ? 429 : 401;
 		const target = await loginTarget(email);
 		await recordRequestSecurityEvent(req, {
 			type,
@@ -73,13 +111,17 @@ export async function login(req: Request, res: Response) {
 					? 'DENIED'
 					: 'FAILURE',
 			reasonCode: error.code ?? 'AUTH_PROVIDER_ERROR',
-			httpStatus: 401,
+			httpStatus: status,
 			loginIdentifier: email,
 			targetUserId: target.targetUserId,
 			targetDisplayName: target.targetDisplayName,
 			schoolScopes: target.schoolScopes,
 		});
-		return sendJsonError(res, error.message, 401);
+		return sendJsonError(
+			res,
+			'Invalid credentials or login unavailable',
+			status,
+		);
 	}
 
 	const accessToken = data.session?.access_token;

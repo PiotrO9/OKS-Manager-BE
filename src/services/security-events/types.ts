@@ -31,17 +31,10 @@ export const SECURITY_EVENT_TYPES = [
 
 export type SecurityEventType = (typeof SECURITY_EVENT_TYPES)[number];
 export type SecurityEventCategory =
-	| 'AUTH'
-	| 'SESSION'
-	| 'ACCESS'
-	| 'ACCOUNT'
-	| 'DETECTION';
+	'AUTH' | 'SESSION' | 'ACCESS' | 'ACCOUNT' | 'DETECTION';
 export type SecurityEventSeverity = 'INFO' | 'WARNING' | 'HIGH';
 export type SecurityEventOutcome =
-	| 'SUCCESS'
-	| 'FAILURE'
-	| 'DENIED'
-	| 'DETECTED';
+	'SUCCESS' | 'FAILURE' | 'DENIED' | 'DETECTED';
 export type ActorVisibility = 'KNOWN' | 'UNKNOWN' | 'EXTERNAL';
 
 export type SecurityEventSchoolScope = {

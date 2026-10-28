@@ -2,6 +2,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { isIP } from 'node:net';
 import { Prisma } from '@prisma/client';
 import { getPrisma } from '../../lib/prisma';
+import { reportSecurityHealth } from './health';
 import {
 	eventDefaults,
 	type SecurityEventInput,
@@ -82,6 +83,7 @@ function detectionKeys(
 	input: SecurityEventInput,
 	scopes: ReturnType<typeof safeScope>[],
 	hash: string | null,
+	keyVersion: string,
 ) {
 	if (input.type !== 'LOGIN_FAILED') return [];
 	const accountKey = input.targetUserId
@@ -101,7 +103,7 @@ function detectionKeys(
 			rule: 'ACCOUNT',
 			scopeKey: 'GLOBAL',
 			subjectKey: accountKey,
-			keyVersion: input.targetUserId ? 'user' : 'v1',
+			keyVersion: input.targetUserId ? 'user' : keyVersion,
 		});
 	if (ipKey && ['SOCKET', 'TRUSTED_PROXY'].includes(input.ipSource ?? ''))
 		keys.push({
@@ -117,7 +119,7 @@ function detectionKeys(
 				rule: 'ACCOUNT',
 				scopeKey,
 				subjectKey: accountKey,
-				keyVersion: input.targetUserId ? 'user' : 'v1',
+				keyVersion: input.targetUserId ? 'user' : keyVersion,
 			});
 		if (ipKey && ['SOCKET', 'TRUSTED_PROXY'].includes(input.ipSource ?? ''))
 			keys.push({
@@ -146,7 +148,11 @@ export async function recordSecurityEvent(
 			]),
 		).values(),
 	];
-	const keys = detectionKeys(input, scopes, hash);
+	const keyVersion =
+		clean(process.env.SECURITY_EVENT_HMAC_KEY_VERSION ?? 'v1', 24) ?? 'v1';
+	const keys = detectionKeys(input, scopes, hash, keyVersion).sort((a, b) =>
+		JSON.stringify(a).localeCompare(JSON.stringify(b)),
+	);
 	const id = randomUUID();
 	const metadata = {
 		...(Number.isSafeInteger(input.metadata?.attemptCount)
@@ -190,14 +196,7 @@ export async function recordSecurityEvent(
 						resourceType: clean(input.resourceType, 48),
 						resourceId: clean(input.resourceId, 100),
 						loginIdentifierHash: hash,
-						hashKeyVersion: hash
-							? clean(
-									process.env
-										.SECURITY_EVENT_HMAC_KEY_VERSION ??
-										'v1',
-									24,
-								)
-							: null,
+						hashKeyVersion: hash ? keyVersion : null,
 						loginIdentifierMasked: input.loginIdentifier
 							? maskLogin(input.loginIdentifier)
 							: null,
@@ -226,10 +225,22 @@ export async function recordSecurityEvent(
 							lastActiveAt: occurredAt,
 						},
 					});
+					// The upsert locks this state until commit. A concurrent worker
+					// cannot advance the cursor between the comparison and rewind.
+					await tx.securityDetectionState.updateMany({
+						where: { ...key, lastProcessedAt: { gte: occurredAt } },
+						data: {
+							lastProcessedAt: new Date(occurredAt.getTime() - 1),
+							lastProcessedEventId:
+								'00000000-0000-0000-0000-000000000000',
+							nextEligibleAt: null,
+						},
+					});
 				}
 			},
 			{ timeout: 3000, maxWait: 1000 },
 		);
+		await reportSecurityHealth('WRITER', true);
 		return { id, created: true };
 	} catch (error) {
 		if (
@@ -246,6 +257,7 @@ export async function recordSecurityEvent(
 			});
 			if (existing) return { id: existing.id, created: false };
 		}
+		await reportSecurityHealth('WRITER', false);
 		throw error;
 	}
 }
