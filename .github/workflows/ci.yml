@@ -52,6 +52,10 @@ jobs:
       - name: Run tests
         run: npm run test
 
+      # Existing migrations revoke privileges from the Supabase API roles.
+      - name: Prepare API roles in the isolated PostgreSQL service
+        run: psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN' -c 'CREATE ROLE authenticated NOLOGIN'
+
       - name: Run database integration tests
         run: npm run test:integration
 

@@ -708,4 +708,157 @@ describe('schedule availability check', () => {
 			issues: [{ code: 'NO_VEHICLE_AVAILABLE', field: 'vehicleId' }],
 		});
 	});
+	const selfBookingBody = {
+		intent: 'lesson_self_book' as const,
+		courseId,
+		instructorId,
+		date: '2026-09-26',
+		startTime: '12:00',
+		endTime: '13:00',
+	};
+	function remainingBalance(minutes = 30, enabled = true) {
+		mocks.loadCourseForBooking.mockResolvedValue({
+			id: courseId,
+			schoolId: 'school-1',
+			instructorId: null,
+			courseTypeId: 'course-type-1',
+			kind: 'PRACTICAL',
+			totalHours: 2,
+		});
+		prismaMock.lesson.findMany.mockResolvedValue([
+			{
+				startTime: new Date('2026-09-25T10:00:00Z'),
+				endTime: new Date(
+					Date.parse('2026-09-25T10:00:00Z') +
+						(120 - minutes) * 60_000,
+				),
+			},
+		]);
+		prismaMock.schoolSettings.findUnique.mockResolvedValue({
+			practiceMinDurationMinutes: 60,
+			practiceMaxDurationMinutes: 120,
+			allowShortFinalPracticeLesson: enabled,
+			minFinalPracticeDurationMinutes: 30,
+		});
+		mocks.assertLessonSchedulingWindowAvailable.mockImplementation(
+			async (_tx, input) => {
+				if (
+					(input.end.getTime() - input.start.getTime()) / 60_000 >
+					minutes
+				)
+					throw ScheduleDomainError.conflictFor(
+						'COURSE_LIMIT_EXCEEDED',
+						'limit',
+					);
+			},
+		);
+	}
+	it('proposes the exact remaining half hour only after checking its schedule and vehicle', async () => {
+		remainingBalance();
+		const result = await checkScheduleAvailability(
+			{ id: studentId, role: Role.STUDENT },
+			selfBookingBody,
+		);
+		expect(result).toMatchObject({
+			available: false,
+			remainingMinutes: 30,
+			alternative: {
+				startTime: '12:00',
+				endTime: '12:30',
+				durationMinutes: 30,
+			},
+			issues: [{ code: 'COURSE_LIMIT_EXCEEDED', field: 'courseId' }],
+		});
+		expect(
+			mocks.findAvailableVehicleIdForStudentBooking,
+		).toHaveBeenCalledWith(
+			prismaMock,
+			instructorId,
+			'school-1',
+			new Date('2026-09-26T10:00:00Z'),
+			new Date('2026-09-26T10:30:00Z'),
+			'course-type-1',
+		);
+	});
+	it.each([
+		[0, true],
+		[15, true],
+		[30, false],
+	] as const)(
+		'does not propose a disallowed balance %i (enabled=%s)',
+		async (minutes, enabled) => {
+			remainingBalance(minutes, enabled);
+			const result = await checkScheduleAvailability(
+				{ id: studentId, role: Role.STUDENT },
+				selfBookingBody,
+			);
+			expect(result.alternative).toBeUndefined();
+		},
+	);
+	it.each(['schedule', 'vehicle'] as const)(
+		'does not propose a shorter slot with a %s conflict',
+		async (kind) => {
+			remainingBalance();
+			if (kind === 'schedule')
+				mocks.assertLessonSchedulingWindowAvailable.mockRejectedValue(
+					ScheduleDomainError.conflictFor('INSTRUCTOR_BUSY', 'busy'),
+				);
+			else
+				mocks.findAvailableVehicleIdForStudentBooking.mockRejectedValue(
+					ScheduleDomainError.conflictFor(
+						'NO_VEHICLE_AVAILABLE',
+						'no car',
+					),
+				);
+			const result = await checkScheduleAvailability(
+				{ id: studentId, role: Role.STUDENT },
+				selfBookingBody,
+			);
+			expect(result.alternative).toBeUndefined();
+			expect(result.available).toBe(false);
+		},
+	);
+	it('does not propose an alternative on an unbookable date and preserves issue order', async () => {
+		remainingBalance();
+		mocks.assertLessonTimeIsBookable.mockRejectedValue(
+			ScheduleDomainError.badRequestFor('DATE_NOT_BOOKABLE', 'date'),
+		);
+		mocks.findAvailableVehicleIdForStudentBooking.mockRejectedValue(
+			ScheduleDomainError.conflictFor('NO_VEHICLE_AVAILABLE', 'no car'),
+		);
+		const result = await checkScheduleAvailability(
+			{ id: studentId, role: Role.STUDENT },
+			selfBookingBody,
+		);
+		expect(result.alternative).toBeUndefined();
+		expect(result.issues.map((issue) => issue.code)).toEqual([
+			'DATE_NOT_BOOKABLE',
+			'COURSE_LIMIT_EXCEEDED',
+			'NO_VEHICLE_AVAILABLE',
+		]);
+	});
+	it('validates an explicit remaining-package booking without offering another alternative', async () => {
+		remainingBalance();
+		const result = await checkScheduleAvailability(
+			{ id: studentId, role: Role.STUDENT },
+			{
+				...selfBookingBody,
+				endTime: '12:30',
+				bookingMode: 'REMAINING_PACKAGE',
+			},
+		);
+		expect(result.available).toBe(true);
+		expect(result.alternative).toBeUndefined();
+	});
+	it('propagates an infrastructure failure while evaluating the short proposal', async () => {
+		remainingBalance();
+		const error = new Error('vehicle storage unavailable');
+		mocks.findAvailableVehicleIdForStudentBooking.mockRejectedValue(error);
+		await expect(
+			checkScheduleAvailability(
+				{ id: studentId, role: Role.STUDENT },
+				selfBookingBody,
+			),
+		).rejects.toBe(error);
+	});
 });

@@ -10,7 +10,12 @@ const mocks = vi.hoisted(() => {
 			findMany: vi.fn(),
 			update: vi.fn(),
 		},
-		accountAction: { count: vi.fn(), create: vi.fn(), update: vi.fn() },
+		accountAction: {
+			count: vi.fn(),
+			create: vi.fn(),
+			update: vi.fn(),
+			findFirst: vi.fn(),
+		},
 		accountSession: { updateMany: vi.fn() },
 		$queryRaw: vi.fn(),
 		$transaction: vi.fn(),
@@ -18,6 +23,7 @@ const mocks = vi.hoisted(() => {
 	return {
 		db,
 		updateAuthUser: vi.fn(),
+		getAuthUser: vi.fn(),
 		recordEvent: vi.fn(),
 		resetPasswordForEmail: vi.fn(),
 	};
@@ -26,7 +32,12 @@ const mocks = vi.hoisted(() => {
 vi.mock('../../lib/prisma', () => ({ getPrisma: () => mocks.db }));
 vi.mock('../../lib/supabaseAdmin', () => ({
 	getSupabaseAdminClient: () => ({
-		auth: { admin: { updateUserById: mocks.updateAuthUser } },
+		auth: {
+			admin: {
+				updateUserById: mocks.updateAuthUser,
+				getUserById: mocks.getAuthUser,
+			},
+		},
 	}),
 }));
 vi.mock('../../lib/supabase', () => ({
@@ -40,6 +51,7 @@ vi.mock('../../services/security-events/record', () => ({
 
 import {
 	changeManagerAccountEmail,
+	reconcileManagerAccountEmail,
 	getManagerAccount,
 	listManagerAccounts,
 	setManagerAccountActive,
@@ -82,7 +94,7 @@ describe('manager account scope and email synchronization', () => {
 	});
 
 	beforeEach(() => {
-		vi.clearAllMocks();
+		vi.resetAllMocks();
 		mocks.db.$transaction.mockImplementation(
 			async (callback: (tx: typeof mocks.db) => Promise<unknown>) =>
 				callback(mocks.db),
@@ -102,6 +114,16 @@ describe('manager account scope and email synchronization', () => {
 			error: null,
 		});
 		mocks.recordEvent.mockResolvedValue({ id: 'event-1', created: true });
+		mocks.db.accountAction.findFirst.mockResolvedValue({
+			id: 'action-1',
+			oldValue: 'old@example.com',
+			newValue: 'new@example.com',
+			requestId: 'request-1',
+		});
+		mocks.getAuthUser.mockResolvedValue({
+			data: { user: { email: 'new@example.com' } },
+			error: null,
+		});
 	});
 
 	it('does not expose accounts when the manager does not own the school', async () => {
@@ -290,5 +312,174 @@ describe('manager account scope and email synchronization', () => {
 		await expect(
 			getManagerAccount(actorId, undefined, userId),
 		).rejects.toMatchObject({ statusCode: 409 });
+	});
+	it('completes email synchronization and revokes sessions before auditing success', async () => {
+		await expect(
+			changeManagerAccountEmail(
+				actorId,
+				schoolId,
+				userId,
+				'new@example.com',
+			),
+		).resolves.toEqual({ id: userId, email: 'new@example.com' });
+		expect(mocks.db.accountAction.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					status: 'PENDING',
+					action: 'EMAIL_CHANGE',
+				}),
+			}),
+		);
+		expect(
+			mocks.db.accountAction.update.mock.calls.map(
+				(call) => call[0].data.status,
+			),
+		).toEqual(['AUTH_UPDATED', 'COMPLETED']);
+		expect(mocks.db.accountSession.updateMany).toHaveBeenCalledWith({
+			where: { userId, revokedAt: null },
+			data: { revokedAt: expect.any(Date) },
+		});
+		expect(
+			mocks.recordEvent.mock.calls.map((call) => call[0].type),
+		).toEqual(['ACCOUNT_EMAIL_CHANGE_REQUESTED', 'ACCOUNT_EMAIL_CHANGED']);
+		expect(
+			mocks.updateAuthUser.mock.invocationCallOrder[0],
+		).toBeGreaterThan(
+			mocks.db.accountAction.create.mock.invocationCallOrder[0]!,
+		);
+		expect(
+			mocks.db.accountSession.updateMany.mock.invocationCallOrder[0],
+		).toBeLessThan(mocks.recordEvent.mock.invocationCallOrder[1]!);
+	});
+	it('records provider refusal without changing the local email or sessions', async () => {
+		mocks.updateAuthUser.mockResolvedValue({
+			data: { user: null },
+			error: { message: 'unavailable' },
+		});
+		await expect(
+			changeManagerAccountEmail(
+				actorId,
+				schoolId,
+				userId,
+				'new@example.com',
+			),
+		).rejects.toMatchObject({ statusCode: 502 });
+		expect(mocks.db.accountAction.update).toHaveBeenCalledWith({
+			where: { id: 'action-1' },
+			data: { status: 'FAILED' },
+		});
+		expect(mocks.db.user.update).not.toHaveBeenCalled();
+		expect(mocks.db.accountSession.updateMany).not.toHaveBeenCalled();
+	});
+	it('rejects starting another email change while a change is pending', async () => {
+		mocks.db.user.findFirst.mockResolvedValue({
+			...account,
+			accountActionsFor: [{ status: 'PENDING' }],
+		});
+		await expect(
+			changeManagerAccountEmail(
+				actorId,
+				schoolId,
+				userId,
+				'new@example.com',
+			),
+		).rejects.toMatchObject({ statusCode: 409 });
+		expect(mocks.updateAuthUser).not.toHaveBeenCalled();
+	});
+	it('finishes repair when Auth already has the new email', async () => {
+		await expect(
+			reconcileManagerAccountEmail(actorId, schoolId, userId),
+		).resolves.toEqual({
+			id: userId,
+			email: 'new@example.com',
+			status: 'COMPLETED',
+		});
+		expect(mocks.updateAuthUser).not.toHaveBeenCalled();
+		expect(mocks.db.user.update).toHaveBeenCalledWith({
+			where: { id: userId },
+			data: { email: 'new@example.com', updatedAt: expect.any(Date) },
+		});
+		expect(mocks.db.accountSession.updateMany).toHaveBeenCalled();
+		expect(mocks.recordEvent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'ACCOUNT_EMAIL_CHANGED',
+				requestId: 'request-1',
+			}),
+		);
+	});
+	it('marks repair as failed when Auth still has the old email', async () => {
+		mocks.getAuthUser.mockResolvedValue({
+			data: { user: { email: 'OLD@example.com' } },
+			error: null,
+		});
+		await expect(
+			reconcileManagerAccountEmail(actorId, schoolId, userId),
+		).resolves.toEqual({ id: userId, status: 'FAILED' });
+		expect(mocks.db.user.update).not.toHaveBeenCalled();
+		expect(mocks.recordEvent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'ACCOUNT_CHANGE_FAILED',
+				reasonCode: 'AUTH_EMAIL_UNCHANGED',
+			}),
+		);
+	});
+	it('rejects repair when Auth has an unexpected third email', async () => {
+		mocks.getAuthUser.mockResolvedValue({
+			data: { user: { email: 'third@example.com' } },
+			error: null,
+		});
+		await expect(
+			reconcileManagerAccountEmail(actorId, schoolId, userId),
+		).rejects.toMatchObject({ statusCode: 409 });
+		expect(mocks.db.accountAction.update).not.toHaveBeenCalled();
+		expect(mocks.db.accountSession.updateMany).not.toHaveBeenCalled();
+	});
+	it('rejects repair without a pending operation before calling Auth', async () => {
+		mocks.db.accountAction.findFirst.mockResolvedValue(null);
+		await expect(
+			reconcileManagerAccountEmail(actorId, schoolId, userId),
+		).rejects.toMatchObject({ statusCode: 404 });
+		expect(mocks.getAuthUser).not.toHaveBeenCalled();
+	});
+	it('rejects repair for another manager before calling Auth', async () => {
+		mocks.db.drivingSchool.findFirst.mockResolvedValue(null);
+		await expect(
+			reconcileManagerAccountEmail(actorId, schoolId, userId),
+		).rejects.toMatchObject({ statusCode: 404 });
+		expect(mocks.getAuthUser).not.toHaveBeenCalled();
+	});
+	it('leaves repair pending when the provider cannot be read', async () => {
+		mocks.getAuthUser.mockResolvedValue({
+			data: { user: null },
+			error: { message: 'unavailable' },
+		});
+		await expect(
+			reconcileManagerAccountEmail(actorId, schoolId, userId),
+		).rejects.toMatchObject({ statusCode: 502 });
+		expect(mocks.db.accountAction.update).not.toHaveBeenCalled();
+	});
+	it('propagates a second local failure during repair without reporting success', async () => {
+		const error = new Error('second failure');
+		mocks.db.user.update.mockRejectedValue(error);
+		await expect(
+			reconcileManagerAccountEmail(actorId, schoolId, userId),
+		).rejects.toBe(error);
+		expect(mocks.recordEvent).not.toHaveBeenCalled();
+		expect(mocks.db.accountAction.update).not.toHaveBeenCalled();
+	});
+	it('keeps a completed change successful even if best-effort audit recording fails', async () => {
+		mocks.recordEvent.mockRejectedValue(new Error('audit unavailable'));
+		await expect(
+			changeManagerAccountEmail(
+				actorId,
+				schoolId,
+				userId,
+				'new@example.com',
+			),
+		).resolves.toEqual({ id: userId, email: 'new@example.com' });
+		expect(mocks.db.accountAction.update).toHaveBeenLastCalledWith({
+			where: { id: 'action-1' },
+			data: { status: 'COMPLETED' },
+		});
 	});
 });
