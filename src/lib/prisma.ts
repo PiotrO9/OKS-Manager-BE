@@ -19,10 +19,6 @@ function createPrismaClient(): PrismaClient {
 }
 
 export function getPrisma(): PrismaClient {
-	if (process.env.NODE_ENV === 'production') {
-		return createPrismaClient();
-	}
-
 	if (!globalThis.__oskManagerPrisma) {
 		globalThis.__oskManagerPrisma = createPrismaClient();
 	}
