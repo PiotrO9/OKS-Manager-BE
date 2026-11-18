@@ -19,7 +19,7 @@ import {
 
 const profileAvatarUpload = multer({
 	storage: multer.memoryStorage(),
-	limits: { fileSize: 5 * 1024 * 1024 },
+	limits: { fileSize: 4_000_000 },
 });
 
 function createAuthRouter() {
@@ -51,7 +51,7 @@ function createAuthRouter() {
 					if (err.code === 'LIMIT_FILE_SIZE') {
 						return sendJsonError(
 							res,
-							'file too large (max 5 MB)',
+							'file too large (max 4 MB)',
 							400,
 						);
 					}

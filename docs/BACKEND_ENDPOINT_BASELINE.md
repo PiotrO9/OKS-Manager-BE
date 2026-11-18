@@ -41,11 +41,11 @@ Mounted in `src/server.ts` at `/auth`, routes in `src/routes/auth.routes.ts`.
 | POST | `/auth/logout` | `logout` | bearer | 200 |
 | GET | `/auth/me` | `getMe` | bearer | 200 |
 | PATCH | `/auth/profile` | `patchProfile` | bearer | 200 |
-| POST | `/auth/profile/avatar` | `uploadProfileAvatar` | bearer, multipart `file`, max 5 MB | 200 |
+| POST | `/auth/profile/avatar` | `uploadProfileAvatar` | bearer, multipart `file`, max 4 MB | 200 |
 
 Known route-level errors:
 
-- `/auth/profile/avatar`: upload above 5 MB returns `400`.
+- `/auth/profile/avatar`: upload above 4 MB returns `400`.
 
 ## Driving Schools
 
@@ -123,14 +123,14 @@ Mounted at `/vehicles`, routes in `src/routes/vehicles.routes.ts`.
 | GET | `/vehicles` | `listVehiclesBySchool` | bearer, min role `MANAGER` | 200 |
 | GET | `/vehicles/:id` | `getVehicleById` | bearer, min role `MANAGER` | 200 |
 | POST | `/vehicles` | `upsertVehicle` | bearer, min role `MANAGER` | 200/201 from service result |
-| POST | `/vehicles/:id/photo` | `uploadVehiclePhoto` | bearer, min role `MANAGER`, multipart `file`, max 5 MB | 200 |
+| POST | `/vehicles/:id/photo` | `uploadVehiclePhoto` | bearer, min role `MANAGER`, multipart `file`, max 4 MB | 200 |
 | PATCH | `/vehicles/:id/status` | `updateVehicleStatus` | bearer, min role `MANAGER` | 200 |
 | PATCH | `/vehicles/:id` | `updateVehicle` | bearer, min role `MANAGER` | 200 |
 | DELETE | `/vehicles/:id` | `deleteVehicle` | bearer, min role `MANAGER` | 200 |
 
 Known route-level errors:
 
-- `/vehicles/:id/photo`: upload above 5 MB returns `400`.
+- `/vehicles/:id/photo`: upload above 4 MB returns `400`.
 
 ## Courses
 
