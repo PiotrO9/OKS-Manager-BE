@@ -111,7 +111,7 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
 		}
 		const sessionDecision = await getAccountSessionDecision(
 			userId,
-			sessionIdFromToken(token),
+			await sessionIdFromToken(token),
 		);
 		if (!sessionDecision.allowed) {
 			await recordRequestSecurityEvent(req, {

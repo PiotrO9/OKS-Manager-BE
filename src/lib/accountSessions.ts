@@ -1,9 +1,11 @@
-import { decodeJwt } from 'jose';
 import { getPrisma } from './prisma';
 
 const prisma = getPrisma();
 
-export function sessionIdFromToken(token: string): string | null {
+export async function sessionIdFromToken(
+	token: string,
+): Promise<string | null> {
+	const { decodeJwt } = await import('jose');
 	try {
 		const claim = decodeJwt(token).session_id;
 		return typeof claim === 'string' &&
@@ -64,7 +66,7 @@ export async function registerAccountSession(
 	userId: string,
 	accessToken: string,
 ): Promise<boolean> {
-	const sessionId = sessionIdFromToken(accessToken);
+	const sessionId = await sessionIdFromToken(accessToken);
 	if (!sessionId) return false;
 
 	return prisma.$transaction(async (tx) => {

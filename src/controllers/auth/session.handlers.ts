@@ -310,7 +310,7 @@ export async function refresh(req: Request, res: Response) {
 		userId && dbUser?.isActive && !dbUser.deletedAt
 			? await getAccountSessionDecision(
 					userId,
-					sessionIdFromToken(accessToken),
+					await sessionIdFromToken(accessToken),
 				)
 			: null;
 	if (
@@ -360,7 +360,7 @@ export async function logout(req: Request, res: Response) {
 	const userId = req.user?.id;
 	let locallyRevoked = false;
 	if (userId) {
-		const sessionId = sessionIdFromToken(
+		const sessionId = await sessionIdFromToken(
 			req.headers.authorization?.replace(/^Bearer\s+/i, '') ?? '',
 		);
 		if (sessionId) {

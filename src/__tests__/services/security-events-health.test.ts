@@ -33,7 +33,7 @@ describe('shared security collection status', () => {
 			])
 			.mockResolvedValueOnce([{ delayed: false }]);
 		const { getSecurityCollectionStatus } =
-			await import('../../services/security-events/health');
+			await import('../../services/security-events/health.js');
 		expect(await getSecurityCollectionStatus()).toBe('OK');
 	});
 	it('reports a stopped worker as degraded', async () => {
@@ -45,7 +45,7 @@ describe('shared security collection status', () => {
 			},
 		]);
 		const { getSecurityCollectionStatus } =
-			await import('../../services/security-events/health');
+			await import('../../services/security-events/health.js');
 		expect(await getSecurityCollectionStatus()).toBe('DEGRADED');
 	});
 	it('retains recent writer failures even when another process is healthy', async () => {
@@ -62,7 +62,7 @@ describe('shared security collection status', () => {
 			},
 		]);
 		const { getSecurityCollectionStatus } =
-			await import('../../services/security-events/health');
+			await import('../../services/security-events/health.js');
 		expect(await getSecurityCollectionStatus()).toBe('DEGRADED');
 	});
 	it('reports a pending old queue as degraded', async () => {
@@ -76,18 +76,18 @@ describe('shared security collection status', () => {
 			])
 			.mockResolvedValueOnce([{ delayed: true }]);
 		const { getSecurityCollectionStatus } =
-			await import('../../services/security-events/health');
+			await import('../../services/security-events/health.js');
 		expect(await getSecurityCollectionStatus()).toBe('DEGRADED');
 	});
 	it('returns unknown when shared health cannot be read', async () => {
 		mocks.db.$queryRaw.mockRejectedValue(new Error('offline'));
 		const { getSecurityCollectionStatus } =
-			await import('../../services/security-events/health');
+			await import('../../services/security-events/health.js');
 		expect(await getSecurityCollectionStatus()).toBe('UNKNOWN');
 	});
 	it('reports disabled detection and missing configuration as degraded', async () => {
 		const { getSecurityCollectionStatus } =
-			await import('../../services/security-events/health');
+			await import('../../services/security-events/health.js');
 		vi.stubEnv('SECURITY_EVENTS_DETECTION_ENABLED', 'false');
 		expect(await getSecurityCollectionStatus()).toBe('DEGRADED');
 		vi.stubEnv('SECURITY_EVENTS_DETECTION_ENABLED', 'true');
@@ -97,7 +97,7 @@ describe('shared security collection status', () => {
 	it('keeps a failed health write until the DB recovers without throwing', async () => {
 		mocks.db.$executeRaw.mockRejectedValueOnce(new Error('offline'));
 		const { reportSecurityHealth } =
-			await import('../../services/security-events/health');
+			await import('../../services/security-events/health.js');
 		await reportSecurityHealth('WRITER', false);
 		await reportSecurityHealth('WRITER', true);
 		expect(mocks.db.$executeRaw).toHaveBeenCalledTimes(2);
